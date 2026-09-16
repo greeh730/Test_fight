@@ -92,6 +92,14 @@ namespace Combat.UI
             SetVerticesDirty();
         }
 
+        public void SetThemeColors(Color outerGlow, Color coreColor, Color tipSpark)
+        {
+            outerGlowColor = outerGlow;
+            hotCoreColor = coreColor;
+            tipSparkColor = tipSpark;
+            SetVerticesDirty();
+        }
+
         protected override void OnPopulateMesh(VertexHelper vh)
         {
             vh.Clear();

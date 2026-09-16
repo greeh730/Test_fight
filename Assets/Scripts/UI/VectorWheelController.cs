@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
+using Combat.Settings;
 
 namespace Combat.UI
 {
@@ -81,7 +82,7 @@ namespace Combat.UI
         };
         [SerializeField] private string neutralStanceName = "— БОЕВАЯ СТОЙКА —";
 
-        [Header("--- White & Red Visual Palette ---")]
+        [Header("--- Visual Palette ---")]
         [SerializeField] private Color outlineColor = Color.white;
         [SerializeField] private Color highlightColor = new Color(1f, 0.12f, 0.25f, 0.65f); // Crimson Neon
         [SerializeField] private Color centerCoreColor = Color.white;
@@ -122,6 +123,7 @@ namespace Combat.UI
 
         private Camera _canvasCamera;
         private Canvas _parentCanvas;
+        private WheelSettingsData _currentSettings = new WheelSettingsData();
 
         private void Awake()
         {
@@ -143,6 +145,81 @@ namespace Combat.UI
 
             ApplyVisualColors();
             UpdatePlaqueText(Direction8.None);
+        }
+
+        private void OnEnable()
+        {
+            CombatSettingsManager.OnSettingsChanged += ApplySettings;
+            if (CombatSettingsManager.Instance != null)
+            {
+                ApplySettings(CombatSettingsManager.Instance.CurrentSettings);
+            }
+        }
+
+        private void OnDisable()
+        {
+            CombatSettingsManager.OnSettingsChanged -= ApplySettings;
+        }
+
+        public void ApplySettings(WheelSettingsData data)
+        {
+            if (data == null) return;
+            _currentSettings = data;
+
+            mouseMotionScale = 0.85f * data.gestureSensitivity;
+            minSwipeDistance = data.deadzone;
+
+            // 1. Позиционирование (Placement)
+            if (wheelRect != null)
+            {
+                switch (data.placement)
+                {
+                    case WheelPlacement.CenterScreen:
+                        wheelRect.anchorMin = new Vector2(0.5f, 0.5f);
+                        wheelRect.anchorMax = new Vector2(0.5f, 0.5f);
+                        wheelRect.pivot = new Vector2(0.5f, 0.5f);
+                        wheelRect.anchoredPosition = Vector2.zero;
+                        break;
+
+                    case WheelPlacement.BottomLeft:
+                        wheelRect.anchorMin = new Vector2(0f, 0f);
+                        wheelRect.anchorMax = new Vector2(0f, 0f);
+                        wheelRect.pivot = new Vector2(0f, 0f);
+                        wheelRect.anchoredPosition = new Vector2(40f, 90f);
+                        break;
+
+                    case WheelPlacement.BottomRight:
+                    default:
+                        wheelRect.anchorMin = new Vector2(1f, 0f);
+                        wheelRect.anchorMax = new Vector2(1f, 0f);
+                        wheelRect.pivot = new Vector2(1f, 0f);
+                        wheelRect.anchoredPosition = new Vector2(-40f, 90f);
+                        break;
+                }
+            }
+
+            // 2. Отображение плашки атак
+            if (plaqueCanvasGroup != null)
+            {
+                plaqueCanvasGroup.gameObject.SetActive(data.showAttackPlaque);
+            }
+
+            // 3. Цветовая палитра
+            WheelSettingsData.GetThemeColors(data.colorTheme, out Color primary, out Color secondary, out Color core);
+            highlightColor = primary;
+            centerCoreColor = core;
+            if (wheelTrailGraphic != null)
+            {
+                wheelTrailGraphic.SetThemeColors(primary, core, core);
+            }
+            if (centerCoreImage != null)
+            {
+                centerCoreImage.color = core;
+            }
+            if (plaqueRect != null && plaqueRect.TryGetComponent<Image>(out var plqImg))
+            {
+                plqImg.color = primary;
+            }
         }
 
         private void Start()
@@ -168,26 +245,54 @@ namespace Combat.UI
         private void HandleLMBGestureTrail()
         {
             Vector2 mousePos = GetMousePosition();
+            bool isToggle = _currentSettings != null && _currentSettings.activationMode == ActivationMode.Toggle;
 
-            // 1. Нажатие ЛКМ
-            if (IsLMBDown())
+            // 1. Активация жеста
+            if (isToggle)
             {
-                IsDragging = true;
-                _penPosition = Vector2.zero;
-                _lastMousePos = mousePos;
-                _fadeAlpha = 1f;
-
-                if (wheelTrailGraphic != null)
+                if (IsLMBDown())
                 {
-                    wheelTrailGraphic.StartNewTrail(Vector2.zero);
+                    if (!IsDragging)
+                    {
+                        StartDrag(mousePos);
+                    }
+                    else
+                    {
+                        ExecuteSwipeComplete();
+                        return;
+                    }
+                }
+            }
+            else // Режим удержания (Hold)
+            {
+                if (IsLMBDown())
+                {
+                    StartDrag(mousePos);
                 }
             }
 
-            // 2. Движение с зажатой ЛКМ
-            if (IsDragging && IsLMBHeld())
+            // 2. Движение мыши или правого стика геймпада
+            if (IsDragging && (isToggle || IsLMBHeld()))
             {
                 Vector2 mouseDelta = mousePos - _lastMousePos;
                 _lastMousePos = mousePos;
+
+                // Инверсия осей
+                if (_currentSettings != null)
+                {
+                    if (_currentSettings.invertX) mouseDelta.x = -mouseDelta.x;
+                    if (_currentSettings.invertY) mouseDelta.y = -mouseDelta.y;
+                }
+
+                // Ввод с правого стика геймпада
+                if (_currentSettings == null || _currentSettings.enableGamepad)
+                {
+                    Vector2 stick = GetGamepadRightStick();
+                    if (stick.sqrMagnitude > 0.04f)
+                    {
+                        mouseDelta += stick * 250f * Time.deltaTime * (_currentSettings != null ? _currentSettings.gestureSensitivity : 1f);
+                    }
+                }
 
                 if (mouseDelta.sqrMagnitude > 0.001f)
                 {
@@ -212,37 +317,29 @@ namespace Combat.UI
                     if (newDir != CurrentDirection)
                     {
                         CurrentDirection = newDir;
-                        _flashIntensity = 1f; // Вспышка при смене сектора!
+                        _flashIntensity = 1f;
                         UpdatePlaqueText(CurrentDirection);
                         onDirectionChanged?.Invoke(CurrentDirection);
                     }
 
                     onVectorChanged?.Invoke(_penPosition.normalized);
                 }
+
+                // Быстрый удар при касании края колеса (Quick-Cast on Edge)
+                if (_currentSettings != null && _currentSettings.quickCastOnEdge && dist >= wheelRadius * 0.95f)
+                {
+                    ExecuteSwipeComplete();
+                    return;
+                }
             }
 
-            // 3. Отпускание ЛКМ
-            if (IsDragging && IsLMBUp())
+            // 3. Завершение жеста в режиме Hold
+            if (!isToggle && IsDragging && IsLMBUp())
             {
-                float dist = _penPosition.magnitude;
-                if (dist >= minSwipeDistance && CurrentDirection != Direction8.None)
-                {
-                    onSwipeCompleted?.Invoke(CurrentDirection, _penPosition.normalized, dist);
-                    if (wheelTrailGraphic != null)
-                    {
-                        onGesturePathCompleted?.Invoke(wheelTrailGraphic.Points, CurrentDirection);
-                    }
-                }
-
-                if (wheelTrailGraphic != null)
-                {
-                    wheelTrailGraphic.FadeOut();
-                }
-
-                IsDragging = false;
+                ExecuteSwipeComplete();
             }
 
-            // 4. Плавное затухание
+            // 4. Плавное затухание в покое
             if (!IsDragging)
             {
                 if (_fadeAlpha > 0f)
@@ -256,6 +353,41 @@ namespace Combat.UI
                     }
                 }
             }
+        }
+
+        private void StartDrag(Vector2 mousePos)
+        {
+            IsDragging = true;
+            _penPosition = Vector2.zero;
+            _lastMousePos = mousePos;
+            _fadeAlpha = 1f;
+
+            if (wheelTrailGraphic != null)
+            {
+                wheelTrailGraphic.StartNewTrail(Vector2.zero);
+            }
+        }
+
+        private void ExecuteSwipeComplete()
+        {
+            if (!IsDragging) return;
+
+            float dist = _penPosition.magnitude;
+            if (dist >= minSwipeDistance && CurrentDirection != Direction8.None)
+            {
+                onSwipeCompleted?.Invoke(CurrentDirection, _penPosition.normalized, dist);
+                if (wheelTrailGraphic != null)
+                {
+                    onGesturePathCompleted?.Invoke(wheelTrailGraphic.Points, CurrentDirection);
+                }
+            }
+
+            if (wheelTrailGraphic != null)
+            {
+                wheelTrailGraphic.FadeOut();
+            }
+
+            IsDragging = false;
         }
 
         private void HandleContinuousModes()
@@ -334,7 +466,8 @@ namespace Combat.UI
         private void UpdateJuiceAnimations()
         {
             // Плавная и мягкая интерполяция масштаба колеса (без резких рывков)
-            _targetScale = IsDragging ? activeScaleMultiplier : 1.0f;
+            float baseScale = _currentSettings != null ? _currentSettings.hudScale : 1.0f;
+            _targetScale = (IsDragging ? activeScaleMultiplier : 1.0f) * baseScale;
             _currentScale = Mathf.Lerp(_currentScale, _targetScale, Time.deltaTime * scaleSmoothSpeed);
             if (wheelRect != null)
             {
@@ -360,6 +493,17 @@ namespace Combat.UI
 
         private void UpdateVisuals(bool instant)
         {
+            float idleAlpha = _currentSettings != null ? _currentSettings.idleOpacity : 0.45f;
+            float effectiveOutlineAlpha = Mathf.Lerp(idleAlpha, 1.0f, _fadeAlpha);
+
+            // 0. Внешний контур колеса с учетом idleOpacity
+            if (wheelOutlineImage != null)
+            {
+                Color outCol = outlineColor;
+                outCol.a = effectiveOutlineAlpha;
+                wheelOutlineImage.color = outCol;
+            }
+
             // 1. Сектор подсветки с эффектом дыхания и вспышкой
             if (sectorHighlightImage != null)
             {
@@ -385,14 +529,14 @@ namespace Combat.UI
             if (centerCoreImage != null)
             {
                 Color coreCol = centerCoreColor;
-                coreCol.a = 0.5f + 0.5f * _fadeAlpha;
+                coreCol.a = effectiveOutlineAlpha * (0.5f + 0.5f * _fadeAlpha);
                 centerCoreImage.color = coreCol;
             }
 
             // 3. Плашка названия атаки под колесом
             if (plaqueCanvasGroup != null)
             {
-                float targetPlaqueAlpha = IsDragging || _fadeAlpha > 0.05f ? 1.0f : 0.45f;
+                float targetPlaqueAlpha = IsDragging || _fadeAlpha > 0.05f ? 1.0f : Mathf.Min(0.45f, idleAlpha + 0.1f);
                 plaqueCanvasGroup.alpha = Mathf.MoveTowards(plaqueCanvasGroup.alpha, targetPlaqueAlpha, Time.deltaTime * 6f);
             }
         }
@@ -481,6 +625,24 @@ namespace Combat.UI
             }
 #endif
             return Input.GetMouseButtonUp(0);
+        }
+
+        private static Vector2 GetGamepadRightStick()
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (UnityEngine.InputSystem.Gamepad.current != null)
+            {
+                return UnityEngine.InputSystem.Gamepad.current.rightStick.ReadValue();
+            }
+#endif
+            try
+            {
+                return new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
+            }
+            catch
+            {
+                return Vector2.zero;
+            }
         }
 
         private void OnValidate()
