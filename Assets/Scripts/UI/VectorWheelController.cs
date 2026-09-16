@@ -169,6 +169,12 @@ namespace Combat.UI
             mouseMotionScale = 0.85f * data.gestureSensitivity;
             minSwipeDistance = data.deadzone;
 
+            // Визуальный радиус мертвой зоны: центральное кольцо точно соответствует deadzone
+            if (centerCoreImage != null)
+            {
+                centerCoreImage.rectTransform.sizeDelta = Vector2.one * (minSwipeDistance * 2f);
+            }
+
             // 1. Позиционирование (Placement)
             if (wheelRect != null)
             {

@@ -971,7 +971,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0.2, g: 0.75, b: 1, a: 0.45}
+  m_Color: {r: 1, g: 0.12, b: 0.25, a: 0.65}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -2466,9 +2466,9 @@ MonoBehaviour:
   coreThickness: 4.5
   minVertexDistance: 3
   fadeDuration: 0.4
-  outerGlowColor: {r: 1, g: 0.12, b: 0.25, a: 0.75}
-  hotCoreColor: {r: 1, g: 1, b: 1, a: 0.98}
-  tipSparkColor: {r: 1, g: 0.95, b: 0.95, a: 1}
+  outerGlowColor: {r: 1, g: 0.12, b: 0.25, a: 0.65}
+  hotCoreColor: {r: 1, g: 1, b: 1, a: 1}
+  tipSparkColor: {r: 1, g: 1, b: 1, a: 1}
 --- !u!222 &487692686
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -2926,7 +2926,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 1, g: 0.12, b: 0.25, a: 0.65}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -3988,7 +3988,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Combat.UI.VectorWheelController
   trackingMode: 0
-  minSwipeDistance: 30
+  minSwipeDistance: 25
   wheelRadius: 85
   mouseMotionScale: 0.85
   deltaSensitivity: 2.5
@@ -4013,7 +4013,7 @@ MonoBehaviour:
   - "\u041D\u0418\u0416\u041D\u042F\u042F \u041F\u041E\u0414\u0421\u0415\u0427\u041A\u0410 \u2198"
   neutralStanceName: "\u2014 \u0411\u041E\u0415\u0412\u0410\u042F \u0421\u0422\u041E\u0419\u041A\u0410 \u2014"
   outlineColor: {r: 1, g: 1, b: 1, a: 1}
-  highlightColor: {r: 0.2, g: 0.75, b: 1, a: 0.45}
+  highlightColor: {r: 1, g: 0.12, b: 0.25, a: 0.65}
   centerCoreColor: {r: 1, g: 1, b: 1, a: 1}
   textActiveColor: {r: 1, g: 0.95, b: 0.95, a: 1}
   textIdleColor: {r: 0.9, g: 0.35, b: 0.45, a: 0.6}
