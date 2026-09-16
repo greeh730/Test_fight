@@ -538,10 +538,7 @@ namespace Combat.Editor
 
             var footerCloseBtn = panelObj.transform.Find("SettingsWindow/Footer/FooterCloseButton");
             if (footerCloseBtn != null)
-            {
-                // При клике на кнопку в футере тоже закрываем
-                footerCloseBtn.GetComponent<Button>().onClick.AddListener(ui.CloseSettings);
-            }
+                so.FindProperty("footerCloseButton").objectReferenceValue = footerCloseBtn.GetComponent<Button>();
 
             var resetBtn = panelObj.transform.Find("SettingsWindow/Footer/ResetButton");
             if (resetBtn != null)

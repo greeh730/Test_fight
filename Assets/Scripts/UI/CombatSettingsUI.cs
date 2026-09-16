@@ -13,6 +13,7 @@ namespace Combat.UI
         [SerializeField] private CanvasGroup panelCanvasGroup;
         [SerializeField] private Button gearOpenButton;
         [SerializeField] private Button closeButton;
+        [SerializeField] private Button footerCloseButton;
         [SerializeField] private Button resetButton;
         [SerializeField] private KeyCode toggleKey = KeyCode.F1;
         [SerializeField] private KeyCode escapeKey = KeyCode.Escape;
@@ -51,12 +52,38 @@ namespace Combat.UI
             {
                 closeButton.onClick.AddListener(CloseSettings);
             }
+            if (footerCloseButton != null)
+            {
+                footerCloseButton.onClick.AddListener(OnSaveAndCloseClicked);
+            }
+            else if (settingsPanel != null)
+            {
+                var fBtnTransform = settingsPanel.transform.Find("SettingsWindow/Footer/FooterCloseButton");
+                if (fBtnTransform != null)
+                {
+                    footerCloseButton = fBtnTransform.GetComponent<Button>();
+                    if (footerCloseButton != null)
+                    {
+                        footerCloseButton.onClick.AddListener(OnSaveAndCloseClicked);
+                    }
+                }
+            }
+
             if (resetButton != null)
             {
                 resetButton.onClick.AddListener(OnResetClicked);
             }
 
             SetupControlListeners();
+        }
+
+        public void OnSaveAndCloseClicked()
+        {
+            if (CombatSettingsManager.Instance != null)
+            {
+                CombatSettingsManager.Instance.SaveSettings();
+            }
+            CloseSettings();
         }
 
         private void Start()
