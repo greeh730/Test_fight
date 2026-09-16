@@ -59,7 +59,6 @@ namespace Combat.UI
 
         [Header("--- UI References ---")]
         [SerializeField] private RectTransform wheelRect;
-        [SerializeField] private Image glowAuraImage;
         [SerializeField] private Image wheelOutlineImage;
         [SerializeField] private Image sectorHighlightImage;
         [SerializeField] private Image centerCoreImage;
@@ -85,15 +84,14 @@ namespace Combat.UI
         [Header("--- White & Red Visual Palette ---")]
         [SerializeField] private Color outlineColor = Color.white;
         [SerializeField] private Color highlightColor = new Color(1f, 0.12f, 0.25f, 0.65f); // Crimson Neon
-        [SerializeField] private Color glowAuraColor = new Color(1f, 0.05f, 0.2f, 0.45f);
         [SerializeField] private Color centerCoreColor = Color.white;
         [SerializeField] private Color textActiveColor = new Color(1f, 0.95f, 0.95f, 1f);
         [SerializeField] private Color textIdleColor = new Color(0.9f, 0.35f, 0.45f, 0.6f);
 
         [Header("--- Juiciness & Game Feel ---")]
-        [SerializeField] private float punchScalePress = 1.09f;
-        [SerializeField] private float springSpeed = 16f;
-        [SerializeField] private float sectorPulseSpeed = 7f;
+        [SerializeField] private float activeScaleMultiplier = 1.025f; // Плавное увеличение на 2.5%
+        [SerializeField] private float scaleSmoothSpeed = 8f;         // Мягкая интерполяция без резких скачков
+        [SerializeField] private float sectorPulseSpeed = 6f;
 
         [Header("--- Events ---")]
         public UnityEvent<Direction8> onDirectionChanged;
@@ -178,7 +176,6 @@ namespace Combat.UI
                 _penPosition = Vector2.zero;
                 _lastMousePos = mousePos;
                 _fadeAlpha = 1f;
-                _currentScale = punchScalePress; // Тактильный Punch Scale!
 
                 if (wheelTrailGraphic != null)
                 {
@@ -336,9 +333,9 @@ namespace Combat.UI
 
         private void UpdateJuiceAnimations()
         {
-            // Пружинная физика масштаба колеса (Spring Punch Scale)
-            _targetScale = IsDragging ? 1.04f : 1.0f;
-            _currentScale = Mathf.Lerp(_currentScale, _targetScale, Time.deltaTime * springSpeed);
+            // Плавная и мягкая интерполяция масштаба колеса (без резких рывков)
+            _targetScale = IsDragging ? activeScaleMultiplier : 1.0f;
+            _currentScale = Mathf.Lerp(_currentScale, _targetScale, Time.deltaTime * scaleSmoothSpeed);
             if (wheelRect != null)
             {
                 wheelRect.localScale = Vector3.one * _currentScale;
@@ -363,16 +360,7 @@ namespace Combat.UI
 
         private void UpdateVisuals(bool instant)
         {
-            // 1. Внешняя световая Аура (Ambient Glow Aura)
-            if (glowAuraImage != null)
-            {
-                Color auraCol = glowAuraColor;
-                float breath = 1f + 0.12f * Mathf.Sin(Time.time * 4f);
-                auraCol.a = glowAuraColor.a * (0.35f + 0.65f * _fadeAlpha) * breath;
-                glowAuraImage.color = auraCol;
-            }
-
-            // 2. Сектор подсветки с эффектом дыхания и вспышкой
+            // 1. Сектор подсветки с эффектом дыхания и вспышкой
             if (sectorHighlightImage != null)
             {
                 if (CurrentDirection != Direction8.None)
@@ -393,7 +381,7 @@ namespace Combat.UI
                 }
             }
 
-            // 3. Центральное ядро-реактор
+            // 2. Центральное ядро-реактор
             if (centerCoreImage != null)
             {
                 Color coreCol = centerCoreColor;
@@ -401,7 +389,7 @@ namespace Combat.UI
                 centerCoreImage.color = coreCol;
             }
 
-            // 4. Плашка названия атаки под колесом
+            // 3. Плашка названия атаки под колесом
             if (plaqueCanvasGroup != null)
             {
                 float targetPlaqueAlpha = IsDragging || _fadeAlpha > 0.05f ? 1.0f : 0.45f;
@@ -435,7 +423,6 @@ namespace Combat.UI
         {
             if (wheelOutlineImage != null) wheelOutlineImage.color = outlineColor;
             if (sectorHighlightImage != null) sectorHighlightImage.color = highlightColor;
-            if (glowAuraImage != null) glowAuraImage.color = glowAuraColor;
             if (centerCoreImage != null) centerCoreImage.color = centerCoreColor;
         }
 
