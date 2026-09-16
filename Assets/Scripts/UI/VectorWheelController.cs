@@ -55,25 +55,45 @@ namespace Combat.UI
         [SerializeField] private float deltaDecay = 8f;
 
         [Tooltip("Скорость плавного гашения подсветки колеса после отпускания ЛКМ")]
-        [SerializeField] private float fadeOutSpeed = 3.0f;
+        [SerializeField] private float fadeOutSpeed = 3.2f;
 
         [Header("--- UI References ---")]
         [SerializeField] private RectTransform wheelRect;
+        [SerializeField] private Image glowAuraImage;
         [SerializeField] private Image wheelOutlineImage;
         [SerializeField] private Image sectorHighlightImage;
-        [SerializeField] private Image pointerArrowImage;
-        [SerializeField] private Image centerDotImage;
+        [SerializeField] private Image centerCoreImage;
         [SerializeField] private WheelTrailGraphic wheelTrailGraphic;
 
-        [Header("--- Visual Settings ---")]
-        [SerializeField] private bool showPointer = false;
-        [SerializeField] private bool showHighlight = true;
-        [SerializeField] private bool smoothPointerRotation = true;
-        [SerializeField] private float pointerRotationSpeed = 35f;
+        [Header("--- Plaque HUD (Под колесом) ---")]
+        [SerializeField] private CanvasGroup plaqueCanvasGroup;
+        [SerializeField] private RectTransform plaqueRect;
+        [SerializeField] private Text attackNameText;
+        [SerializeField] private string[] attackNames = new string[8]
+        {
+            "ПРАВЫЙ РАССЕКАЮЩИЙ ▶",    // Right (0)
+            "ДИАГОНАЛЬНЫЙ ВЫПАД ↗",  // UpRight (1)
+            "ВЕРХНИЙ РУБЯЩИЙ ▲",       // Up (2)
+            "ДИАГОНАЛЬНЫЙ ВЫПАД ↖",  // UpLeft (3)
+            "ЛЕВЫЙ РАССЕКАЮЩИЙ ◀",     // Left (4)
+            "НИЖНЯЯ ПОДСЕЧКА ↙",     // DownLeft (5)
+            "НИЖНИЙ КОЛЮЩИЙ ▼",        // Down (6)
+            "НИЖНЯЯ ПОДСЕЧКА ↘"      // DownRight (7)
+        };
+        [SerializeField] private string neutralStanceName = "— БОЕВАЯ СТОЙКА —";
 
+        [Header("--- White & Red Visual Palette ---")]
         [SerializeField] private Color outlineColor = Color.white;
-        [SerializeField] private Color highlightColor = new Color(0.2f, 0.75f, 1f, 0.55f);
-        [SerializeField] private Color pointerColor = new Color(1f, 0.85f, 0.2f, 0.95f);
+        [SerializeField] private Color highlightColor = new Color(1f, 0.12f, 0.25f, 0.65f); // Crimson Neon
+        [SerializeField] private Color glowAuraColor = new Color(1f, 0.05f, 0.2f, 0.45f);
+        [SerializeField] private Color centerCoreColor = Color.white;
+        [SerializeField] private Color textActiveColor = new Color(1f, 0.95f, 0.95f, 1f);
+        [SerializeField] private Color textIdleColor = new Color(0.9f, 0.35f, 0.45f, 0.6f);
+
+        [Header("--- Juiciness & Game Feel ---")]
+        [SerializeField] private float punchScalePress = 1.09f;
+        [SerializeField] private float springSpeed = 16f;
+        [SerializeField] private float sectorPulseSpeed = 7f;
 
         [Header("--- Events ---")]
         public UnityEvent<Direction8> onDirectionChanged;
@@ -97,6 +117,10 @@ namespace Combat.UI
         private Vector2 _lastMousePos = Vector2.zero;
         private Vector2 _accumulatedDelta = Vector2.zero;
         private float _fadeAlpha = 0f;
+        private float _currentScale = 1.0f;
+        private float _targetScale = 1.0f;
+        private float _flashIntensity = 0f;
+        private float _textPunchScale = 1.0f;
 
         private Camera _canvasCamera;
         private Canvas _parentCanvas;
@@ -120,6 +144,7 @@ namespace Combat.UI
             }
 
             ApplyVisualColors();
+            UpdatePlaqueText(Direction8.None);
         }
 
         private void Start()
@@ -138,6 +163,7 @@ namespace Combat.UI
                 HandleContinuousModes();
             }
 
+            UpdateJuiceAnimations();
             UpdateVisuals(instant: false);
         }
 
@@ -145,13 +171,14 @@ namespace Combat.UI
         {
             Vector2 mousePos = GetMousePosition();
 
-            // 1. Нажатие ЛКМ - старт рисования из центра колеса
+            // 1. Нажатие ЛКМ
             if (IsLMBDown())
             {
                 IsDragging = true;
                 _penPosition = Vector2.zero;
                 _lastMousePos = mousePos;
                 _fadeAlpha = 1f;
+                _currentScale = punchScalePress; // Тактильный Punch Scale!
 
                 if (wheelTrailGraphic != null)
                 {
@@ -159,7 +186,7 @@ namespace Combat.UI
                 }
             }
 
-            // 2. Удержание ЛКМ - движение мыши оставляет непрерывный изогнутый след внутри колеса
+            // 2. Движение с зажатой ЛКМ
             if (IsDragging && IsLMBHeld())
             {
                 Vector2 mouseDelta = mousePos - _lastMousePos;
@@ -188,6 +215,8 @@ namespace Combat.UI
                     if (newDir != CurrentDirection)
                     {
                         CurrentDirection = newDir;
+                        _flashIntensity = 1f; // Вспышка при смене сектора!
+                        UpdatePlaqueText(CurrentDirection);
                         onDirectionChanged?.Invoke(CurrentDirection);
                     }
 
@@ -195,7 +224,7 @@ namespace Combat.UI
                 }
             }
 
-            // 3. Отпускание ЛКМ - завершение жеста и старт плавного гашения
+            // 3. Отпускание ЛКМ
             if (IsDragging && IsLMBUp())
             {
                 float dist = _penPosition.magnitude;
@@ -216,7 +245,7 @@ namespace Combat.UI
                 IsDragging = false;
             }
 
-            // 4. Плавное гашение подсветки колеса при отпущенной кнопке
+            // 4. Плавное затухание
             if (!IsDragging)
             {
                 if (_fadeAlpha > 0f)
@@ -226,6 +255,7 @@ namespace Combat.UI
                     {
                         _fadeAlpha = 0f;
                         CurrentDirection = Direction8.None;
+                        UpdatePlaqueText(Direction8.None);
                     }
                 }
             }
@@ -286,6 +316,8 @@ namespace Combat.UI
                 if (newDir != CurrentDirection)
                 {
                     CurrentDirection = newDir;
+                    _flashIntensity = 1f;
+                    UpdatePlaqueText(CurrentDirection);
                     onDirectionChanged?.Invoke(CurrentDirection);
                 }
 
@@ -297,56 +329,104 @@ namespace Combat.UI
                 if (_fadeAlpha <= 0.01f)
                 {
                     CurrentDirection = Direction8.None;
+                    UpdatePlaqueText(Direction8.None);
+                }
+            }
+        }
+
+        private void UpdateJuiceAnimations()
+        {
+            // Пружинная физика масштаба колеса (Spring Punch Scale)
+            _targetScale = IsDragging ? 1.04f : 1.0f;
+            _currentScale = Mathf.Lerp(_currentScale, _targetScale, Time.deltaTime * springSpeed);
+            if (wheelRect != null)
+            {
+                wheelRect.localScale = Vector3.one * _currentScale;
+            }
+
+            // Затухание вспышки переключения сектора
+            if (_flashIntensity > 0f)
+            {
+                _flashIntensity = Mathf.MoveTowards(_flashIntensity, 0f, Time.deltaTime * 6f);
+            }
+
+            // Пружина масштаба текста плашки
+            if (_textPunchScale > 1.0f)
+            {
+                _textPunchScale = Mathf.MoveTowards(_textPunchScale, 1.0f, Time.deltaTime * 3.5f);
+                if (attackNameText != null)
+                {
+                    attackNameText.transform.localScale = Vector3.one * _textPunchScale;
                 }
             }
         }
 
         private void UpdateVisuals(bool instant)
         {
-            // 1. Сектор подсветки (Sector Highlight)
+            // 1. Внешняя световая Аура (Ambient Glow Aura)
+            if (glowAuraImage != null)
+            {
+                Color auraCol = glowAuraColor;
+                float breath = 1f + 0.12f * Mathf.Sin(Time.time * 4f);
+                auraCol.a = glowAuraColor.a * (0.35f + 0.65f * _fadeAlpha) * breath;
+                glowAuraImage.color = auraCol;
+            }
+
+            // 2. Сектор подсветки с эффектом дыхания и вспышкой
             if (sectorHighlightImage != null)
             {
-                sectorHighlightImage.gameObject.SetActive(showHighlight);
-                if (showHighlight)
+                if (CurrentDirection != Direction8.None)
                 {
-                    Color targetColor = highlightColor;
-                    targetColor.a = highlightColor.a * _fadeAlpha;
-                    sectorHighlightImage.color = targetColor;
+                    float pulse = 1f + 0.18f * Mathf.Sin(Time.time * sectorPulseSpeed);
+                    Color col = Color.Lerp(highlightColor, Color.white, _flashIntensity * 0.7f);
+                    col.a = Mathf.Clamp01(highlightColor.a * _fadeAlpha * pulse);
+                    sectorHighlightImage.color = col;
 
-                    if (CurrentDirection != Direction8.None)
-                    {
-                        float targetSectorAngle = CurrentDirection.ToAngle();
-                        sectorHighlightImage.rectTransform.localRotation = Quaternion.Euler(0f, 0f, targetSectorAngle);
-                    }
+                    float targetSectorAngle = CurrentDirection.ToAngle();
+                    sectorHighlightImage.rectTransform.localRotation = Quaternion.Euler(0f, 0f, targetSectorAngle);
+                }
+                else
+                {
+                    Color col = highlightColor;
+                    col.a = 0f;
+                    sectorHighlightImage.color = col;
                 }
             }
 
-            // 2. Стрелка-указатель (Pointer Arrow)
-            if (pointerArrowImage != null)
+            // 3. Центральное ядро-реактор
+            if (centerCoreImage != null)
             {
-                pointerArrowImage.gameObject.SetActive(showPointer);
-                if (showPointer)
-                {
-                    Color targetPtrColor = pointerColor;
-                    targetPtrColor.a = pointerColor.a * _fadeAlpha;
-                    pointerArrowImage.color = targetPtrColor;
+                Color coreCol = centerCoreColor;
+                coreCol.a = 0.5f + 0.5f * _fadeAlpha;
+                centerCoreImage.color = coreCol;
+            }
 
-                    if (CurrentDirection != Direction8.None)
-                    {
-                        Quaternion targetRot = Quaternion.Euler(0f, 0f, CurrentRawAngle);
-                        if (instant || !smoothPointerRotation)
-                        {
-                            pointerArrowImage.rectTransform.localRotation = targetRot;
-                        }
-                        else
-                        {
-                            pointerArrowImage.rectTransform.localRotation = Quaternion.Slerp(
-                                pointerArrowImage.rectTransform.localRotation,
-                                targetRot,
-                                Time.deltaTime * pointerRotationSpeed
-                            );
-                        }
-                    }
+            // 4. Плашка названия атаки под колесом
+            if (plaqueCanvasGroup != null)
+            {
+                float targetPlaqueAlpha = IsDragging || _fadeAlpha > 0.05f ? 1.0f : 0.45f;
+                plaqueCanvasGroup.alpha = Mathf.MoveTowards(plaqueCanvasGroup.alpha, targetPlaqueAlpha, Time.deltaTime * 6f);
+            }
+        }
+
+        private void UpdatePlaqueText(Direction8 dir)
+        {
+            if (attackNameText == null) return;
+
+            _textPunchScale = 1.14f;
+
+            if (dir == Direction8.None)
+            {
+                attackNameText.text = neutralStanceName;
+                attackNameText.color = textIdleColor;
+            }
+            else
+            {
+                int idx = (int)dir;
+                if (idx >= 0 && idx < attackNames.Length)
+                {
+                    attackNameText.text = attackNames[idx];
+                    attackNameText.color = textActiveColor;
                 }
             }
         }
@@ -355,8 +435,8 @@ namespace Combat.UI
         {
             if (wheelOutlineImage != null) wheelOutlineImage.color = outlineColor;
             if (sectorHighlightImage != null) sectorHighlightImage.color = highlightColor;
-            if (pointerArrowImage != null) pointerArrowImage.color = pointerColor;
-            if (centerDotImage != null) centerDotImage.color = outlineColor;
+            if (glowAuraImage != null) glowAuraImage.color = glowAuraColor;
+            if (centerCoreImage != null) centerCoreImage.color = centerCoreColor;
         }
 
         // --- Вспомогательные методы чтения ввода (Input System + Legacy Fallback) ---
