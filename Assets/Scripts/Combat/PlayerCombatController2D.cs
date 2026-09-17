@@ -27,12 +27,14 @@ namespace Combat
         public AttackHeight height;
         public StrikeDirection strikeDir; // Forward vs Backward
         public float horizontalSign;       // +1f (Right) or -1f (Left) in world X
+        public bool isCharged;             // Заряженная усиленная атака
 
-        public AttackIntent(AttackHeight h, StrikeDirection dir, float sign)
+        public AttackIntent(AttackHeight h, StrikeDirection dir, float sign, bool charged = false)
         {
             height = h;
             strikeDir = dir;
             horizontalSign = sign;
+            isCharged = charged;
         }
     }
 
@@ -106,6 +108,28 @@ namespace Combat
 
         [Tooltip("Ограничивать серию комбо только средними ударами (Вперед и Назад)")]
         [SerializeField] private bool limitCombosToMidStrikesOnly = false;
+
+        [Header("--- Empowered / Charged Strike Settings ---")]
+        [Tooltip("Множитель урона для заряженной усиленной атаки")]
+        [Range(1.5f, 4f)]
+        [SerializeField] private float empoweredDamageMultiplier = 2.0f;
+
+        [Tooltip("Множитель силы отталкивания для заряженной усиленной атаки")]
+        [Range(1.5f, 5f)]
+        [SerializeField] private float empoweredKnockbackMultiplier = 2.8f;
+
+        [Tooltip("Множитель размера хитбокса заряженной атаки")]
+        [Range(1f, 2f)]
+        [SerializeField] private float empoweredHitboxScale = 1.25f;
+
+        [Tooltip("Сила выпада вперед при заряженной атаке")]
+        [SerializeField] private float empoweredLungeForce = 6.0f;
+
+        [Tooltip("Скорость плавного подшага вперед во время удержания заряда (1-2 сек)")]
+        [SerializeField] private float chargeCrawlSpeed = 1.2f;
+
+        [Tooltip("Цвет хитбокса заряженной атаки")]
+        [SerializeField] private Color empoweredHitboxColor = new Color(1f, 0.65f, 0.05f, 0.9f);
 
         [Header("--- Input Buffer & Cancel Windows ---")]
         [Tooltip("Длительность окна буферизации ввода (в секундах)")]
@@ -225,8 +249,30 @@ namespace Combat
         private void Update()
         {
             UpdateFacingDirection();
+            UpdateChargeCrawl();
             UpdateComboTimers();
             CheckInputBuffer();
+        }
+
+        private void UpdateChargeCrawl()
+        {
+            if (vectorWheel == null || !vectorWheel.IsDragging) return;
+            if (vectorWheel.DirectionHoldTimer < 0.2f) return;
+            if (CurrentState != CombatState.Idle) return;
+
+            var intent = MapDirection(vectorWheel.CurrentDirection);
+            if (!intent.HasValue) return;
+
+            float sign = intent.Value.horizontalSign;
+            if (Mathf.Abs(sign) > 0.01f)
+            {
+                SetFacingDirection(sign);
+                if (_rb != null)
+                {
+                    // Медленное продвижение вперед во время зажатия (подкрадывание/подшаг)
+                    _rb.linearVelocity = new Vector2(sign * chargeCrawlSpeed, _rb.linearVelocity.y);
+                }
+            }
         }
 
         private void UpdateFacingDirection()
@@ -326,13 +372,14 @@ namespace Combat
 
         private void OnWheelSwipeCompleted(Direction8 dir, Vector2 vector, float distance)
         {
-            AttackIntent? mapped = MapDirection(dir);
+            bool isCharged = vectorWheel != null && vectorWheel.ConsumeCharge();
+            AttackIntent? mapped = MapDirection(dir, isCharged);
             if (!mapped.HasValue) return;
 
             TryAttackOrBuffer(mapped.Value);
         }
 
-        public AttackIntent? MapDirection(Direction8 dir)
+        public AttackIntent? MapDirection(Direction8 dir, bool isCharged = false)
         {
             if (dir == Direction8.None) return null;
 
@@ -386,7 +433,7 @@ namespace Combat
                 }
             }
 
-            return new AttackIntent(height, strikeDir, sign);
+            return new AttackIntent(height, strikeDir, sign, isCharged);
         }
 
         public bool TryAttackOrBuffer(AttackIntent intent)
@@ -463,6 +510,14 @@ namespace Combat
 
         private void PrepareNextComboStep(AttackIntent newIntent, bool isChaining)
         {
+            if (newIntent.isCharged)
+            {
+                CurrentComboStep = 1;
+                _lastComboIntent = newIntent;
+                _lastAttackStartTime = Time.time;
+                return;
+            }
+
             if (isChaining)
             {
                 if (_lastComboIntent.HasValue && IsComboCompatible(_lastComboIntent.Value, newIntent))
@@ -530,7 +585,8 @@ namespace Combat
             _hasHitTargetInCurrentAttack = false;
 
             int thisAttackStep = CurrentComboStep;
-            bool isFinisher = thisAttackStep >= maxComboSteps;
+            bool isFinisher = thisAttackStep >= maxComboSteps && !intent.isCharged;
+            bool isCharged = intent.isCharged;
 
             string dirLabel = (intent.strikeDir == StrikeDirection.Forward) ? "ВПЕРЕД" : "НАЗАД";
             string arrow = intent.horizontalSign > 0 ? "▶" : "◀";
@@ -541,33 +597,35 @@ namespace Combat
 
             if (vectorWheel != null)
             {
-                vectorWheel.SetAttackPlaqueWithCombo(displayName, thisAttackStep, isFinisher);
+                vectorWheel.SetAttackPlaqueWithCombo(displayName, thisAttackStep, isFinisher, isCharged);
             }
             onComboStepChanged?.Invoke(thisAttackStep, isFinisher);
 
-            // 1. ФАЗА ЗАМАХА (STARTUP) — удары в комбо ускоряются!
+            // 1. ФАЗА ЗАМАХА (STARTUP) — удары в комбо ускоряются, заряженный слегка акцентирован
             CurrentState = CombatState.Startup;
-            float startup = thisAttackStep > 1 ? attack.startupTime * comboStartupMultiplier : attack.startupTime;
+            float startup = isCharged ? attack.startupTime * 1.1f : (thisAttackStep > 1 ? attack.startupTime * comboStartupMultiplier : attack.startupTime);
             yield return new WaitForSeconds(startup);
 
             // 2. АКТИВНАЯ ФАЗА (ACTIVE)
             CurrentState = CombatState.Active;
             float activeTimer = attack.activeTime;
 
-            // Микро-выпад в направлении удара (вперед или назад)
-            ApplyComboLunge(intent.horizontalSign);
+            // Выпад в направлении удара (усиленный выпад при заряженном ударе)
+            ApplyComboLunge(intent.horizontalSign, isCharged);
+
+            Vector2 boxSize = isCharged ? attack.hitboxSize * empoweredHitboxScale : attack.hitboxSize;
+            Color boxColor = isCharged ? empoweredHitboxColor : attack.hitboxColor;
 
             while (activeTimer > 0f)
             {
                 Vector2 boxCenter = GetHitboxCenter(attack, intent.horizontalSign);
-                Vector2 boxSize = attack.hitboxSize;
 
                 if (visualizer != null)
                 {
-                    visualizer.ShowHitbox(boxCenter, boxSize, attack.hitboxColor, isFinisher);
+                    visualizer.ShowHitbox(boxCenter, boxSize, boxColor, isFinisher, isCharged);
                 }
 
-                CheckHitboxOverlap(attack, intent, boxCenter, boxSize, isFinisher);
+                CheckHitboxOverlap(attack, intent, boxCenter, boxSize, isFinisher, isCharged);
 
                 activeTimer -= Time.deltaTime;
                 yield return null;
@@ -615,13 +673,20 @@ namespace Combat
             _attackRoutine = null;
         }
 
-        private void ApplyComboLunge(float horizontalSign)
+        private void ApplyComboLunge(float horizontalSign, bool isCharged = false)
         {
             if (_rb == null) _rb = GetComponent<Rigidbody2D>();
-            if (_rb != null && comboLungeForce > 0.05f)
+            if (_rb != null)
             {
-                float multiplier = IsFinisher ? 1.5f : (CurrentComboStep > 1 ? 1.15f : 0.85f);
-                _rb.linearVelocity = new Vector2(horizontalSign * comboLungeForce * multiplier, _rb.linearVelocity.y);
+                if (isCharged)
+                {
+                    _rb.linearVelocity = new Vector2(horizontalSign * empoweredLungeForce, _rb.linearVelocity.y);
+                }
+                else if (comboLungeForce > 0.05f)
+                {
+                    float multiplier = IsFinisher ? 1.5f : (CurrentComboStep > 1 ? 1.15f : 0.85f);
+                    _rb.linearVelocity = new Vector2(horizontalSign * comboLungeForce * multiplier, _rb.linearVelocity.y);
+                }
             }
         }
 
@@ -641,24 +706,28 @@ namespace Combat
             _hitstopRoutine = null;
         }
 
-        private void CheckHitboxOverlap(AttackConfig attack, AttackIntent intent, Vector2 center, Vector2 size, bool isFinisher)
+        private void CheckHitboxOverlap(AttackConfig attack, AttackIntent intent, Vector2 center, Vector2 size, bool isFinisher, bool isCharged = false)
         {
             _overlapResults.Clear();
             int count = Physics2D.OverlapBox(center, size, 0f, _contactFilter, _overlapResults);
 
-            string finisherSuffix = isFinisher ? " [ФИНИШЕР!]" : "";
-            AttackConfig effectiveAttack = isFinisher
+            string statusSuffix = isCharged ? " [УСИЛЕННАЯ АТАКА!]" : (isFinisher ? " [ФИНИШЕР!]" : "");
+            float dmgMult = isCharged ? empoweredDamageMultiplier : (isFinisher ? finisherDamageMultiplier : 1f);
+            float kbMult = isCharged ? empoweredKnockbackMultiplier : (isFinisher ? finisherKnockbackMultiplier : 1f);
+            Color effectiveColor = isCharged ? empoweredHitboxColor : attack.hitboxColor;
+
+            AttackConfig effectiveAttack = (isFinisher || isCharged)
                 ? new AttackConfig(
-                    attack.attackName + finisherSuffix,
+                    attack.attackName + statusSuffix,
                     attack.targetedZones,
                     attack.hitboxOffset,
-                    attack.hitboxSize,
+                    size,
                     attack.startupTime,
                     attack.activeTime,
                     attack.recoveryTime,
-                    attack.damage * finisherDamageMultiplier,
-                    attack.knockbackForce * finisherKnockbackMultiplier,
-                    attack.hitboxColor
+                    attack.damage * dmgMult,
+                    attack.knockbackForce * kbMult,
+                    effectiveColor
                 )
                 : attack;
 
@@ -682,7 +751,7 @@ namespace Combat
                         _hitTargetsInCurrentSwing.Add(col);
                         if (receiver != null) _hitReceiversInCurrentSwing.Add(receiver);
 
-                        OnTargetHitSuccess(isFinisher);
+                        OnTargetHitSuccess(isFinisher, isCharged);
 
                         Vector2 knockbackDir = new Vector2(intent.horizontalSign, 1f).normalized;
                         hurtbox.ReceiveHit(effectiveAttack, center, knockbackDir);
@@ -698,7 +767,7 @@ namespace Combat
                         _hitTargetsInCurrentSwing.Add(col);
                         _hitReceiversInCurrentSwing.Add(target);
 
-                        OnTargetHitSuccess(isFinisher);
+                        OnTargetHitSuccess(isFinisher, isCharged);
 
                         Vector2 knockbackDir = new Vector2(intent.horizontalSign, 1f).normalized;
                         target.TakeHit(effectiveAttack, effectiveAttack.targetedZones, center, knockbackDir);
@@ -707,13 +776,19 @@ namespace Combat
             }
         }
 
-        private void OnTargetHitSuccess(bool isFinisher = false)
+        private void OnTargetHitSuccess(bool isFinisher = false, bool isCharged = false)
         {
             if (!_hasHitTargetInCurrentAttack)
             {
                 _hasHitTargetInCurrentAttack = true;
                 _canCancelIntoCombo = true;
-                TriggerHitstop(isFinisher ? hitstopDuration * 1.8f : hitstopDuration);
+                float hitstop = isCharged ? 0.10f : (isFinisher ? hitstopDuration * 1.8f : hitstopDuration);
+                TriggerHitstop(hitstop);
+
+                if (isCharged && visualizer != null)
+                {
+                    visualizer.ShowEmpoweredPopup(transform.position + new Vector3(FacingDirection * 1.1f, 0.6f, 0f));
+                }
             }
         }
 

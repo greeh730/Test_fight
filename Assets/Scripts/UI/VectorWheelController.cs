@@ -94,6 +94,16 @@ namespace Combat.UI
         [SerializeField] private float scaleSmoothSpeed = 8f;         // Мягкая интерполяция без резких скачков
         [SerializeField] private float sectorPulseSpeed = 6f;
 
+        [Header("--- Charge / Empowered Attack Settings ---")]
+        [Tooltip("Время удержания направления для превращения удара в Усиленную Атаку (в секундах)")]
+        [SerializeField] private float chargeThresholdTime = 1.0f;
+
+        [Tooltip("Максимальное время удержания направления, после которого удар выполняется автоматически")]
+        [SerializeField] private float maxHoldAutoReleaseTime = 2.0f;
+
+        [Tooltip("Цвет подсветки колеса при готовности усиленной атаки")]
+        [SerializeField] private Color chargedGlowColor = new Color(1f, 0.7f, 0.1f, 1f);
+
         [Header("--- Events ---")]
         public UnityEvent<Direction8> onDirectionChanged;
         public UnityEvent<Vector2> onVectorChanged;
@@ -111,6 +121,19 @@ namespace Combat.UI
         public Vector2 CurrentVector { get; private set; } = Vector2.zero;
         public float CurrentRawAngle { get; private set; } = 0f;
         public bool IsDragging { get; private set; } = false;
+
+        public float DirectionHoldTimer => _directionHoldTimer;
+        public bool IsChargeReady => _directionHoldTimer >= chargeThresholdTime && CurrentDirection != Direction8.None;
+        public float ChargeProgress => Mathf.Clamp01(_directionHoldTimer / chargeThresholdTime);
+
+        private float _directionHoldTimer = 0f;
+
+        public bool ConsumeCharge()
+        {
+            bool ready = IsChargeReady;
+            _directionHoldTimer = 0f;
+            return ready;
+        }
 
         private Vector2 _penPosition = Vector2.zero;
         private Vector2 _lastMousePos = Vector2.zero;
@@ -324,11 +347,37 @@ namespace Combat.UI
                     {
                         CurrentDirection = newDir;
                         _flashIntensity = 1f;
+                        _directionHoldTimer = 0f;
                         UpdatePlaqueText(CurrentDirection);
                         onDirectionChanged?.Invoke(CurrentDirection);
                     }
+                    else
+                    {
+                        _directionHoldTimer += Time.deltaTime;
+
+                        if (_directionHoldTimer >= chargeThresholdTime)
+                        {
+                            UpdateChargedPlaqueText(CurrentDirection);
+                            _flashIntensity = Mathf.Max(_flashIntensity, 0.6f);
+                        }
+                        else if (_directionHoldTimer >= 0.35f)
+                        {
+                            UpdateChargingPlaqueText(CurrentDirection, ChargeProgress);
+                        }
+
+                        // Автоматический выпуск при максимальном удержании
+                        if (_directionHoldTimer >= maxHoldAutoReleaseTime)
+                        {
+                            ExecuteSwipeComplete();
+                            return;
+                        }
+                    }
 
                     onVectorChanged?.Invoke(_penPosition.normalized);
+                }
+                else
+                {
+                    _directionHoldTimer = 0f;
                 }
 
                 // Быстрый удар при касании края колеса (Quick-Cast on Edge)
@@ -367,6 +416,7 @@ namespace Combat.UI
             _penPosition = Vector2.zero;
             _lastMousePos = mousePos;
             _fadeAlpha = 1f;
+            _directionHoldTimer = 0f;
 
             if (wheelTrailGraphic != null)
             {
@@ -387,6 +437,10 @@ namespace Combat.UI
                     onGesturePathCompleted?.Invoke(wheelTrailGraphic.Points, CurrentDirection);
                 }
             }
+            else
+            {
+                _directionHoldTimer = 0f;
+            }
 
             if (wheelTrailGraphic != null)
             {
@@ -394,6 +448,7 @@ namespace Combat.UI
             }
 
             IsDragging = false;
+            CurrentVector = Vector2.zero;
         }
 
         private void HandleContinuousModes()
@@ -569,21 +624,53 @@ namespace Combat.UI
             }
         }
 
-        public void SetAttackPlaqueWithCombo(string attackName, int comboStep, bool isFinisher)
+        private void UpdateChargingPlaqueText(Direction8 dir, float progress)
+        {
+            if (attackNameText == null || dir == Direction8.None) return;
+            int idx = (int)dir;
+            if (idx >= 0 && idx < attackNames.Length)
+            {
+                int pct = Mathf.RoundToInt(progress * 100f);
+                attackNameText.text = $"{attackNames[idx]} <color=#FFD700>[ЗАРЯДКА {pct}%]</color>";
+                attackNameText.color = Color.Lerp(textActiveColor, chargedGlowColor, progress);
+            }
+        }
+
+        private void UpdateChargedPlaqueText(Direction8 dir)
+        {
+            if (attackNameText == null || dir == Direction8.None) return;
+            int idx = (int)dir;
+            if (idx >= 0 && idx < attackNames.Length)
+            {
+                _textPunchScale = 1.28f;
+                attackNameText.text = $"{attackNames[idx]} <color=#FFAA00>⚡ ЗАРЯЖЕНО! ⚡</color>";
+                attackNameText.color = chargedGlowColor;
+            }
+        }
+
+        public void SetAttackPlaqueWithCombo(string attackName, int comboStep, bool isFinisher, bool isCharged = false)
         {
             if (attackNameText == null) return;
 
-            _textPunchScale = isFinisher ? 1.35f : (comboStep > 1 ? 1.18f : 1.05f);
+            _textPunchScale = isCharged ? 1.4f : (isFinisher ? 1.35f : (comboStep > 1 ? 1.18f : 1.05f));
 
-            string badge = comboStep switch
+            string badge;
+            if (isCharged)
             {
-                1 => "[УДАР 1]",
-                2 => "<color=#FFD700>[КОМБО 2]</color>",
-                _ => isFinisher ? "<color=#FF2222>★ ФИНИШЕР x3 ★</color>" : $"<color=#FF7722>[КОМБО {comboStep}]</color>"
-            };
+                badge = "<color=#FFAA00>★ УСИЛЕННАЯ АТАКА ★</color>";
+            }
+            else
+            {
+                badge = comboStep switch
+                {
+                    1 => "[УДАР 1]",
+                    2 => "<color=#FFD700>[КОМБО 2]</color>",
+                    _ => isFinisher ? "<color=#FF2222>★ ФИНИШЕР x3 ★</color>" : $"<color=#FF7722>[КОМБО {comboStep}]</color>"
+                };
+            }
 
             attackNameText.text = $"{attackName} {badge}";
-            attackNameText.color = isFinisher ? new Color(1f, 0.25f, 0.25f, 1f) : textActiveColor;
+            attackNameText.color = isCharged ? chargedGlowColor : (isFinisher ? new Color(1f, 0.25f, 0.25f, 1f) : textActiveColor);
         }
 
         public void ApplyVisualColors()

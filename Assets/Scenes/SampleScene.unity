@@ -4550,6 +4550,9 @@ MonoBehaviour:
   activeScaleMultiplier: 1.025
   scaleSmoothSpeed: 8
   sectorPulseSpeed: 7
+  chargeThresholdTime: 1
+  maxHoldAutoReleaseTime: 2
+  chargedGlowColor: {r: 1, g: 0.7, b: 0.1, a: 1}
   onDirectionChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -11439,6 +11442,12 @@ MonoBehaviour:
   comboLungeForce: 3.5
   requireSameAttackForCombo: 1
   limitCombosToMidStrikesOnly: 0
+  empoweredDamageMultiplier: 2
+  empoweredKnockbackMultiplier: 2.8
+  empoweredHitboxScale: 1.25
+  empoweredLungeForce: 6
+  chargeCrawlSpeed: 1.2
+  empoweredHitboxColor: {r: 1, g: 0.65, b: 0.05, a: 0.9}
   inputBufferDuration: 0.55
   recoveryCancelThreshold: 0.3
   hitstopDuration: 0.045

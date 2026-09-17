@@ -91,7 +91,7 @@ namespace Combat
         /// <summary>
         /// Отображает визуальный хитбокс в игре во время активных кадров удара.
         /// </summary>
-        public void ShowHitbox(Vector2 center, Vector2 size, Color color, bool isFinisher = false)
+        public void ShowHitbox(Vector2 center, Vector2 size, Color color, bool isFinisher = false, bool isCharged = false)
         {
             if (!showInGameVisuals) return;
             if (_activeVisualObj == null) CreateVisualObject();
@@ -99,12 +99,12 @@ namespace Combat
             _activeVisualObj.transform.position = new Vector3(center.x, center.y, 0f);
             _activeVisualObj.transform.localScale = new Vector3(size.x, size.y, 1f);
 
-            float fillAlpha = isFinisher ? Mathf.Min(1f, inGameFillAlpha * 1.6f) : inGameFillAlpha;
-            float borderAlpha = isFinisher ? 1f : inGameBorderAlpha;
-            float borderWidth = isFinisher ? 0.07f : 0.04f;
+            float fillAlpha = (isCharged || isFinisher) ? Mathf.Min(1f, inGameFillAlpha * 1.7f) : inGameFillAlpha;
+            float borderAlpha = (isCharged || isFinisher) ? 1f : inGameBorderAlpha;
+            float borderWidth = isCharged ? 0.085f : (isFinisher ? 0.07f : 0.04f);
 
             Color fillCol = new Color(color.r, color.g, color.b, fillAlpha);
-            Color borderCol = new Color(color.r, color.g, color.b, borderAlpha);
+            Color borderCol = isCharged ? new Color(1f, 0.75f, 0.1f, borderAlpha) : new Color(color.r, color.g, color.b, borderAlpha);
 
             _fillRenderer.color = fillCol;
 
@@ -124,6 +124,54 @@ namespace Combat
             _borderRenderer.endColor = borderCol;
 
             _activeVisualObj.SetActive(true);
+        }
+
+        /// <summary>
+        /// Создает парящий текст "УСИЛЕННАЯ АТАКА!" в мировом пространстве
+        /// </summary>
+        public void ShowEmpoweredPopup(Vector3 position)
+        {
+            StartCoroutine(SpawnEmpoweredTextRoutine(position));
+        }
+
+        private System.Collections.IEnumerator SpawnEmpoweredTextRoutine(Vector3 spawnPos)
+        {
+            var go = new GameObject("EmpoweredText_Popup");
+            go.transform.position = spawnPos + new Vector3(0f, 1.1f, 0f);
+
+            var tm = go.AddComponent<TextMesh>();
+            tm.text = "УСИЛЕННАЯ АТАКА!";
+            tm.fontSize = 42;
+            tm.characterSize = 0.082f;
+            tm.alignment = TextAlignment.Center;
+            tm.anchor = TextAnchor.MiddleCenter;
+            tm.fontStyle = FontStyle.Bold;
+            tm.color = new Color(1f, 0.75f, 0.1f, 1f); // Яркий золотисто-янтарный
+
+            var mr = go.GetComponent<MeshRenderer>();
+            if (mr != null) mr.sortingOrder = 70;
+
+            float duration = 0.9f;
+            float elapsed = 0f;
+            Vector3 startPos = go.transform.position;
+            Vector3 endPos = startPos + new Vector3(0f, 1.1f, 0f);
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = elapsed / duration;
+
+                if (go != null)
+                {
+                    go.transform.position = Vector3.Lerp(startPos, endPos, t);
+                    Color c = tm.color;
+                    c.a = Mathf.Clamp01(1f - t * t);
+                    tm.color = c;
+                }
+                yield return null;
+            }
+
+            if (go != null) Destroy(go);
         }
 
         /// <summary>
