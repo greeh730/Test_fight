@@ -569,6 +569,23 @@ namespace Combat.UI
             }
         }
 
+        public void SetAttackPlaqueWithCombo(string attackName, int comboStep, bool isFinisher)
+        {
+            if (attackNameText == null) return;
+
+            _textPunchScale = isFinisher ? 1.25f : 1.15f;
+
+            string badge = comboStep switch
+            {
+                1 => "[КОМБО 1]",
+                2 => "<color=#FFD700>[КОМБО 2]</color>",
+                _ => isFinisher ? "<color=#FF3344>[ФИНИШЕР! x3]</color>" : $"<color=#FF7722>[КОМБО {comboStep}]</color>"
+            };
+
+            attackNameText.text = $"{attackName} {badge}";
+            attackNameText.color = isFinisher ? new Color(1f, 0.4f, 0.4f, 1f) : textActiveColor;
+        }
+
         public void ApplyVisualColors()
         {
             if (wheelOutlineImage != null) wheelOutlineImage.color = outlineColor;

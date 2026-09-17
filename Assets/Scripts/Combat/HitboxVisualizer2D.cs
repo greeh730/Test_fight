@@ -91,7 +91,7 @@ namespace Combat
         /// <summary>
         /// Отображает визуальный хитбокс в игре во время активных кадров удара.
         /// </summary>
-        public void ShowHitbox(Vector2 center, Vector2 size, Color color)
+        public void ShowHitbox(Vector2 center, Vector2 size, Color color, bool isFinisher = false)
         {
             if (!showInGameVisuals) return;
             if (_activeVisualObj == null) CreateVisualObject();
@@ -99,8 +99,12 @@ namespace Combat
             _activeVisualObj.transform.position = new Vector3(center.x, center.y, 0f);
             _activeVisualObj.transform.localScale = new Vector3(size.x, size.y, 1f);
 
-            Color fillCol = new Color(color.r, color.g, color.b, inGameFillAlpha);
-            Color borderCol = new Color(color.r, color.g, color.b, inGameBorderAlpha);
+            float fillAlpha = isFinisher ? Mathf.Min(1f, inGameFillAlpha * 1.6f) : inGameFillAlpha;
+            float borderAlpha = isFinisher ? 1f : inGameBorderAlpha;
+            float borderWidth = isFinisher ? 0.07f : 0.04f;
+
+            Color fillCol = new Color(color.r, color.g, color.b, fillAlpha);
+            Color borderCol = new Color(color.r, color.g, color.b, borderAlpha);
 
             _fillRenderer.color = fillCol;
 
@@ -114,6 +118,8 @@ namespace Combat
                 new Vector3(-0.5f, -0.5f, 0f)
             };
             _borderRenderer.SetPositions(corners);
+            _borderRenderer.startWidth = borderWidth;
+            _borderRenderer.endWidth = borderWidth;
             _borderRenderer.startColor = borderCol;
             _borderRenderer.endColor = borderCol;
 
