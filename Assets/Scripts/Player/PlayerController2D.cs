@@ -44,6 +44,47 @@ namespace Combat.Player
         [Tooltip("Jump Buffer: время буферизации нажатия прыжка до приземления")]
         [SerializeField] private float jumpBufferTime = 0.12f;
 
+        [Tooltip("Максимальная скорость свободного падения (Terminal Velocity)")]
+        [SerializeField] private float maxFallSpeed = 22f;
+
+        [Header("--- Double Jump & Apex Hang (Пик прыжка) ---")]
+        [Tooltip("Максимальное количество прыжков в воздухе (1 = двойной прыжок)")]
+        [SerializeField] private int maxAirJumps = 1;
+
+        [Tooltip("Множитель силы прыжка в воздухе")]
+        [SerializeField] private float airJumpForceMultiplier = 0.92f;
+
+        [Tooltip("Включить парение/зависание в наивысшей точке прыжка (эффект Celeste)")]
+        [SerializeField] private bool enableApexHang = true;
+
+        [Tooltip("Порог вертикальной скорости для входа в зону пика прыжка")]
+        [SerializeField] private float apexVelocityThreshold = 2.6f;
+
+        [Tooltip("Множитель гравитации в пике прыжка (чем меньше, тем дольше парение)")]
+        [SerializeField] private float apexGravityMultiplier = 0.35f;
+
+        [Tooltip("Бонус к горизонтальной скорости в пике прыжка")]
+        [SerializeField] private float apexSpeedMultiplier = 1.15f;
+
+        [Header("--- Dash / Mobility (Двойной тап A/D или Shift) ---")]
+        [Tooltip("Включить механику рывка (Dash)")]
+        [SerializeField] private bool enableDash = true;
+
+        [Tooltip("Скорость рывка")]
+        [SerializeField] private float dashSpeed = 19.5f;
+
+        [Tooltip("Длительность рывка в секундах")]
+        [SerializeField] private float dashDuration = 0.16f;
+
+        [Tooltip("Кулдаун (перезарядка) между рывками")]
+        [SerializeField] private float dashCooldown = 0.5f;
+
+        [Tooltip("Окно времени для двойного тапа A или D (в секундах)")]
+        [SerializeField] private float doubleTapWindow = 0.25f;
+
+        [Tooltip("Количество рывков в воздухе до приземления")]
+        [SerializeField] private int maxAirDashes = 1;
+
         [Header("--- Ground Detection ---")]
         [Tooltip("Слои, считающиеся землей (по умолчанию всё, кроме триггеров и игрока)")]
         [SerializeField] private LayerMask groundLayer = ~0;
@@ -52,7 +93,7 @@ namespace Combat.Player
         [SerializeField] private float groundCheckDistance = 0.08f;
 
         [Header("--- Visual & Game Feel ---")]
-        [Tooltip("Эффект сжатия и растяжения при прыжке и приземлении")]
+        [Tooltip("Эффект сжатия и растяжения при прыжке, приземлении и дэше")]
         [SerializeField] private bool enableJuiceSquashStretch = true;
         [SerializeField] private float squashStretchSpeed = 12f;
 
@@ -67,6 +108,8 @@ namespace Combat.Player
         public bool IsGrounded { get; private set; }
         public bool IsCrouching { get; private set; }
         public bool IsJumping => _isJumping;
+        public bool IsDashing => _isDashing;
+        public int AirJumpsRemaining => _airJumpsLeft;
         public Vector2 Velocity => _rb != null ? _rb.linearVelocity : Vector2.zero;
 
         private float _horizontalInput;
@@ -74,9 +117,20 @@ namespace Combat.Player
         private bool _jumpHeld;
         private bool _downHeld;
 
+        // Timers
         private float _coyoteTimer;
         private float _jumpBufferTimer;
         private bool _isJumping;
+        private int _airJumpsLeft;
+
+        // Dash State
+        private bool _isDashing;
+        private float _dashTimer;
+        private float _dashCooldownTimer;
+        private float _dashDirection = 1f;
+        private int _airDashesLeft;
+        private float _lastTapTimeA = -10f;
+        private float _lastTapTimeD = -10f;
 
         // Juice Animation
         private Vector3 _baseScale = Vector3.one;
@@ -95,6 +149,9 @@ namespace Combat.Player
             _groundFilter = new ContactFilter2D();
             _groundFilter.useTriggers = false;
             _groundFilter.SetLayerMask(groundLayer);
+
+            _airJumpsLeft = maxAirJumps;
+            _airDashesLeft = maxAirDashes;
 
             ConfigurePhysics();
         }
@@ -132,8 +189,16 @@ namespace Combat.Player
         private void FixedUpdate()
         {
             CheckGrounded();
-            HandleHorizontalMovement();
-            HandleJumpAndGravity();
+
+            if (_isDashing)
+            {
+                HandleDashMovement();
+            }
+            else
+            {
+                HandleHorizontalMovement();
+                HandleJumpAndGravity();
+            }
 
             _wasGroundedLastFrame = IsGrounded;
         }
@@ -144,6 +209,9 @@ namespace Combat.Player
             bool jumpDown = false;
             bool jumpHold = false;
             bool downHold = false;
+            bool aPressedThisFrame = false;
+            bool dPressedThisFrame = false;
+            bool shiftPressedThisFrame = false;
 
 #if ENABLE_INPUT_SYSTEM
             var kb = UnityEngine.InputSystem.Keyboard.current;
@@ -151,6 +219,11 @@ namespace Combat.Player
             {
                 if (kb.dKey.isPressed || kb.rightArrowKey.isPressed) h += 1f;
                 if (kb.aKey.isPressed || kb.leftArrowKey.isPressed) h -= 1f;
+
+                if (kb.dKey.wasPressedThisFrame || kb.rightArrowKey.wasPressedThisFrame) dPressedThisFrame = true;
+                if (kb.aKey.wasPressedThisFrame || kb.leftArrowKey.wasPressedThisFrame) aPressedThisFrame = true;
+
+                if (kb.leftShiftKey.wasPressedThisFrame || kb.rightShiftKey.wasPressedThisFrame) shiftPressedThisFrame = true;
 
                 if (kb.wKey.wasPressedThisFrame || kb.spaceKey.wasPressedThisFrame || kb.upArrowKey.wasPressedThisFrame)
                     jumpDown = true;
@@ -176,6 +249,9 @@ namespace Combat.Player
                     jumpHold = true;
                 if (gp.dpad.down.isPressed || gp.leftStick.y.ReadValue() < -0.5f)
                     downHold = true;
+
+                if (gp.buttonEast.wasPressedThisFrame || gp.rightTrigger.wasPressedThisFrame)
+                    shiftPressedThisFrame = true;
             }
 #endif
 
@@ -183,6 +259,10 @@ namespace Combat.Player
             try
             {
                 if (h == 0f) h = Input.GetAxisRaw("Horizontal");
+                if (!aPressedThisFrame && (Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.LeftArrow))) aPressedThisFrame = true;
+                if (!dPressedThisFrame && (Input.GetKeyDown(KeyCode.D) || Input.GetKeyDown(KeyCode.RightArrow))) dPressedThisFrame = true;
+                if (!shiftPressedThisFrame && (Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift))) shiftPressedThisFrame = true;
+
                 if (!jumpDown && (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.UpArrow)))
                     jumpDown = true;
                 if (!jumpHold && (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.Space) || Input.GetKey(KeyCode.UpArrow)))
@@ -199,6 +279,90 @@ namespace Combat.Player
             if (jumpDown)
             {
                 _jumpBufferTimer = jumpBufferTime;
+            }
+
+            // Детекция двойного тапа A / D и Shift
+            HandleDashInput(aPressedThisFrame, dPressedThisFrame, shiftPressedThisFrame);
+        }
+
+        private void HandleDashInput(bool aPressed, bool dPressed, bool shiftPressed)
+        {
+            if (!enableDash) return;
+
+            // 1. Двойной тап клавиши A (влево)
+            if (aPressed)
+            {
+                if (Time.time - _lastTapTimeA <= doubleTapWindow && CanDash())
+                {
+                    StartDash(-1f);
+                    _lastTapTimeA = -10f; // сбрасываем, чтобы не сработало на третий клик
+                    return;
+                }
+                _lastTapTimeA = Time.time;
+            }
+
+            // 2. Двойной тап клавиши D (вправо)
+            if (dPressed)
+            {
+                if (Time.time - _lastTapTimeD <= doubleTapWindow && CanDash())
+                {
+                    StartDash(1f);
+                    _lastTapTimeD = -10f;
+                    return;
+                }
+                _lastTapTimeD = Time.time;
+            }
+
+            // 3. Быстрый рывок по Shift (в текущую сторону движения или взгляда)
+            if (shiftPressed && CanDash())
+            {
+                float dir = _horizontalInput != 0f ? Mathf.Sign(_horizontalInput) : (_sr != null && _sr.flipX ? -1f : 1f);
+                StartDash(dir);
+            }
+        }
+
+        private bool CanDash()
+        {
+            if (!enableDash) return false;
+            if (_isDashing) return false;
+            if (_dashCooldownTimer > 0f) return false;
+            if (!IsGrounded && _airDashesLeft <= 0) return false;
+            return true;
+        }
+
+        private void StartDash(float direction)
+        {
+            _isDashing = true;
+            _dashDirection = direction;
+            _dashTimer = dashDuration;
+            _dashCooldownTimer = dashCooldown;
+
+            if (!IsGrounded)
+            {
+                _airDashesLeft--;
+            }
+
+            _rb.gravityScale = 0f;
+            _rb.linearVelocity = new Vector2(_dashDirection * dashSpeed, 0f);
+
+            // Сочный горизонтальный stretch при рывке
+            if (enableJuiceSquashStretch)
+            {
+                _targetScale = new Vector3(_baseScale.x * 1.35f, _baseScale.y * 0.72f, _baseScale.z);
+            }
+        }
+
+        private void HandleDashMovement()
+        {
+            _dashTimer -= Time.fixedDeltaTime;
+            _rb.linearVelocity = new Vector2(_dashDirection * dashSpeed, 0f);
+
+            if (_dashTimer <= 0f)
+            {
+                _isDashing = false;
+                // Сохраняем приятную остаточную инерцию (carry-over)
+                _rb.linearVelocity = new Vector2(_dashDirection * moveSpeed * 1.15f, 0f);
+                _rb.gravityScale = baseGravityScale;
             }
         }
 
@@ -218,6 +382,12 @@ namespace Combat.Player
             if (_jumpBufferTimer > 0f)
             {
                 _jumpBufferTimer -= Time.deltaTime;
+            }
+
+            // Dash Cooldown Timer
+            if (_dashCooldownTimer > 0f)
+            {
+                _dashCooldownTimer -= Time.deltaTime;
             }
         }
 
@@ -242,9 +412,12 @@ namespace Combat.Player
                 }
             }
 
-            // Детекция приземления (для эффекта squash)
+            // Детекция приземления (для эффекта squash и сброса воздушных ресурсов)
             if (!IsGrounded && groundedNow && _rb.linearVelocity.y <= 0.1f)
             {
+                _airJumpsLeft = maxAirJumps;
+                _airDashesLeft = maxAirDashes;
+
                 if (enableJuiceSquashStretch)
                 {
                     _targetScale = new Vector3(_baseScale.x * 1.25f, _baseScale.y * 0.75f, _baseScale.z);
@@ -261,13 +434,20 @@ namespace Combat.Player
 
         private void HandleHorizontalMovement()
         {
-            float targetVelocityX = _horizontalInput * moveSpeed;
+            float speedMult = 1f;
+
+            // Бонус к скорости и управляемости в пике прыжка (Apex bonus)
+            if (enableApexHang && !_isDashing && Mathf.Abs(_rb.linearVelocity.y) < apexVelocityThreshold)
+            {
+                speedMult = apexSpeedMultiplier;
+            }
+
+            float targetVelocityX = _horizontalInput * moveSpeed * speedMult;
             float currentVelocityX = _rb.linearVelocity.x;
 
             float accelRate;
             if (IsGrounded)
             {
-                // Если направление ввода совпадает или отлично от нуля — ускоряемся, иначе тормозим
                 accelRate = (Mathf.Abs(targetVelocityX) > 0.01f) ? groundAcceleration : groundDeceleration;
             }
             else
@@ -281,16 +461,32 @@ namespace Combat.Player
 
         private void HandleJumpAndGravity()
         {
-            // 1. Попытка совершить прыжок (Jump Buffer + Coyote Time)
-            if (_jumpBufferTimer > 0f && _coyoteTimer > 0f)
+            // 1. Обработка прыжка
+            if (_jumpBufferTimer > 0f)
             {
-                ExecuteJump();
+                if (_coyoteTimer > 0f)
+                {
+                    // Обычный прыжок с земли или с края
+                    ExecuteJump();
+                }
+                else if (_airJumpsLeft > 0)
+                {
+                    // Двойной прыжок в воздухе
+                    ExecuteAirJump();
+                }
             }
 
-            // 2. Управление гравитацией для сочного платформинга
-            if (_rb.linearVelocity.y < -0.01f)
+            // 2. Управление гравитацией (Apex Floatiness + Snappy Fall)
+            bool isAtApex = enableApexHang && Mathf.Abs(_rb.linearVelocity.y) < apexVelocityThreshold && !_isDashing;
+
+            if (isAtApex)
             {
-                // Падение вниз: гравитация выше для быстрого приземления
+                // Зависание в пике (как в Celeste): сниженная гравитация на мгновение в наивысшей точке
+                _rb.gravityScale = baseGravityScale * apexGravityMultiplier;
+            }
+            else if (_rb.linearVelocity.y < -0.01f)
+            {
+                // Падение вниз: гравитация выше для четкого приземления
                 float mult = fallMultiplier;
                 if (_downHeld)
                 {
@@ -308,6 +504,12 @@ namespace Combat.Player
                 // Обычный подъем
                 _rb.gravityScale = baseGravityScale;
             }
+
+            // 3. Ограничение предельной скорости падения (Terminal Velocity)
+            if (_rb.linearVelocity.y < -maxFallSpeed)
+            {
+                _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, -maxFallSpeed);
+            }
         }
 
         private void ExecuteJump()
@@ -324,10 +526,25 @@ namespace Combat.Player
             }
         }
 
+        private void ExecuteAirJump()
+        {
+            _airJumpsLeft--;
+            _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, jumpForce * airJumpForceMultiplier);
+            _jumpBufferTimer = 0f;
+            _coyoteTimer = 0f;
+            _isJumping = true;
+
+            // Эффект stretch при двойном прыжке
+            if (enableJuiceSquashStretch)
+            {
+                _targetScale = new Vector3(_baseScale.x * 0.78f, _baseScale.y * 1.3f, _baseScale.z);
+            }
+        }
+
         private void UpdateVisuals()
         {
             // 1. Разворот спрайта по направлению движения (A = влево, D = вправо)
-            if (_sr != null && Mathf.Abs(_horizontalInput) > 0.05f)
+            if (_sr != null && Mathf.Abs(_horizontalInput) > 0.05f && !_isDashing)
             {
                 _sr.flipX = _horizontalInput < 0f;
             }
@@ -354,3 +571,4 @@ namespace Combat.Player
         }
     }
 }
+

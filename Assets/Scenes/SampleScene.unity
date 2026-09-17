@@ -10116,6 +10116,19 @@ MonoBehaviour:
   fastFallMultiplier: 1.8
   coyoteTime: 0.12
   jumpBufferTime: 0.12
+  maxFallSpeed: 22
+  maxAirJumps: 1
+  airJumpForceMultiplier: 0.92
+  enableApexHang: 1
+  apexVelocityThreshold: 2.6
+  apexGravityMultiplier: 0.35
+  apexSpeedMultiplier: 1.15
+  enableDash: 1
+  dashSpeed: 19.5
+  dashDuration: 0.16
+  dashCooldown: 0.5
+  doubleTapWindow: 0.25
+  maxAirDashes: 1
   groundLayer:
     serializedVersion: 2
     m_Bits: 4294967295
