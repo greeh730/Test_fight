@@ -72,10 +72,10 @@ namespace Combat
         [SerializeField] private float counterDamageMultiplier = 1.75f;
 
         [Tooltip("Длительность оглушения врага после контратаки")]
-        [SerializeField] private float counterStunDuration = 1.5f;
+        [SerializeField] private float counterStunDuration = 1.0f;
 
         [Tooltip("Длительность тактильного хитстопа (паузы) при контратаке")]
-        [SerializeField] private float counterHitstopDuration = 0.12f;
+        [SerializeField] private float counterHitstopDuration = 0.08f;
 
         [Header("--- Visuals & Face ---")]
         [SerializeField] private Color normalColor = new Color(0.72f, 0.15f, 0.15f, 1f); // Темно-красный кубик
@@ -365,8 +365,16 @@ namespace Combat
             // 3. Всплывающий текст "КОНТРАТАКА!"
             telegraphVisualizer.ShowCounterAttackPopup(transform.position);
 
-            // 4. Сокрушительный хитстоп
-            TriggerHitstop(counterHitstopDuration);
+            // 4. Запускаем хитстоп через централизованный контроллер игрока
+            var pCombat = _playerTransform != null ? _playerTransform.GetComponent<PlayerCombatController2D>() : null;
+            if (pCombat != null)
+            {
+                pCombat.TriggerHitstop(counterHitstopDuration);
+            }
+            else
+            {
+                Time.timeScale = 1.0f;
+            }
 
             // 5. Переход в состояние оглушения (Stunned)
             CurrentState = EnemyState.Stunned;
@@ -420,19 +428,9 @@ namespace Combat
             _stateRoutine = null;
         }
 
-        private void TriggerHitstop(float duration)
+        private void OnDisable()
         {
-            if (_hitstopRoutine != null) StopCoroutine(_hitstopRoutine);
-            _hitstopRoutine = StartCoroutine(HitstopRoutine(duration));
-        }
-
-        private IEnumerator HitstopRoutine(float duration)
-        {
-            float prevScale = Time.timeScale;
-            Time.timeScale = 0.05f;
-            yield return new WaitForSecondsRealtime(duration);
-            Time.timeScale = prevScale > 0.01f ? prevScale : 1f;
-            _hitstopRoutine = null;
+            Time.timeScale = 1.0f;
         }
 
         private IEnumerator FlashRoutine(Color defaultCol, Color flashCol, float duration)

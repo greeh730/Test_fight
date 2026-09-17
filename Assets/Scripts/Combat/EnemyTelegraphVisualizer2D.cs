@@ -186,7 +186,7 @@ namespace Combat
 
             while (elapsed < duration)
             {
-                elapsed += Time.deltaTime;
+                elapsed += Time.unscaledDeltaTime;
                 float t = elapsed / duration;
 
                 if (go != null)

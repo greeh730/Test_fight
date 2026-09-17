@@ -586,19 +586,19 @@ namespace Combat
             }
         }
 
-        private void TriggerHitstop()
+        public void TriggerHitstop(float customDuration = -1f)
         {
-            if (hitstopDuration <= 0.005f) return;
+            float duration = customDuration > 0.001f ? customDuration : hitstopDuration;
+            if (duration <= 0.005f) return;
             if (_hitstopRoutine != null) StopCoroutine(_hitstopRoutine);
-            _hitstopRoutine = StartCoroutine(HitstopRoutine());
+            _hitstopRoutine = StartCoroutine(HitstopRoutine(duration));
         }
 
-        private IEnumerator HitstopRoutine()
+        private IEnumerator HitstopRoutine(float duration)
         {
-            float prevScale = Time.timeScale;
             Time.timeScale = 0.05f;
-            yield return new WaitForSecondsRealtime(hitstopDuration);
-            Time.timeScale = prevScale > 0.01f ? prevScale : 1f;
+            yield return new WaitForSecondsRealtime(duration);
+            Time.timeScale = 1.0f;
             _hitstopRoutine = null;
         }
 
