@@ -91,15 +91,21 @@ namespace Combat
         [SerializeField] private float comboStartupMultiplier = 0.65f;
 
         [Tooltip("Множитель урона для завершающего удара комбо (Finisher)")]
-        [Range(1f, 3f)]
-        [SerializeField] private float finisherDamageMultiplier = 1.4f;
+        [Range(1f, 4f)]
+        [SerializeField] private float finisherDamageMultiplier = 1.85f;
 
         [Tooltip("Множитель силы отталкивания для завершающего удара комбо")]
-        [Range(1f, 3f)]
-        [SerializeField] private float finisherKnockbackMultiplier = 1.5f;
+        [Range(1f, 4f)]
+        [SerializeField] private float finisherKnockbackMultiplier = 2.2f;
 
         [Tooltip("Сила импульса выпада вперед/в сторону удара при комбо")]
         [SerializeField] private float comboLungeForce = 3.5f;
+
+        [Tooltip("Комбо засчитывается только при повторе одинакового удара (любое совмещение сбрасывает серию)")]
+        [SerializeField] private bool requireSameAttackForCombo = true;
+
+        [Tooltip("Ограничивать серию комбо только средними ударами (Вперед и Назад)")]
+        [SerializeField] private bool limitCombosToMidStrikesOnly = false;
 
         [Header("--- Input Buffer & Cancel Windows ---")]
         [Tooltip("Длительность окна буферизации ввода (в секундах)")]
@@ -160,6 +166,7 @@ namespace Combat
         private bool _canCancelIntoCombo;
         private bool _hasHitTargetInCurrentAttack;
         private bool _lastWasFinisher;
+        private AttackIntent? _lastComboIntent;
         private Rigidbody2D _rb;
         private SpriteRenderer _sr;
 
@@ -313,6 +320,7 @@ namespace Combat
         {
             CurrentComboStep = 1;
             _lastWasFinisher = false;
+            _lastComboIntent = null;
             onComboStepChanged?.Invoke(CurrentComboStep, false);
         }
 
@@ -345,18 +353,19 @@ namespace Combat
             {
                 if (dir == Direction8.Right || dir == Direction8.UpRight || dir == Direction8.DownRight)
                 {
-                    sign = 1f; // бьет вправо на экране
+                    sign = 1f; // бьет вправо на экране -> ВПЕРЕД
+                    strikeDir = StrikeDirection.Forward;
                 }
                 else if (dir == Direction8.Left || dir == Direction8.UpLeft || dir == Direction8.DownLeft)
                 {
-                    sign = -1f; // бьет влево на экране
+                    sign = -1f; // бьет влево на экране -> НАЗАД
+                    strikeDir = StrikeDirection.Backward;
                 }
                 else
                 {
                     sign = FacingDirection; // для чистых Up/Down бьем в сторону взгляда
+                    strikeDir = StrikeDirection.Forward;
                 }
-
-                strikeDir = (Mathf.Sign(sign) == Mathf.Sign(FacingDirection)) ? StrikeDirection.Forward : StrikeDirection.Backward;
             }
             else // FacingRelative
             {
@@ -433,16 +442,30 @@ namespace Combat
             };
         }
 
-        private void PrepareNextComboStep(bool isChaining)
+        private bool IsComboCompatible(AttackIntent lastIntent, AttackIntent nextIntent)
+        {
+            if (!requireSameAttackForCombo) return true;
+
+            // 1. Высота удара должна строго совпадать (например, Mid != High)
+            if (lastIntent.height != nextIntent.height) return false;
+
+            // 2. Горизонтальное направление должно строго совпадать (Вправо != Влево)
+            if (Mathf.Sign(lastIntent.horizontalSign) != Mathf.Sign(nextIntent.horizontalSign)) return false;
+
+            // 3. Относительное направление должно совпадать (Forward != Backward)
+            if (lastIntent.strikeDir != nextIntent.strikeDir) return false;
+
+            // 4. Ограничение комбо только средними ударами (если включено в инспекторе)
+            if (limitCombosToMidStrikesOnly && nextIntent.height != AttackHeight.Mid) return false;
+
+            return true;
+        }
+
+        private void PrepareNextComboStep(AttackIntent newIntent, bool isChaining)
         {
             if (isChaining)
             {
-                CurrentComboStep = (CurrentComboStep >= maxComboSteps) ? 1 : CurrentComboStep + 1;
-            }
-            else
-            {
-                float idleTimeReference = _lastAttackFinishTime > 0f ? _lastAttackFinishTime : _lastAttackStartTime;
-                if (Time.time - idleTimeReference <= comboResetTime && !_lastWasFinisher && idleTimeReference > 0f)
+                if (_lastComboIntent.HasValue && IsComboCompatible(_lastComboIntent.Value, newIntent))
                 {
                     CurrentComboStep = (CurrentComboStep >= maxComboSteps) ? 1 : CurrentComboStep + 1;
                 }
@@ -451,6 +474,21 @@ namespace Combat
                     CurrentComboStep = 1;
                 }
             }
+            else
+            {
+                float idleTimeReference = _lastAttackFinishTime > 0f ? _lastAttackFinishTime : _lastAttackStartTime;
+                bool withinTime = (Time.time - idleTimeReference <= comboResetTime) && !_lastWasFinisher && (idleTimeReference > 0f);
+                if (withinTime && _lastComboIntent.HasValue && IsComboCompatible(_lastComboIntent.Value, newIntent))
+                {
+                    CurrentComboStep = (CurrentComboStep >= maxComboSteps) ? 1 : CurrentComboStep + 1;
+                }
+                else
+                {
+                    CurrentComboStep = 1;
+                }
+            }
+
+            _lastComboIntent = newIntent;
             _lastAttackStartTime = Time.time;
         }
 
@@ -476,7 +514,7 @@ namespace Combat
                 if (visualizer != null) visualizer.HideHitbox();
             }
 
-            PrepareNextComboStep(isChaining);
+            PrepareNextComboStep(intent, isChaining);
 
             _attackRoutine = StartCoroutine(AttackSequenceRoutine(attack, intent));
             return true;
@@ -582,7 +620,8 @@ namespace Combat
             if (_rb == null) _rb = GetComponent<Rigidbody2D>();
             if (_rb != null && comboLungeForce > 0.05f)
             {
-                _rb.linearVelocity = new Vector2(horizontalSign * comboLungeForce, _rb.linearVelocity.y);
+                float multiplier = IsFinisher ? 1.5f : (CurrentComboStep > 1 ? 1.15f : 0.85f);
+                _rb.linearVelocity = new Vector2(horizontalSign * comboLungeForce * multiplier, _rb.linearVelocity.y);
             }
         }
 
@@ -643,7 +682,7 @@ namespace Combat
                         _hitTargetsInCurrentSwing.Add(col);
                         if (receiver != null) _hitReceiversInCurrentSwing.Add(receiver);
 
-                        OnTargetHitSuccess();
+                        OnTargetHitSuccess(isFinisher);
 
                         Vector2 knockbackDir = new Vector2(intent.horizontalSign, 1f).normalized;
                         hurtbox.ReceiveHit(effectiveAttack, center, knockbackDir);
@@ -659,7 +698,7 @@ namespace Combat
                         _hitTargetsInCurrentSwing.Add(col);
                         _hitReceiversInCurrentSwing.Add(target);
 
-                        OnTargetHitSuccess();
+                        OnTargetHitSuccess(isFinisher);
 
                         Vector2 knockbackDir = new Vector2(intent.horizontalSign, 1f).normalized;
                         target.TakeHit(effectiveAttack, effectiveAttack.targetedZones, center, knockbackDir);
@@ -668,13 +707,13 @@ namespace Combat
             }
         }
 
-        private void OnTargetHitSuccess()
+        private void OnTargetHitSuccess(bool isFinisher = false)
         {
             if (!_hasHitTargetInCurrentAttack)
             {
                 _hasHitTargetInCurrentAttack = true;
                 _canCancelIntoCombo = true;
-                TriggerHitstop();
+                TriggerHitstop(isFinisher ? hitstopDuration * 1.8f : hitstopDuration);
             }
         }
 

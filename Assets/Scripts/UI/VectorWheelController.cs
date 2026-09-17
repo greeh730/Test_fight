@@ -573,17 +573,17 @@ namespace Combat.UI
         {
             if (attackNameText == null) return;
 
-            _textPunchScale = isFinisher ? 1.25f : 1.15f;
+            _textPunchScale = isFinisher ? 1.35f : (comboStep > 1 ? 1.18f : 1.05f);
 
             string badge = comboStep switch
             {
-                1 => "[КОМБО 1]",
+                1 => "[УДАР 1]",
                 2 => "<color=#FFD700>[КОМБО 2]</color>",
-                _ => isFinisher ? "<color=#FF3344>[ФИНИШЕР! x3]</color>" : $"<color=#FF7722>[КОМБО {comboStep}]</color>"
+                _ => isFinisher ? "<color=#FF2222>★ ФИНИШЕР x3 ★</color>" : $"<color=#FF7722>[КОМБО {comboStep}]</color>"
             };
 
             attackNameText.text = $"{attackName} {badge}";
-            attackNameText.color = isFinisher ? new Color(1f, 0.4f, 0.4f, 1f) : textActiveColor;
+            attackNameText.color = isFinisher ? new Color(1f, 0.25f, 0.25f, 1f) : textActiveColor;
         }
 
         public void ApplyVisualColors()

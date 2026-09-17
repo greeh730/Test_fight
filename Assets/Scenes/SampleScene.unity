@@ -8313,13 +8313,13 @@ MonoBehaviour:
   maxHealth: 120
   currentHealth: 120
   resetHealthDelay: 3.5
-  detectionRange: 10
+  detectionRange: 2.62
   loseTargetRange: 14
   visionObstacleLayers:
     serializedVersion: 2
     m_Bits: 0
   moveSpeed: 3.6
-  attackRange: 2.05
+  attackRange: 2.11
   telegraphDuration: 0.75
   activeStrikeDuration: 0.15
   recoveryDuration: 0.55
@@ -11434,9 +11434,11 @@ MonoBehaviour:
   maxComboSteps: 3
   comboResetTime: 1.2
   comboStartupMultiplier: 0.65
-  finisherDamageMultiplier: 1.4
-  finisherKnockbackMultiplier: 1.5
+  finisherDamageMultiplier: 1.85
+  finisherKnockbackMultiplier: 2.2
   comboLungeForce: 3.5
+  requireSameAttackForCombo: 1
+  limitCombosToMidStrikesOnly: 0
   inputBufferDuration: 0.55
   recoveryCancelThreshold: 0.3
   hitstopDuration: 0.045
@@ -11502,7 +11504,7 @@ Transform:
   m_GameObject: {fileID: 2054004658}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 7.5, y: 0.85, z: 0}
+  m_LocalPosition: {x: 13.9, y: 2.48, z: 0}
   m_LocalScale: {x: 4, y: 0.35, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
