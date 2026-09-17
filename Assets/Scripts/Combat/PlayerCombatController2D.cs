@@ -128,6 +128,12 @@ namespace Combat
         [Tooltip("Отображать зеркальные хитбоксы ударов Назад в Scene Gizmos")]
         [SerializeField] private bool showBackwardHitboxesInGizmos = true;
 
+        [Header("--- Face / Visual Orientation ---")]
+        [Tooltip("Ссылка на дочерний объект Face (если null, ищется автоматически)")]
+        [SerializeField] private Transform faceTransform;
+        private Vector3 _faceBaseLocalPos = new Vector3(0.16f, 0.14f, 0f);
+        private Vector3 _faceBaseLocalScale = new Vector3(0.45f, 0.26f, 1f);
+
         [Header("--- Combo Events ---")]
         public ComboStepEvent onComboStepChanged;
 
@@ -179,6 +185,16 @@ namespace Combat
             if (vectorWheel == null)
             {
                 vectorWheel = FindAnyObjectByType<VectorWheelController>();
+            }
+
+            if (faceTransform == null)
+            {
+                faceTransform = transform.Find("Face");
+            }
+            if (faceTransform != null)
+            {
+                _faceBaseLocalPos = faceTransform.localPosition;
+                _faceBaseLocalScale = faceTransform.localScale;
             }
         }
 
@@ -232,7 +248,24 @@ namespace Combat
 
         public void SetFacingDirection(float dir)
         {
+            if (Mathf.Abs(dir) < 0.01f) return;
             FacingDirection = Mathf.Sign(dir);
+
+            if (_sr == null) _sr = GetComponent<SpriteRenderer>();
+            if (_sr != null)
+            {
+                _sr.flipX = FacingDirection < 0f;
+            }
+
+            if (faceTransform == null) faceTransform = transform.Find("Face");
+            if (faceTransform != null)
+            {
+                float absX = Mathf.Abs(_faceBaseLocalPos.x > 0.001f ? _faceBaseLocalPos.x : 0.16f);
+                float absScaleX = Mathf.Abs(_faceBaseLocalScale.x > 0.001f ? _faceBaseLocalScale.x : 0.45f);
+
+                faceTransform.localPosition = new Vector3(absX * FacingDirection, _faceBaseLocalPos.y, _faceBaseLocalPos.z);
+                faceTransform.localScale = new Vector3(absScaleX * FacingDirection, _faceBaseLocalScale.y, _faceBaseLocalScale.z);
+            }
         }
 
         private void UpdateComboTimers()
@@ -427,6 +460,12 @@ namespace Combat
 
             AttackConfig attack = GetAttackForHeight(intent.height);
             if (attack == null) return false;
+
+            // Поворачиваем персонажа и отзеркаливаем лицо в сторону удара (влево / вправо)
+            if (Mathf.Abs(intent.horizontalSign) > 0.01f)
+            {
+                SetFacingDirection(intent.horizontalSign);
+            }
 
             bool isChaining = isComboChain || (_attackRoutine != null) || (CurrentState != CombatState.Idle);
 

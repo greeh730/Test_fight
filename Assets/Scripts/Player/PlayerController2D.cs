@@ -158,6 +158,43 @@ namespace Combat.Player
         private Vector3 _targetScale = Vector3.one;
         private bool _wasGroundedLastFrame;
 
+        [Header("--- Face / Head Orientation ---")]
+        [Tooltip("Трансформ лица (дочерний объект Face)")]
+        [SerializeField] private Transform faceTransform;
+
+        private Vector3 _faceBaseLocalPos = new Vector3(0.16f, 0.14f, 0f);
+        private Vector3 _faceBaseLocalScale = new Vector3(0.45f, 0.26f, 1f);
+        private float _currentFacing = 1f;
+        private Combat.PlayerCombatController2D _combatController;
+
+        public float CurrentFacing => _currentFacing;
+
+        public void SetFacing(float direction)
+        {
+            if (Mathf.Abs(direction) < 0.01f) return;
+            _currentFacing = Mathf.Sign(direction);
+
+            if (_sr != null)
+            {
+                _sr.flipX = _currentFacing < 0f;
+            }
+
+            if (faceTransform == null) faceTransform = transform.Find("Face");
+            if (faceTransform != null)
+            {
+                float absX = Mathf.Abs(_faceBaseLocalPos.x > 0.001f ? _faceBaseLocalPos.x : 0.16f);
+                float absScaleX = Mathf.Abs(_faceBaseLocalScale.x > 0.001f ? _faceBaseLocalScale.x : 0.45f);
+
+                faceTransform.localPosition = new Vector3(absX * _currentFacing, _faceBaseLocalPos.y, _faceBaseLocalPos.z);
+                faceTransform.localScale = new Vector3(absScaleX * _currentFacing, _faceBaseLocalScale.y, _faceBaseLocalScale.z);
+            }
+
+            if (_combatController != null)
+            {
+                _combatController.SetFacingDirection(_currentFacing);
+            }
+        }
+
         private void Awake()
         {
             _rb = GetComponent<Rigidbody2D>();
@@ -166,6 +203,15 @@ namespace Combat.Player
 
             _baseScale = transform.localScale;
             _targetScale = _baseScale;
+
+            if (faceTransform == null) faceTransform = transform.Find("Face");
+            if (faceTransform != null)
+            {
+                _faceBaseLocalPos = faceTransform.localPosition;
+                _faceBaseLocalScale = faceTransform.localScale;
+            }
+
+            _combatController = GetComponent<Combat.PlayerCombatController2D>();
 
             _groundFilter = new ContactFilter2D();
             _groundFilter.useTriggers = false;
@@ -643,10 +689,22 @@ namespace Combat.Player
 
         private void UpdateVisuals()
         {
-            // 1. Разворот спрайта по направлению движения (A = влево, D = вправо)
-            if (_sr != null && Mathf.Abs(_horizontalInput) > 0.05f && !_isDashing)
+            if (_combatController == null) _combatController = GetComponent<Combat.PlayerCombatController2D>();
+
+            // Если персонаж атакует — лицо и поворот удерживаются в сторону удара
+            bool isAttacking = _combatController != null && _combatController.CurrentState != Combat.CombatState.Idle;
+
+            // 1. Поворот персонажа и лица по направлению движения (если сейчас не в атаке)
+            if (!isAttacking)
             {
-                _sr.flipX = _horizontalInput < 0f;
+                if (_isDashing)
+                {
+                    SetFacing(_dashDirection);
+                }
+                else if (Mathf.Abs(_horizontalInput) > 0.05f)
+                {
+                    SetFacing(_horizontalInput);
+                }
             }
 
             // 2. Плавная интерполяция сжатия/растяжения (Squash & Stretch)
