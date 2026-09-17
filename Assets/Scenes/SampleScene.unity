@@ -2853,7 +2853,7 @@ Transform:
   m_GameObject: {fileID: 519420028}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -2.49, y: -0.3, z: -10}
+  m_LocalPosition: {x: -2.49, y: -2.19, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -2873,9 +2873,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Combat.Cameras.CameraFollow2D
   target: {fileID: 2046979056}
   deadzoneSize: {x: 2.4, y: 1.8}
-  offset: {x: 0, y: 1.2}
+  offset: {x: 0, y: 0}
   smoothTimeX: 0.28
   smoothTimeY: 0.35
+  autoRecenter: 1
+  recenterSpeed: 3
+  recenterDelay: 0.25
   enableLookahead: 1
   lookaheadDistance: 1.8
   minSpeedForLookahead: 3
@@ -10091,7 +10094,7 @@ Transform:
   m_GameObject: {fileID: 2046979054}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -2.49, y: -1.5, z: 0}
+  m_LocalPosition: {x: -2.49, y: -2.19, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
