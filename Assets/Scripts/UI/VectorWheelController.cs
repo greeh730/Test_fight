@@ -586,7 +586,7 @@ namespace Combat.UI
                 return UnityEngine.InputSystem.Mouse.current.position.ReadValue();
             }
 #endif
-            return Input.mousePosition;
+            try { return Input.mousePosition; } catch { return Vector2.zero; }
         }
 
         private static Vector2 GetMouseDelta()
@@ -597,7 +597,7 @@ namespace Combat.UI
                 return UnityEngine.InputSystem.Mouse.current.delta.ReadValue();
             }
 #endif
-            return new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y")) * 10f;
+            try { return new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y")) * 10f; } catch { return Vector2.zero; }
         }
 
         private static bool IsLMBDown()
@@ -608,7 +608,7 @@ namespace Combat.UI
                 return UnityEngine.InputSystem.Mouse.current.leftButton.wasPressedThisFrame;
             }
 #endif
-            return Input.GetMouseButtonDown(0);
+            try { return Input.GetMouseButtonDown(0); } catch { return false; }
         }
 
         private static bool IsLMBHeld()
@@ -619,7 +619,7 @@ namespace Combat.UI
                 return UnityEngine.InputSystem.Mouse.current.leftButton.isPressed;
             }
 #endif
-            return Input.GetMouseButton(0);
+            try { return Input.GetMouseButton(0); } catch { return false; }
         }
 
         private static bool IsLMBUp()
@@ -630,7 +630,7 @@ namespace Combat.UI
                 return UnityEngine.InputSystem.Mouse.current.leftButton.wasReleasedThisFrame;
             }
 #endif
-            return Input.GetMouseButtonUp(0);
+            try { return Input.GetMouseButtonUp(0); } catch { return false; }
         }
 
         private static Vector2 GetGamepadRightStick()

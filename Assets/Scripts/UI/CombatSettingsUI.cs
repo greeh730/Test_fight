@@ -108,13 +108,33 @@ namespace Combat.UI
 
         private void Update()
         {
-            if (Input.GetKeyDown(toggleKey))
+            if (IsKeyJustPressed(toggleKey))
             {
                 ToggleSettings();
             }
-            else if (Input.GetKeyDown(escapeKey) && IsOpen)
+            else if (IsKeyJustPressed(escapeKey) && IsOpen)
             {
                 CloseSettings();
+            }
+        }
+
+        private static bool IsKeyJustPressed(KeyCode key)
+        {
+#if ENABLE_INPUT_SYSTEM
+            var kb = UnityEngine.InputSystem.Keyboard.current;
+            if (kb != null)
+            {
+                if (key == KeyCode.F1 && kb.f1Key.wasPressedThisFrame) return true;
+                if (key == KeyCode.Escape && kb.escapeKey.wasPressedThisFrame) return true;
+            }
+#endif
+            try
+            {
+                return Input.GetKeyDown(key);
+            }
+            catch
+            {
+                return false;
             }
         }
 
