@@ -10108,6 +10108,10 @@ MonoBehaviour:
   moveSpeed: 8.5
   groundAcceleration: 65
   groundDeceleration: 75
+  turnDeceleration: 38
+  sprintMultiplier: 1.4
+  friction: 1
+  slopeDownSnapDistance: 0.35
   airAcceleration: 35
   jumpForce: 13.5
   baseGravityScale: 3.5

@@ -9,7 +9,7 @@ namespace Combat.Player
     [RequireComponent(typeof(SpriteRenderer))]
     public class PlayerController2D : MonoBehaviour
     {
-        [Header("--- Horizontal Movement ---")]
+        [Header("--- Horizontal Movement & Weight Feel ---")]
         [Tooltip("Максимальная горизонтальная скорость бега")]
         [SerializeField] private float moveSpeed = 8.5f;
 
@@ -18,6 +18,18 @@ namespace Combat.Player
 
         [Tooltip("Торможение на земле (резкая остановка без скольжения)")]
         [SerializeField] private float groundDeceleration = 75f;
+
+        [Tooltip("Торможение при резкой смене направления (бег вправо -> нажали влево). Создает эффект микро-заноса (skid)")]
+        [SerializeField] private float turnDeceleration = 38f;
+
+        [Tooltip("Множитель скорости бега при зажатии Shift (Спринт)")]
+        [SerializeField] private float sprintMultiplier = 1.4f;
+
+        [Tooltip("Коэффициент сцепления с землей (1.0 = норма, 0.2 = скользкий лед, 1.8 = грязь)")]
+        [SerializeField] [Range(0.05f, 3.0f)] private float friction = 1.0f;
+
+        [Tooltip("Дистанция прилипания к спускам и лестницам (исключает подпрыгивания на спусках)")]
+        [SerializeField] private float slopeDownSnapDistance = 0.35f;
 
         [Tooltip("Ускорение в воздухе для управляемости прыжка")]
         [SerializeField] private float airAcceleration = 35f;
@@ -109,6 +121,9 @@ namespace Combat.Player
         public bool IsCrouching { get; private set; }
         public bool IsJumping => _isJumping;
         public bool IsDashing => _isDashing;
+        public bool IsSprinting => _isSprinting;
+        public bool IsSkidding => _isSkidding;
+        public float CurrentFriction => _currentSurfaceFriction;
         public int AirJumpsRemaining => _airJumpsLeft;
         public Vector2 Velocity => _rb != null ? _rb.linearVelocity : Vector2.zero;
 
@@ -116,6 +131,10 @@ namespace Combat.Player
         private bool _jumpPressed;
         private bool _jumpHeld;
         private bool _downHeld;
+        private bool _sprintHeld;
+        private bool _isSprinting;
+        private bool _isSkidding;
+        private float _currentSurfaceFriction = 1.0f;
 
         // Timers
         private float _coyoteTimer;
@@ -209,6 +228,7 @@ namespace Combat.Player
             bool jumpDown = false;
             bool jumpHold = false;
             bool downHold = false;
+            bool shiftHold = false;
             bool aPressedThisFrame = false;
             bool dPressedThisFrame = false;
             bool shiftPressedThisFrame = false;
@@ -223,6 +243,7 @@ namespace Combat.Player
                 if (kb.dKey.wasPressedThisFrame || kb.rightArrowKey.wasPressedThisFrame) dPressedThisFrame = true;
                 if (kb.aKey.wasPressedThisFrame || kb.leftArrowKey.wasPressedThisFrame) aPressedThisFrame = true;
 
+                if (kb.leftShiftKey.isPressed || kb.rightShiftKey.isPressed) shiftHold = true;
                 if (kb.leftShiftKey.wasPressedThisFrame || kb.rightShiftKey.wasPressedThisFrame) shiftPressedThisFrame = true;
 
                 if (kb.wKey.wasPressedThisFrame || kb.spaceKey.wasPressedThisFrame || kb.upArrowKey.wasPressedThisFrame)
@@ -243,6 +264,8 @@ namespace Combat.Player
                 if (gp.dpad.right.isPressed) h += 1f;
                 if (gp.dpad.left.isPressed) h -= 1f;
 
+                if (gp.leftTrigger.ReadValue() > 0.3f || gp.rightShoulder.isPressed) shiftHold = true;
+
                 if (gp.buttonSouth.wasPressedThisFrame || gp.dpad.up.wasPressedThisFrame)
                     jumpDown = true;
                 if (gp.buttonSouth.isPressed || gp.dpad.up.isPressed)
@@ -262,6 +285,7 @@ namespace Combat.Player
                 if (!aPressedThisFrame && (Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.LeftArrow))) aPressedThisFrame = true;
                 if (!dPressedThisFrame && (Input.GetKeyDown(KeyCode.D) || Input.GetKeyDown(KeyCode.RightArrow))) dPressedThisFrame = true;
                 if (!shiftPressedThisFrame && (Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift))) shiftPressedThisFrame = true;
+                if (!shiftHold && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))) shiftHold = true;
 
                 if (!jumpDown && (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.UpArrow)))
                     jumpDown = true;
@@ -275,6 +299,8 @@ namespace Combat.Player
             _horizontalInput = Mathf.Clamp(h, -1f, 1f);
             _jumpHeld = jumpHold;
             _downHeld = downHold;
+            _sprintHeld = shiftHold;
+            _isSprinting = _sprintHeld && IsGrounded && Mathf.Abs(_horizontalInput) > 0.05f;
 
             if (jumpDown)
             {
@@ -407,6 +433,41 @@ namespace Combat.Player
                     if (hit.normal.y > 0.5f)
                     {
                         groundedNow = true;
+
+                        // Считываем физическое сцепление (friction) поверхности
+                        float surfFriction = friction;
+                        if (hit.collider.sharedMaterial != null && hit.collider.sharedMaterial.friction > 0.001f)
+                        {
+                            surfFriction *= hit.collider.sharedMaterial.friction;
+                        }
+                        _currentSurfaceFriction = surfFriction;
+                        break;
+                    }
+                }
+            }
+
+            // Прилипание к спускам (Slope Down Snapping): исключает отрыв и подпрыгивания на уступах и лестницах
+            if (!groundedNow && _wasGroundedLastFrame && !_isJumping && !_isDashing && _rb.linearVelocity.y <= 0.1f)
+            {
+                int snapCount = _col.Cast(Vector2.down, _groundFilter, _groundHits, slopeDownSnapDistance);
+                for (int i = 0; i < snapCount; i++)
+                {
+                    var snapHit = _groundHits[i];
+                    if (snapHit.collider != null && snapHit.collider != _col && !snapHit.collider.isTrigger && snapHit.normal.y > 0.45f)
+                    {
+                        groundedNow = true;
+                        float snapY = snapHit.point.y + (_col.bounds.extents.y);
+                        _rb.position = new Vector2(_rb.position.x, snapY);
+
+                        Vector2 tangent = new Vector2(snapHit.normal.y, -snapHit.normal.x);
+                        _rb.linearVelocity = tangent * Vector2.Dot(_rb.linearVelocity, tangent);
+
+                        float surfFriction = friction;
+                        if (snapHit.collider.sharedMaterial != null && snapHit.collider.sharedMaterial.friction > 0.001f)
+                        {
+                            surfFriction *= snapHit.collider.sharedMaterial.friction;
+                        }
+                        _currentSurfaceFriction = surfFriction;
                         break;
                     }
                 }
@@ -426,6 +487,11 @@ namespace Combat.Player
 
             IsGrounded = groundedNow;
 
+            if (!IsGrounded)
+            {
+                _currentSurfaceFriction = 1f;
+            }
+
             if (IsGrounded && _rb.linearVelocity.y <= 0.05f)
             {
                 _isJumping = false;
@@ -436,19 +502,51 @@ namespace Combat.Player
         {
             float speedMult = 1f;
 
+            // Спринт при зажатии Shift на земле
+            if (IsGrounded && _sprintHeld && Mathf.Abs(_horizontalInput) > 0.01f)
+            {
+                speedMult *= sprintMultiplier;
+            }
+
             // Бонус к скорости и управляемости в пике прыжка (Apex bonus)
             if (enableApexHang && !_isDashing && Mathf.Abs(_rb.linearVelocity.y) < apexVelocityThreshold)
             {
-                speedMult = apexSpeedMultiplier;
+                speedMult *= apexSpeedMultiplier;
             }
 
             float targetVelocityX = _horizontalInput * moveSpeed * speedMult;
             float currentVelocityX = _rb.linearVelocity.x;
 
+            // Расчет сцепления с землей (Friction)
+            float effectiveFriction = Mathf.Clamp(_currentSurfaceFriction, 0.15f, 2.5f);
+            float effectiveDecel = groundDeceleration * effectiveFriction;
+            float effectiveAccel = groundAcceleration * Mathf.Clamp(effectiveFriction, 0.4f, 1.8f);
+            float effectiveTurnDecel = turnDeceleration * effectiveFriction;
+
+            // Детекция микро-заноса (Skid) при резком развороте на 180°
+            bool isTurning = Mathf.Abs(targetVelocityX) > 0.05f && Mathf.Abs(currentVelocityX) > 0.5f && Mathf.Sign(targetVelocityX) != Mathf.Sign(currentVelocityX);
+            _isSkidding = isTurning && IsGrounded;
+
             float accelRate;
             if (IsGrounded)
             {
-                accelRate = (Mathf.Abs(targetVelocityX) > 0.01f) ? groundAcceleration : groundDeceleration;
+                if (_isSkidding)
+                {
+                    // Эффект заноса (масса тела не позволяет развернуться мгновенно)
+                    accelRate = effectiveTurnDecel;
+                    if (enableJuiceSquashStretch)
+                    {
+                        _targetScale = new Vector3(_baseScale.x * 0.92f, _baseScale.y * 1.08f, _baseScale.z);
+                    }
+                }
+                else if (Mathf.Abs(targetVelocityX) > 0.01f)
+                {
+                    accelRate = _isSprinting ? effectiveAccel * 1.15f : effectiveAccel;
+                }
+                else
+                {
+                    accelRate = effectiveDecel;
+                }
             }
             else
             {
