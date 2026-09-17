@@ -37,5 +37,7 @@ Recordings/
 # OS generated
 .DS_Store
 Thumbs.db
-ehthumbs.db
 [Dd]esktop.ini
+
+# Debug screenshots
+Assets/Screenshots/
