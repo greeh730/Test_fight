@@ -2876,12 +2876,6 @@ MonoBehaviour:
   offset: {x: 0, y: 0}
   smoothTimeX: 0.28
   smoothTimeY: 0.35
-  autoRecenter: 1
-  recenterSpeed: 3
-  enableLookahead: 1
-  lookaheadDistance: 1.8
-  minSpeedForLookahead: 3
-  lookaheadSmoothSpeed: 2.2
   drawGizmosInEditor: 1
 --- !u!1 &525781245
 GameObject:

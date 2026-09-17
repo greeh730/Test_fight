@@ -10,10 +10,10 @@ namespace Combat.Cameras
         [SerializeField] private Transform target;
 
         [Header("--- Deadzone Box (Зона покоя вокруг игрока) ---")]
-        [Tooltip("Размер невидимой коробки вокруг игрока (Ширина, Высота). Пока игрок внутри неё, камера неподвижна.")]
+        [Tooltip("Размер коробки мертвой зоны (Ширина, Высота). Пока игрок внутри неё, камера неподвижна даже при микро-шагах.")]
         [SerializeField] private Vector2 deadzoneSize = new Vector2(2.4f, 1.8f);
 
-        [Tooltip("Смещение фокуса камеры относительно игрока (по умолчанию 0,0 для прицела строго в центр)")]
+        [Tooltip("Смещение фокуса камеры относительно игрока (0,0 для прицела строго в центр)")]
         [SerializeField] private Vector2 offset = Vector2.zero;
 
         [Header("--- Smooth Follow (Плавность следования) ---")]
@@ -23,37 +23,16 @@ namespace Combat.Cameras
         [Tooltip("Время сглаживания по вертикали")]
         [SerializeField] private float smoothTimeY = 0.35f;
 
-        [Header("--- Re-centering (Центрирование на игроке) ---")]
-        [Tooltip("Автоматически удерживать коробку и фокус точно в центре игрока без двойного центрирования")]
-        [SerializeField] private bool autoRecenter = true;
-
-        [Tooltip("Скорость мягкого доцентрирования коробки в покое")]
-        [SerializeField] private float recenterSpeed = 4.0f;
-
-        [Header("--- Lookahead (Упреждение при серьезном беге) ---")]
-        [Tooltip("Включить смещение камеры вперед в сторону длительного бега")]
-        [SerializeField] private bool enableLookahead = true;
-
-        [Tooltip("Дистанция упреждения вперед при беге")]
-        [SerializeField] private float lookaheadDistance = 1.6f;
-
-        [Tooltip("Минимальная скорость бега, необходимая для включения упреждения (исключает дрожание от нажатий A/D)")]
-        [SerializeField] private float minSpeedForLookahead = 3.0f;
-
-        [Tooltip("Скорость плавного смещения упреждения")]
-        [SerializeField] private float lookaheadSmoothSpeed = 2.2f;
-
         [Header("--- Gizmos ---")]
         [SerializeField] private bool drawGizmosInEditor = true;
 
         // Runtime Focus State
         private Vector2 _focusPoint;
         private Vector2 _currentVelocity;
-        private float _currentLookaheadX;
-        private float _targetLookaheadX;
         private Rigidbody2D _targetRb;
         private Combat.Player.PlayerController2D _playerController;
-        private bool _isFollowing = false;
+        private bool _isFollowingX = false;
+        private bool _isFollowingY = false;
         private bool _isInitialized = false;
 
         private void Start()
@@ -78,10 +57,9 @@ namespace Combat.Cameras
         {
             if (target == null) return;
             _focusPoint = target.position;
-            _currentLookaheadX = 0f;
-            _targetLookaheadX = 0f;
             _currentVelocity = Vector2.zero;
-            _isFollowing = false;
+            _isFollowingX = false;
+            _isFollowingY = false;
 
             Vector3 snapPos = new Vector3(
                 _focusPoint.x + offset.x,
@@ -110,63 +88,56 @@ namespace Combat.Cameras
             float speedX = _targetRb != null ? Mathf.Abs(_targetRb.linearVelocity.x) : 0f;
             float speedY = _targetRb != null ? Mathf.Abs(_targetRb.linearVelocity.y) : 0f;
             bool hasMoveInput = _playerController != null ? _playerController.HasMoveInput : (speedX > 0.3f);
-            float inputDirX = _playerController != null && _playerController.HasMoveInput
-                ? Mathf.Sign(_playerController.HorizontalInput)
-                : (_targetRb != null && speedX > 0.1f ? Mathf.Sign(_targetRb.linearVelocity.x) : 0f);
+            bool isGrounded = _playerController != null ? _playerController.IsGrounded : (speedY < 0.15f);
 
-            // 1. Управление состоянием следования (Deadzone State Machine)
-            if (!_isFollowing)
+            // 1. Горизонтальная мертвая зона (независимая)
+            if (!_isFollowingX)
             {
-                // Если игрок вытолкнул границу коробки - активируем режим плавного непрерывного следования
-                if (Mathf.Abs(playerPos.x - _focusPoint.x) > halfWidth ||
-                    Mathf.Abs(playerPos.y - _focusPoint.y) > halfHeight)
+                // Камера стоит на месте, пока игрок внутри коробки (микро-шаги не двигают камеру)
+                if (Mathf.Abs(playerPos.x - _focusPoint.x) > halfWidth)
                 {
-                    _isFollowing = true;
+                    _isFollowingX = true;
                 }
             }
             else
             {
-                // Выход из режима следования происходит ТОЛЬКО при полной остановке игрока (нет ввода и скорость ~ 0).
-                // При резком развороте (справа налево) игрок зажимает клавишу 'A', поэтому следование НЕ прерывается,
-                // исключая мертвые паузы, рывки и повторные центрирования!
-                if (!hasMoveInput && speedX < 0.25f && speedY < 0.25f)
+                // Следование продолжается, пока игрок бежит или зажимает клавиши движения
+                if (!hasMoveInput && speedX < 0.15f)
                 {
-                    _isFollowing = false;
+                    _isFollowingX = false;
                 }
             }
 
-            // 2. Позиционирование фокуса и упреждения
-            if (_isFollowing)
+            if (_isFollowingX)
             {
-                // При активном движении коробка движется вместе с персонажем, удерживая его строго в центре
-                _focusPoint = playerPos;
+                _focusPoint.x = playerPos.x;
+            }
 
-                // Упреждение взгляда вперед в сторону движения
-                if (enableLookahead && speedX >= minSpeedForLookahead && inputDirX != 0f)
+            // 2. Вертикальная мертвая зона (независимая)
+            if (!_isFollowingY)
+            {
+                // Мелкие подскоки и неровности остаются внутри коробки без тряски
+                if (Mathf.Abs(playerPos.y - _focusPoint.y) > halfHeight)
                 {
-                    _targetLookaheadX = inputDirX * lookaheadDistance;
-                }
-                else
-                {
-                    _targetLookaheadX = 0f;
+                    _isFollowingY = true;
                 }
             }
             else
             {
-                // В покое упреждение плавно сходит на ноль в едином торможении камеры
-                _targetLookaheadX = 0f;
-
-                // Мягкое доцентрирование в покое (если игрок сместился на несколько пикселей внутри коробки)
-                if (autoRecenter && speedX < 0.05f && speedY < 0.05f)
+                // Вертикальное следование завершается, когда игрок приземлился
+                if (isGrounded && speedY < 0.15f)
                 {
-                    _focusPoint = Vector2.MoveTowards(_focusPoint, playerPos, recenterSpeed * Time.deltaTime);
+                    _isFollowingY = false;
                 }
             }
 
-            _currentLookaheadX = Mathf.MoveTowards(_currentLookaheadX, _targetLookaheadX, Time.deltaTime * lookaheadSmoothSpeed);
+            if (_isFollowingY)
+            {
+                _focusPoint.y = playerPos.y;
+            }
 
-            // 3. Целевая позиция камеры
-            float targetX = _focusPoint.x + offset.x + _currentLookaheadX;
+            // 3. Целевая позиция камеры (строго за персонажем, без овершута и уходов вперед)
+            float targetX = _focusPoint.x + offset.x;
             float targetY = _focusPoint.y + offset.y;
 
             // 4. Независимое сглаживание по X и Y (SmoothDamp)
@@ -184,11 +155,11 @@ namespace Combat.Cameras
 
             // Отрисовка коробки мертвой зоны в окне Scene
             Gizmos.color = new Color(0.2f, 0.85f, 1f, 0.85f);
-            Gizmos.DrawWireCube(new Vector3(center.x, center.y, 0f), new Vector3(deadzoneSize.x, deadzoneSize.y, 0.1f));
+            Gizmos.DrawWireCube(new Vector3(center.x + offset.x, center.y + offset.y, 0f), new Vector3(deadzoneSize.x, deadzoneSize.y, 0.1f));
 
             // Точка центра коробки (фокус)
             Gizmos.color = new Color(1f, 0.85f, 0.15f, 0.9f);
-            Gizmos.DrawWireSphere(new Vector3(center.x, center.y, 0f), 0.08f);
+            Gizmos.DrawWireSphere(new Vector3(center.x + offset.x, center.y + offset.y, 0f), 0.08f);
 
             // Если задан offset, рисуем вектор до камеры
             if (offset.sqrMagnitude > 0.001f)
