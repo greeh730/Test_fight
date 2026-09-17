@@ -2872,11 +2872,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Combat.Cameras.CameraFollow2D
   target: {fileID: 2046979056}
+  deadzoneSize: {x: 2.4, y: 1.8}
   offset: {x: 0, y: 1.2}
-  smoothTime: 0.22
+  smoothTimeX: 0.28
+  smoothTimeY: 0.35
   enableLookahead: 1
   lookaheadDistance: 1.8
-  lookaheadSpeed: 3.5
+  minSpeedForLookahead: 3
+  lookaheadSmoothSpeed: 2.2
+  drawGizmosInEditor: 1
 --- !u!1 &525781245
 GameObject:
   m_ObjectHideFlags: 0
