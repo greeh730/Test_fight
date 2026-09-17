@@ -2878,7 +2878,6 @@ MonoBehaviour:
   smoothTimeY: 0.35
   autoRecenter: 1
   recenterSpeed: 3
-  recenterDelay: 0.25
   enableLookahead: 1
   lookaheadDistance: 1.8
   minSpeedForLookahead: 3

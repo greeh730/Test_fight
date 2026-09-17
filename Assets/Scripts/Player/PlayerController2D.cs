@@ -126,6 +126,8 @@ namespace Combat.Player
         public float CurrentFriction => _currentSurfaceFriction;
         public int AirJumpsRemaining => _airJumpsLeft;
         public Vector2 Velocity => _rb != null ? _rb.linearVelocity : Vector2.zero;
+        public float HorizontalInput => _horizontalInput;
+        public bool HasMoveInput => Mathf.Abs(_horizontalInput) > 0.01f;
 
         private float _horizontalInput;
         private bool _jumpPressed;

@@ -24,14 +24,11 @@ namespace Combat.Cameras
         [SerializeField] private float smoothTimeY = 0.35f;
 
         [Header("--- Re-centering (Центрирование на игроке) ---")]
-        [Tooltip("Плавно возвращать коробку и фокус точно в центр игрока при остановке")]
+        [Tooltip("Автоматически удерживать коробку и фокус точно в центре игрока без двойного центрирования")]
         [SerializeField] private bool autoRecenter = true;
 
-        [Tooltip("Скорость центрирования коробки при остановке игрока")]
-        [SerializeField] private float recenterSpeed = 3.0f;
-
-        [Tooltip("Задержка перед центрированием после остановки (в секундах)")]
-        [SerializeField] private float recenterDelay = 0.25f;
+        [Tooltip("Скорость мягкого доцентрирования коробки в покое")]
+        [SerializeField] private float recenterSpeed = 4.0f;
 
         [Header("--- Lookahead (Упреждение при серьезном беге) ---")]
         [Tooltip("Включить смещение камеры вперед в сторону длительного бега")]
@@ -55,7 +52,8 @@ namespace Combat.Cameras
         private float _currentLookaheadX;
         private float _targetLookaheadX;
         private Rigidbody2D _targetRb;
-        private float _idleTimer;
+        private Combat.Player.PlayerController2D _playerController;
+        private bool _isFollowing = false;
         private bool _isInitialized = false;
 
         private void Start()
@@ -69,6 +67,7 @@ namespace Combat.Cameras
             if (target != null)
             {
                 _targetRb = target.GetComponent<Rigidbody2D>();
+                _playerController = target.GetComponent<Combat.Player.PlayerController2D>();
                 _focusPoint = target.position;
                 SnapToTarget();
                 _isInitialized = true;
@@ -82,7 +81,7 @@ namespace Combat.Cameras
             _currentLookaheadX = 0f;
             _targetLookaheadX = 0f;
             _currentVelocity = Vector2.zero;
-            _idleTimer = 0f;
+            _isFollowing = false;
 
             Vector3 snapPos = new Vector3(
                 _focusPoint.x + offset.x,
@@ -99,88 +98,78 @@ namespace Combat.Cameras
             if (!_isInitialized)
             {
                 _targetRb = target.GetComponent<Rigidbody2D>();
+                _playerController = target.GetComponent<Combat.Player.PlayerController2D>();
                 _focusPoint = target.position;
                 _isInitialized = true;
             }
 
             Vector2 playerPos = target.position;
-
-            // 1. Расчет мертвой зоны (Deadzone Box)
             float halfWidth = deadzoneSize.x * 0.5f;
             float halfHeight = deadzoneSize.y * 0.5f;
-            bool isPushedX = false;
-            bool isPushedY = false;
 
-            if (playerPos.x > _focusPoint.x + halfWidth)
-            {
-                _focusPoint.x = playerPos.x - halfWidth;
-                isPushedX = true;
-            }
-            else if (playerPos.x < _focusPoint.x - halfWidth)
-            {
-                _focusPoint.x = playerPos.x + halfWidth;
-                isPushedX = true;
-            }
+            float speedX = _targetRb != null ? Mathf.Abs(_targetRb.linearVelocity.x) : 0f;
+            float speedY = _targetRb != null ? Mathf.Abs(_targetRb.linearVelocity.y) : 0f;
+            bool hasMoveInput = _playerController != null ? _playerController.HasMoveInput : (speedX > 0.3f);
+            float inputDirX = _playerController != null && _playerController.HasMoveInput
+                ? Mathf.Sign(_playerController.HorizontalInput)
+                : (_targetRb != null && speedX > 0.1f ? Mathf.Sign(_targetRb.linearVelocity.x) : 0f);
 
-            if (playerPos.y > _focusPoint.y + halfHeight)
+            // 1. Управление состоянием следования (Deadzone State Machine)
+            if (!_isFollowing)
             {
-                _focusPoint.y = playerPos.y - halfHeight;
-                isPushedY = true;
-            }
-            else if (playerPos.y < _focusPoint.y - halfHeight)
-            {
-                _focusPoint.y = playerPos.y + halfHeight;
-                isPushedY = true;
-            }
-
-            // 2. Плавный возврат в центр игрока при остановке (Re-centering)
-            if (autoRecenter)
-            {
-                float speedX = _targetRb != null ? Mathf.Abs(_targetRb.linearVelocity.x) : 0f;
-                float speedY = _targetRb != null ? Mathf.Abs(_targetRb.linearVelocity.y) : 0f;
-                bool isIdle = speedX < 0.2f && speedY < 0.2f && !isPushedX && !isPushedY;
-
-                if (isIdle)
+                // Если игрок вытолкнул границу коробки - активируем режим плавного непрерывного следования
+                if (Mathf.Abs(playerPos.x - _focusPoint.x) > halfWidth ||
+                    Mathf.Abs(playerPos.y - _focusPoint.y) > halfHeight)
                 {
-                    _idleTimer += Time.deltaTime;
-                    if (_idleTimer >= recenterDelay)
-                    {
-                        _focusPoint = Vector2.MoveTowards(_focusPoint, playerPos, recenterSpeed * Time.deltaTime);
-                    }
+                    _isFollowing = true;
                 }
-                else
+            }
+            else
+            {
+                // Выход из режима следования происходит ТОЛЬКО при полной остановке игрока (нет ввода и скорость ~ 0).
+                // При резком развороте (справа налево) игрок зажимает клавишу 'A', поэтому следование НЕ прерывается,
+                // исключая мертвые паузы, рывки и повторные центрирования!
+                if (!hasMoveInput && speedX < 0.25f && speedY < 0.25f)
                 {
-                    _idleTimer = 0f;
+                    _isFollowing = false;
                 }
             }
 
-            // 3. Упреждение взгляда (Lookahead) только при уверенном беге с выталкиванием коробки
-            if (enableLookahead)
+            // 2. Позиционирование фокуса и упреждения
+            if (_isFollowing)
             {
-                float speedX = _targetRb != null ? _targetRb.linearVelocity.x : 0f;
+                // При активном движении коробка движется вместе с персонажем, удерживая его строго в центре
+                _focusPoint = playerPos;
 
-                // Упреждение включается только когда игрок активно толкает коробку на высокой скорости
-                if (isPushedX && Mathf.Abs(speedX) >= minSpeedForLookahead)
+                // Упреждение взгляда вперед в сторону движения
+                if (enableLookahead && speedX >= minSpeedForLookahead && inputDirX != 0f)
                 {
-                    _targetLookaheadX = Mathf.Sign(speedX) * lookaheadDistance;
+                    _targetLookaheadX = inputDirX * lookaheadDistance;
                 }
                 else
                 {
                     _targetLookaheadX = 0f;
                 }
-
-                _currentLookaheadX = Mathf.MoveTowards(_currentLookaheadX, _targetLookaheadX, Time.deltaTime * lookaheadSmoothSpeed);
             }
             else
             {
-                _currentLookaheadX = 0f;
+                // В покое упреждение плавно сходит на ноль в едином торможении камеры
+                _targetLookaheadX = 0f;
+
+                // Мягкое доцентрирование в покое (если игрок сместился на несколько пикселей внутри коробки)
+                if (autoRecenter && speedX < 0.05f && speedY < 0.05f)
+                {
+                    _focusPoint = Vector2.MoveTowards(_focusPoint, playerPos, recenterSpeed * Time.deltaTime);
+                }
             }
 
-            // 4. Целевая позиция камеры
+            _currentLookaheadX = Mathf.MoveTowards(_currentLookaheadX, _targetLookaheadX, Time.deltaTime * lookaheadSmoothSpeed);
+
+            // 3. Целевая позиция камеры
             float targetX = _focusPoint.x + offset.x + _currentLookaheadX;
             float targetY = _focusPoint.y + offset.y;
 
-            // 5. Независимое сглаживание по X и Y (SmoothDamp)
+            // 4. Независимое сглаживание по X и Y (SmoothDamp)
             float newX = Mathf.SmoothDamp(transform.position.x, targetX, ref _currentVelocity.x, smoothTimeX);
             float newY = Mathf.SmoothDamp(transform.position.y, targetY, ref _currentVelocity.y, smoothTimeY);
 
