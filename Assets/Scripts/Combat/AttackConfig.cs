@@ -3,6 +3,19 @@ using UnityEngine;
 
 namespace Combat
 {
+    public enum AttackHeight
+    {
+        High = 0,
+        Mid = 1,
+        Low = 2
+    }
+
+    public enum StrikeDirection
+    {
+        Forward = 0,
+        Backward = 1
+    }
+
     public enum AttackDirection
     {
         Right = 0,

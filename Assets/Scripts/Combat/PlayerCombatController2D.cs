@@ -15,28 +15,37 @@ namespace Combat
         Recovery
     }
 
+    public enum WheelControlMode
+    {
+        ScreenAbsolute, // Правая полусфера колеса бьет вправо на экране, левая — влево (рекомендуется)
+        FacingRelative   // Правая полусфера колеса бьет в сторону взгляда (вперед), левая — за спину (назад)
+    }
+
+    [Serializable]
+    public struct AttackIntent
+    {
+        public AttackHeight height;
+        public StrikeDirection strikeDir; // Forward vs Backward
+        public float horizontalSign;       // +1f (Right) or -1f (Left) in world X
+
+        public AttackIntent(AttackHeight h, StrikeDirection dir, float sign)
+        {
+            height = h;
+            strikeDir = dir;
+            horizontalSign = sign;
+        }
+    }
+
     [Serializable]
     public class ComboStepEvent : UnityEvent<int, bool> { }
 
     [DisallowMultipleComponent]
     public class PlayerCombatController2D : MonoBehaviour
     {
-        [Header("--- 4 Настраиваемые атаки (Хитбоксы и параметры) ---")]
-        [Tooltip("Атака вправо: прямой выпад в корпус (Mid)")]
-        [SerializeField] private AttackConfig attackRight = new AttackConfig(
-            "Прямой выпад ▶",
-            CombatZone.Mid,
-            new Vector2(1.2f, 0.0f),
-            new Vector2(1.4f, 0.8f),
-            0.06f, 0.15f, 0.18f,
-            20f,
-            new Vector2(6.5f, 1.5f),
-            new Color(1f, 0.85f, 0.15f, 0.8f) // Желтый (Mid)
-        );
-
-        [Tooltip("Атака вверх: восходящий рубящий / апперкот (Mid + High)")]
-        [SerializeField] private AttackConfig attackUp = new AttackConfig(
-            "Восходящий рубящий ▲",
+        [Header("--- 3 Базовых удара по высоте (High, Mid, Low) ---")]
+        [Tooltip("Верхний удар: рубящий / апперкот в голову и воздух (High + Mid)")]
+        [SerializeField] private AttackConfig attackHigh = new AttackConfig(
+            "Верхний рубящий",
             CombatZone.Mid | CombatZone.High,
             new Vector2(0.9f, 0.45f),
             new Vector2(1.3f, 1.4f),
@@ -46,9 +55,21 @@ namespace Combat
             new Color(1f, 0.4f, 0.1f, 0.8f) // Оранжево-красный (Mid+High)
         );
 
-        [Tooltip("Атака вниз: нижняя подсечка по ногам (Low)")]
-        [SerializeField] private AttackConfig attackDown = new AttackConfig(
-            "Нижняя подсечка ▼",
+        [Tooltip("Средний удар: прямой выпад / колющий тычок в корпус (Mid)")]
+        [SerializeField] private AttackConfig attackMid = new AttackConfig(
+            "Средний выпад",
+            CombatZone.Mid,
+            new Vector2(1.2f, 0.0f),
+            new Vector2(1.4f, 0.8f),
+            0.06f, 0.15f, 0.18f,
+            20f,
+            new Vector2(6.5f, 1.5f),
+            new Color(1f, 0.85f, 0.15f, 0.8f) // Желтый (Mid)
+        );
+
+        [Tooltip("Нижний удар: подсечка по ногам / нижняя атака (Low)")]
+        [SerializeField] private AttackConfig attackLow = new AttackConfig(
+            "Нижняя подсечка",
             CombatZone.Low,
             new Vector2(1.0f, -0.45f),
             new Vector2(1.5f, 0.6f),
@@ -56,18 +77,6 @@ namespace Combat
             18f,
             new Vector2(5.5f, 0.5f),
             new Color(0.15f, 0.85f, 1f, 0.8f) // Голубой (Low)
-        );
-
-        [Tooltip("Атака влево: круговой сокрушающий замах (High + Mid)")]
-        [SerializeField] private AttackConfig attackLeft = new AttackConfig(
-            "Круговой замах ◀",
-            CombatZone.High | CombatZone.Mid,
-            new Vector2(1.3f, 0.2f),
-            new Vector2(1.7f, 1.2f),
-            0.12f, 0.20f, 0.26f,
-            35f,
-            new Vector2(9.0f, 3.0f), // Мощное отталкивание
-            new Color(1f, 0.15f, 0.25f, 0.8f) // Красный (High+Mid)
         );
 
         [Header("--- Combo System Settings ---")]
@@ -89,12 +98,12 @@ namespace Combat
         [Range(1f, 3f)]
         [SerializeField] private float finisherKnockbackMultiplier = 1.5f;
 
-        [Tooltip("Сила импульса выпада вперед при ударах комбо")]
+        [Tooltip("Сила импульса выпада вперед/в сторону удара при комбо")]
         [SerializeField] private float comboLungeForce = 3.5f;
 
         [Header("--- Input Buffer & Cancel Windows ---")]
         [Tooltip("Длительность окна буферизации ввода (в секундах)")]
-        [SerializeField] private float inputBufferDuration = 0.35f;
+        [SerializeField] private float inputBufferDuration = 0.55f;
 
         [Tooltip("Доля времени фазы Recovery, после которой разрешена отмена следующим ударом")]
         [Range(0f, 1f)]
@@ -110,12 +119,14 @@ namespace Combat
 
         [Header("--- Input & Wheel Binding ---")]
         [SerializeField] private VectorWheelController vectorWheel;
-        [Tooltip("Квантовать диагональные свайпы на 4 ближайших направления")]
-        [SerializeField] private bool quantizeDiagonalsTo4Cardinal = true;
+        [Tooltip("Режим интерпретации направлений колеса")]
+        [SerializeField] private WheelControlMode wheelControlMode = WheelControlMode.ScreenAbsolute;
 
-        [Header("--- Visualizer ---")]
+        [Header("--- Visualizer & Gizmos ---")]
         [SerializeField] private HitboxVisualizer2D visualizer;
         [SerializeField] private bool showAllHitboxesInEditorGizmos = true;
+        [Tooltip("Отображать зеркальные хитбоксы ударов Назад в Scene Gizmos")]
+        [SerializeField] private bool showBackwardHitboxesInGizmos = true;
 
         [Header("--- Combo Events ---")]
         public ComboStepEvent onComboStepChanged;
@@ -123,6 +134,7 @@ namespace Combat
         // Runtime State
         public CombatState CurrentState { get; private set; } = CombatState.Idle;
         public AttackConfig CurrentAttack { get; private set; }
+        public AttackIntent CurrentIntent { get; private set; }
         public float FacingDirection { get; private set; } = 1f;
         public int CurrentComboStep { get; private set; } = 1;
         public bool IsFinisher => CurrentComboStep >= maxComboSteps;
@@ -135,7 +147,7 @@ namespace Combat
         private readonly List<Collider2D> _overlapResults = new List<Collider2D>(16);
         private ContactFilter2D _contactFilter;
 
-        private AttackDirection? _bufferedAttack;
+        private AttackIntent? _bufferedIntent;
         private float _bufferedAttackTime = -10f;
         private float _lastAttackStartTime = -10f;
         private float _lastAttackFinishTime = -10f;
@@ -145,10 +157,9 @@ namespace Combat
         private Rigidbody2D _rb;
         private SpriteRenderer _sr;
 
-        public AttackConfig AttackRight => attackRight;
-        public AttackConfig AttackUp => attackUp;
-        public AttackConfig AttackDown => attackDown;
-        public AttackConfig AttackLeft => attackLeft;
+        public AttackConfig AttackHigh => attackHigh;
+        public AttackConfig AttackMid => attackMid;
+        public AttackConfig AttackLow => attackLow;
 
         private void Awake()
         {
@@ -227,27 +238,28 @@ namespace Combat
         private void UpdateComboTimers()
         {
             // Сброс комбо при долгом бездействии в Idle
-            if (CurrentComboStep > 1 && CurrentState == CombatState.Idle && Time.time - _lastAttackStartTime > comboResetTime)
+            float idleTimeReference = _lastAttackFinishTime > 0f ? _lastAttackFinishTime : _lastAttackStartTime;
+            if (CurrentComboStep > 1 && CurrentState == CombatState.Idle && Time.time - idleTimeReference > comboResetTime)
             {
                 ResetCombo();
             }
 
             // Устаревание буфера ввода
-            if (_bufferedAttack.HasValue && Time.time - _bufferedAttackTime > inputBufferDuration)
+            if (_bufferedIntent.HasValue && Time.time - _bufferedAttackTime > inputBufferDuration)
             {
-                _bufferedAttack = null;
+                _bufferedIntent = null;
             }
         }
 
         private void CheckInputBuffer()
         {
-            if (!_bufferedAttack.HasValue) return;
+            if (!_bufferedIntent.HasValue) return;
 
             if (CanExecuteAttackNow())
             {
-                var dir = _bufferedAttack.Value;
+                var intent = _bufferedIntent.Value;
                 ClearBuffer();
-                ExecuteAttack(dir);
+                ExecuteAttack(intent);
             }
         }
 
@@ -260,7 +272,7 @@ namespace Combat
 
         private void ClearBuffer()
         {
-            _bufferedAttack = null;
+            _bufferedIntent = null;
             _bufferedAttackTime = -10f;
         }
 
@@ -273,46 +285,118 @@ namespace Combat
 
         private void OnWheelSwipeCompleted(Direction8 dir, Vector2 vector, float distance)
         {
-            AttackDirection? mapped = MapDirection(dir);
+            AttackIntent? mapped = MapDirection(dir);
             if (!mapped.HasValue) return;
 
             TryAttackOrBuffer(mapped.Value);
         }
 
-        public bool TryAttackOrBuffer(AttackDirection dir)
+        public AttackIntent? MapDirection(Direction8 dir)
+        {
+            if (dir == Direction8.None) return null;
+
+            // 1. Высота атаки (High, Mid, Low)
+            AttackHeight height = dir switch
+            {
+                Direction8.Up or Direction8.UpRight or Direction8.UpLeft => AttackHeight.High,
+                Direction8.Right or Direction8.Left => AttackHeight.Mid,
+                Direction8.Down or Direction8.DownRight or Direction8.DownLeft => AttackHeight.Low,
+                _ => AttackHeight.Mid
+            };
+
+            // 2. Определение стороны удара (+1 вправо, -1 влево на экране)
+            float sign;
+            StrikeDirection strikeDir;
+
+            if (wheelControlMode == WheelControlMode.ScreenAbsolute)
+            {
+                if (dir == Direction8.Right || dir == Direction8.UpRight || dir == Direction8.DownRight)
+                {
+                    sign = 1f; // бьет вправо на экране
+                }
+                else if (dir == Direction8.Left || dir == Direction8.UpLeft || dir == Direction8.DownLeft)
+                {
+                    sign = -1f; // бьет влево на экране
+                }
+                else
+                {
+                    sign = FacingDirection; // для чистых Up/Down бьем в сторону взгляда
+                }
+
+                strikeDir = (Mathf.Sign(sign) == Mathf.Sign(FacingDirection)) ? StrikeDirection.Forward : StrikeDirection.Backward;
+            }
+            else // FacingRelative
+            {
+                if (dir == Direction8.Right || dir == Direction8.UpRight || dir == Direction8.DownRight)
+                {
+                    strikeDir = StrikeDirection.Forward;
+                    sign = FacingDirection;
+                }
+                else if (dir == Direction8.Left || dir == Direction8.UpLeft || dir == Direction8.DownLeft)
+                {
+                    strikeDir = StrikeDirection.Backward;
+                    sign = -FacingDirection;
+                }
+                else
+                {
+                    strikeDir = StrikeDirection.Forward;
+                    sign = FacingDirection;
+                }
+            }
+
+            return new AttackIntent(height, strikeDir, sign);
+        }
+
+        public bool TryAttackOrBuffer(AttackIntent intent)
         {
             if (CanExecuteAttackNow())
             {
                 ClearBuffer();
-                return ExecuteAttack(dir);
+                return ExecuteAttack(intent);
             }
 
-            _bufferedAttack = dir;
+            _bufferedIntent = intent;
             _bufferedAttackTime = Time.time;
             return false;
         }
 
-        public AttackDirection? MapDirection(Direction8 dir)
+        public bool TryAttackOrBuffer(AttackDirection dir)
         {
-            if (quantizeDiagonalsTo4Cardinal)
-            {
-                return dir switch
-                {
-                    Direction8.Right or Direction8.DownRight => AttackDirection.Right,
-                    Direction8.Up or Direction8.UpRight => AttackDirection.Up,
-                    Direction8.Left or Direction8.UpLeft => AttackDirection.Left,
-                    Direction8.Down or Direction8.DownLeft => AttackDirection.Down,
-                    _ => null
-                };
-            }
+            var intent = ConvertLegacyDirection(dir);
+            return TryAttackOrBuffer(intent);
+        }
 
+        public bool ExecuteAttack(AttackDirection dir)
+        {
+            return ExecuteAttack(ConvertLegacyDirection(dir));
+        }
+
+        public bool ExecuteAttack(AttackHeight height, StrikeDirection strikeDir = StrikeDirection.Forward)
+        {
+            float sign = (strikeDir == StrikeDirection.Forward) ? FacingDirection : -FacingDirection;
+            return ExecuteAttack(new AttackIntent(height, strikeDir, sign));
+        }
+
+        private AttackIntent ConvertLegacyDirection(AttackDirection dir)
+        {
             return dir switch
             {
-                Direction8.Right => AttackDirection.Right,
-                Direction8.Up => AttackDirection.Up,
-                Direction8.Left => AttackDirection.Left,
-                Direction8.Down => AttackDirection.Down,
-                _ => null
+                AttackDirection.Right => new AttackIntent(AttackHeight.Mid, StrikeDirection.Forward, FacingDirection),
+                AttackDirection.Up => new AttackIntent(AttackHeight.High, StrikeDirection.Forward, FacingDirection),
+                AttackDirection.Down => new AttackIntent(AttackHeight.Low, StrikeDirection.Forward, FacingDirection),
+                AttackDirection.Left => new AttackIntent(AttackHeight.Mid, StrikeDirection.Backward, -FacingDirection),
+                _ => new AttackIntent(AttackHeight.Mid, StrikeDirection.Forward, FacingDirection)
+            };
+        }
+
+        public AttackConfig GetAttackForHeight(AttackHeight height)
+        {
+            return height switch
+            {
+                AttackHeight.High => attackHigh,
+                AttackHeight.Mid => attackMid,
+                AttackHeight.Low => attackLow,
+                _ => attackMid
             };
         }
 
@@ -324,7 +408,8 @@ namespace Combat
             }
             else
             {
-                if (Time.time - _lastAttackStartTime <= comboResetTime && !_lastWasFinisher && _lastAttackStartTime > 0f)
+                float idleTimeReference = _lastAttackFinishTime > 0f ? _lastAttackFinishTime : _lastAttackStartTime;
+                if (Time.time - idleTimeReference <= comboResetTime && !_lastWasFinisher && idleTimeReference > 0f)
                 {
                     CurrentComboStep = (CurrentComboStep >= maxComboSteps) ? 1 : CurrentComboStep + 1;
                 }
@@ -336,38 +421,32 @@ namespace Combat
             _lastAttackStartTime = Time.time;
         }
 
-        public bool ExecuteAttack(AttackDirection dir)
+        public bool ExecuteAttack(AttackIntent intent, bool isComboChain = false)
         {
             if (!CanExecuteAttackNow()) return false;
 
-            AttackConfig attack = dir switch
-            {
-                AttackDirection.Right => attackRight,
-                AttackDirection.Up => attackUp,
-                AttackDirection.Down => attackDown,
-                AttackDirection.Left => attackLeft,
-                _ => null
-            };
-
+            AttackConfig attack = GetAttackForHeight(intent.height);
             if (attack == null) return false;
 
-            bool isChaining = _attackRoutine != null;
+            bool isChaining = isComboChain || (_attackRoutine != null) || (CurrentState != CombatState.Idle);
 
             if (_attackRoutine != null)
             {
                 StopCoroutine(_attackRoutine);
+                _attackRoutine = null;
                 if (visualizer != null) visualizer.HideHitbox();
             }
 
             PrepareNextComboStep(isChaining);
 
-            _attackRoutine = StartCoroutine(AttackSequenceRoutine(attack));
+            _attackRoutine = StartCoroutine(AttackSequenceRoutine(attack, intent));
             return true;
         }
 
-        private IEnumerator AttackSequenceRoutine(AttackConfig attack)
+        private IEnumerator AttackSequenceRoutine(AttackConfig attack, AttackIntent intent)
         {
             CurrentAttack = attack;
+            CurrentIntent = intent;
             _hitTargetsInCurrentSwing.Clear();
             _hitReceiversInCurrentSwing.Clear();
             _canCancelIntoCombo = false;
@@ -376,9 +455,16 @@ namespace Combat
             int thisAttackStep = CurrentComboStep;
             bool isFinisher = thisAttackStep >= maxComboSteps;
 
+            string dirLabel = (intent.strikeDir == StrikeDirection.Forward) ? "ВПЕРЕД" : "НАЗАД";
+            string arrow = intent.horizontalSign > 0 ? "▶" : "◀";
+            if (intent.height == AttackHeight.High) arrow = intent.horizontalSign > 0 ? "↗" : "↖";
+            if (intent.height == AttackHeight.Low) arrow = intent.horizontalSign > 0 ? "↘" : "↙";
+
+            string displayName = $"{attack.attackName} {dirLabel} {arrow}";
+
             if (vectorWheel != null)
             {
-                vectorWheel.SetAttackPlaqueWithCombo(attack.attackName, thisAttackStep, isFinisher);
+                vectorWheel.SetAttackPlaqueWithCombo(displayName, thisAttackStep, isFinisher);
             }
             onComboStepChanged?.Invoke(thisAttackStep, isFinisher);
 
@@ -391,12 +477,12 @@ namespace Combat
             CurrentState = CombatState.Active;
             float activeTimer = attack.activeTime;
 
-            // Микро-выпад вперед при ударе для динамики и сокращения дистанции
-            ApplyComboLunge();
+            // Микро-выпад в направлении удара (вперед или назад)
+            ApplyComboLunge(intent.horizontalSign);
 
             while (activeTimer > 0f)
             {
-                Vector2 boxCenter = GetHitboxCenter(attack);
+                Vector2 boxCenter = GetHitboxCenter(attack, intent.horizontalSign);
                 Vector2 boxSize = attack.hitboxSize;
 
                 if (visualizer != null)
@@ -404,7 +490,7 @@ namespace Combat
                     visualizer.ShowHitbox(boxCenter, boxSize, attack.hitboxColor, isFinisher);
                 }
 
-                CheckHitboxOverlap(attack, boxCenter, boxSize, isFinisher);
+                CheckHitboxOverlap(attack, intent, boxCenter, boxSize, isFinisher);
 
                 activeTimer -= Time.deltaTime;
                 yield return null;
@@ -429,13 +515,14 @@ namespace Combat
                 {
                     _canCancelIntoCombo = true;
 
-                    if (_bufferedAttack.HasValue)
+                    if (_bufferedIntent.HasValue)
                     {
                         _lastAttackFinishTime = Time.time;
                         _lastWasFinisher = isFinisher;
-                        var nextDir = _bufferedAttack.Value;
+                        var nextIntent = _bufferedIntent.Value;
                         ClearBuffer();
-                        ExecuteAttack(nextDir);
+                        _attackRoutine = null;
+                        ExecuteAttack(nextIntent, isComboChain: true);
                         yield break;
                     }
                 }
@@ -451,12 +538,12 @@ namespace Combat
             _attackRoutine = null;
         }
 
-        private void ApplyComboLunge()
+        private void ApplyComboLunge(float horizontalSign)
         {
             if (_rb == null) _rb = GetComponent<Rigidbody2D>();
             if (_rb != null && comboLungeForce > 0.05f)
             {
-                _rb.linearVelocity = new Vector2(FacingDirection * comboLungeForce, _rb.linearVelocity.y);
+                _rb.linearVelocity = new Vector2(horizontalSign * comboLungeForce, _rb.linearVelocity.y);
             }
         }
 
@@ -476,14 +563,15 @@ namespace Combat
             _hitstopRoutine = null;
         }
 
-        private void CheckHitboxOverlap(AttackConfig attack, Vector2 center, Vector2 size, bool isFinisher)
+        private void CheckHitboxOverlap(AttackConfig attack, AttackIntent intent, Vector2 center, Vector2 size, bool isFinisher)
         {
             _overlapResults.Clear();
             int count = Physics2D.OverlapBox(center, size, 0f, _contactFilter, _overlapResults);
 
+            string finisherSuffix = isFinisher ? " [ФИНИШЕР!]" : "";
             AttackConfig effectiveAttack = isFinisher
                 ? new AttackConfig(
-                    attack.attackName + " [ФИНИШЕР!]",
+                    attack.attackName + finisherSuffix,
                     attack.targetedZones,
                     attack.hitboxOffset,
                     attack.hitboxSize,
@@ -518,7 +606,7 @@ namespace Combat
 
                         OnTargetHitSuccess();
 
-                        Vector2 knockbackDir = new Vector2(FacingDirection, 1f).normalized;
+                        Vector2 knockbackDir = new Vector2(intent.horizontalSign, 1f).normalized;
                         hurtbox.ReceiveHit(effectiveAttack, center, knockbackDir);
                     }
                 }
@@ -534,7 +622,7 @@ namespace Combat
 
                         OnTargetHitSuccess();
 
-                        Vector2 knockbackDir = new Vector2(FacingDirection, 1f).normalized;
+                        Vector2 knockbackDir = new Vector2(intent.horizontalSign, 1f).normalized;
                         target.TakeHit(effectiveAttack, effectiveAttack.targetedZones, center, knockbackDir);
                     }
                 }
@@ -551,41 +639,58 @@ namespace Combat
             }
         }
 
-        public Vector2 GetHitboxCenter(AttackConfig attack)
+        public Vector2 GetHitboxCenter(AttackConfig attack, float horizontalSign)
         {
             Vector2 playerPos = transform.position;
             return new Vector2(
-                playerPos.x + attack.hitboxOffset.x * FacingDirection,
+                playerPos.x + attack.hitboxOffset.x * horizontalSign,
                 playerPos.y + attack.hitboxOffset.y
             );
         }
 
+        public Vector2 GetHitboxCenter(AttackConfig attack)
+        {
+            return GetHitboxCenter(attack, FacingDirection);
+        }
+
         private void OnDrawGizmosSelected()
         {
+            float forwardSign = Application.isPlaying ? FacingDirection : (transform.localScale.x < 0 ? -1f : 1f);
+
             if (showAllHitboxesInEditorGizmos)
             {
-                DrawAttackGizmo(attackRight, "Right");
-                DrawAttackGizmo(attackUp, "Up");
-                DrawAttackGizmo(attackDown, "Down");
-                DrawAttackGizmo(attackLeft, "Left");
+                DrawAttackGizmo(attackHigh, forwardSign, false);
+                DrawAttackGizmo(attackMid, forwardSign, false);
+                DrawAttackGizmo(attackLow, forwardSign, false);
+
+                if (showBackwardHitboxesInGizmos)
+                {
+                    DrawAttackGizmo(attackHigh, -forwardSign, true);
+                    DrawAttackGizmo(attackMid, -forwardSign, true);
+                    DrawAttackGizmo(attackLow, -forwardSign, true);
+                }
             }
             else if (CurrentAttack != null)
             {
-                DrawAttackGizmo(CurrentAttack, CurrentAttack.attackName);
+                DrawAttackGizmo(CurrentAttack, CurrentIntent.horizontalSign, CurrentIntent.strikeDir == StrikeDirection.Backward);
             }
         }
 
-        private void DrawAttackGizmo(AttackConfig attack, string label)
+        private void DrawAttackGizmo(AttackConfig attack, float sign, bool isBackward)
         {
             if (attack == null) return;
-            float dir = Application.isPlaying ? FacingDirection : (transform.localScale.x < 0 ? -1f : 1f);
-            Vector2 pos = (Vector2)transform.position + new Vector2(attack.hitboxOffset.x * dir, attack.hitboxOffset.y);
+            Vector2 pos = (Vector2)transform.position + new Vector2(attack.hitboxOffset.x * sign, attack.hitboxOffset.y);
 
             Color c = attack.hitboxColor;
+            if (isBackward)
+            {
+                c = new Color(c.r, c.g, c.b, c.a * 0.45f);
+            }
+
             Gizmos.color = c;
             Gizmos.DrawWireCube(new Vector3(pos.x, pos.y, 0f), new Vector3(attack.hitboxSize.x, attack.hitboxSize.y, 0.1f));
 
-            Gizmos.color = new Color(c.r, c.g, c.b, 0.18f);
+            Gizmos.color = new Color(c.r, c.g, c.b, isBackward ? 0.08f : 0.18f);
             Gizmos.DrawCube(new Vector3(pos.x, pos.y, 0f), new Vector3(attack.hitboxSize.x, attack.hitboxSize.y, 0.05f));
         }
     }

@@ -71,14 +71,14 @@ namespace Combat.UI
         [SerializeField] private Text attackNameText;
         [SerializeField] private string[] attackNames = new string[8]
         {
-            "ПРАВЫЙ РАССЕКАЮЩИЙ ▶",    // Right (0)
-            "ДИАГОНАЛЬНЫЙ ВЫПАД ↗",  // UpRight (1)
-            "ВЕРХНИЙ РУБЯЩИЙ ▲",       // Up (2)
-            "ДИАГОНАЛЬНЫЙ ВЫПАД ↖",  // UpLeft (3)
-            "ЛЕВЫЙ РАССЕКАЮЩИЙ ◀",     // Left (4)
-            "НИЖНЯЯ ПОДСЕЧКА ↙",     // DownLeft (5)
-            "НИЖНИЙ КОЛЮЩИЙ ▼",        // Down (6)
-            "НИЖНЯЯ ПОДСЕЧКА ↘"      // DownRight (7)
+            "СРЕДНИЙ ВПЕРЕД ▶",    // Right (0)
+            "ВЕРХНИЙ ВПЕРЕД ↗",    // UpRight (1)
+            "ВЕРХНИЙ УДАР ▲",      // Up (2)
+            "ВЕРХНИЙ НАЗАД ↖",     // UpLeft (3)
+            "СРЕДНИЙ НАЗАД ◀",     // Left (4)
+            "НИЖНИЙ НАЗАД ↙",      // DownLeft (5)
+            "НИЖНИЙ УДАР ▼",       // Down (6)
+            "НИЖНИЙ ВПЕРЕД ↘"      // DownRight (7)
         };
         [SerializeField] private string neutralStanceName = "— БОЕВАЯ СТОЙКА —";
 
