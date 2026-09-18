@@ -8330,7 +8330,7 @@ MonoBehaviour:
   knockbackMultAtZeroStamina: 1
   stunDurationMultAtZeroStamina: 1.5
   staminaBar: {fileID: 0}
-  canDie: 1
+  canDie: 0
   respawnOnDeath: 1
   respawnDelay: 4
   defeatColor: {r: 0.28, g: 0.28, b: 0.28, a: 0.75}

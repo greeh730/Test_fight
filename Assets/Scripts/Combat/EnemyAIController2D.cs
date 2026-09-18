@@ -151,6 +151,7 @@ namespace Combat
         private Vector3 _faceBaseLocalPos = new Vector3(0.16f, 0.14f, 0f);
         private Vector3 _faceBaseLocalScale = new Vector3(0.45f, 0.26f, 1f);
         private float _lastHitTime;
+        private float _hitstunTimer;
         private readonly List<Collider2D> _overlapResults = new List<Collider2D>(8);
         private ContactFilter2D _playerFilter;
 
@@ -273,6 +274,12 @@ namespace Combat
 
         private void UpdateChasing()
         {
+            if (_hitstunTimer > 0f)
+            {
+                _hitstunTimer -= Time.deltaTime;
+                return;
+            }
+
             float dist = Vector2.Distance(transform.position, _playerTransform.position);
 
             // Игрок убежал слишком далеко
@@ -468,6 +475,25 @@ namespace Combat
             if (_stateRoutine != null) StopCoroutine(_stateRoutine);
             telegraphVisualizer.HideHitbox();
 
+            float awayDir;
+            if (_playerTransform != null && Mathf.Abs(transform.position.x - _playerTransform.position.x) > 0.05f)
+            {
+                awayDir = Mathf.Sign(transform.position.x - _playerTransform.position.x);
+            }
+            else if (Mathf.Abs(knockbackDirection.x) > 0.01f)
+            {
+                awayDir = Mathf.Sign(knockbackDirection.x);
+            }
+            else
+            {
+                awayDir = -FacingDirection;
+            }
+
+            if (_playerTransform != null)
+            {
+                SetFacing(Mathf.Sign(_playerTransform.position.x - transform.position.x));
+            }
+
             // 1. Бонусный урон контратаки
             float baseDmg = attack != null ? attack.damage : 20f;
             float counterDmg = baseDmg * counterDamageMultiplier;
@@ -483,11 +509,13 @@ namespace Combat
 
             // 2. Мощный импульс отталкивания с учетом кривой стойкости (стамина)
             Vector2 baseKb = (attack != null ? attack.knockbackForce : new Vector2(8f, 4f)) * 1.5f;
+            baseKb.x = awayDir * Mathf.Abs(baseKb.x);
             Vector2 effectiveKb = CalculateEffectiveKnockback(baseKb);
-            effectiveKb.x *= knockbackDirection.x;
             _rb.linearVelocity = effectiveKb;
+            _hitstunTimer = 0.3f;
 
             // 3. Списание стамины от контратаки
+            bool wasAboveZero = currentStamina > 0f;
             DrainStamina(staminaCounterDrain);
 
             // 4. Всплывающий текст "КОНТРАТАКА!"
@@ -509,14 +537,14 @@ namespace Combat
             // Проверка гибели от контратаки
             if (canDie && currentHealth <= 0f)
             {
-                Die(knockbackDirection, true);
+                Die(new Vector2(awayDir, 0f), true);
                 return;
             }
 
-            // Если стамина опустилась до 0 — наступает Stamina Break!
-            if (currentStamina <= 0f)
+            // Если стамина только что опустилась до 0 — наступает Stamina Break!
+            if (wasAboveZero && currentStamina <= 0f)
             {
-                TriggerStaminaBreak(knockbackDirection);
+                TriggerStaminaBreak();
                 return;
             }
 
@@ -539,14 +567,35 @@ namespace Combat
                 currentHealth = Mathf.Max(0f, currentHealth - dmg);
             }
 
+            float awayDir;
+            if (_playerTransform != null && Mathf.Abs(transform.position.x - _playerTransform.position.x) > 0.05f)
+            {
+                awayDir = Mathf.Sign(transform.position.x - _playerTransform.position.x);
+            }
+            else if (Mathf.Abs(knockbackDirection.x) > 0.01f)
+            {
+                awayDir = Mathf.Sign(knockbackDirection.x);
+            }
+            else
+            {
+                awayDir = -FacingDirection;
+            }
+
+            if (_playerTransform != null)
+            {
+                SetFacing(Mathf.Sign(_playerTransform.position.x - transform.position.x));
+            }
+
             if (attack != null)
             {
-                Vector2 rawKb = new Vector2(knockbackDirection.x * attack.knockbackForce.x, attack.knockbackForce.y);
+                Vector2 rawKb = new Vector2(awayDir * attack.knockbackForce.x, attack.knockbackForce.y);
                 Vector2 effectiveKb = CalculateEffectiveKnockback(rawKb);
                 _rb.linearVelocity = effectiveKb;
+                _hitstunTimer = 0.25f;
             }
 
             // Списание стамины от обычного удара
+            bool wasAboveZero = currentStamina > 0f;
             DrainStamina(dmg * staminaDrainMultiplier);
 
             if (_flashRoutine != null) StopCoroutine(_flashRoutine);
@@ -557,14 +606,14 @@ namespace Combat
             // Проверка гибели от обычного удара
             if (canDie && currentHealth <= 0f)
             {
-                Die(knockbackDirection, false);
+                Die(new Vector2(awayDir, 0f), false);
                 return;
             }
 
-            // Если стамина опустилась до 0 — наступает Stamina Break!
-            if (currentStamina <= 0f)
+            // Если стамина только что опустилась до 0 — наступает Stamina Break!
+            if (wasAboveZero && currentStamina <= 0f)
             {
-                TriggerStaminaBreak(knockbackDirection);
+                TriggerStaminaBreak();
                 return;
             }
 
@@ -575,7 +624,7 @@ namespace Combat
             }
         }
 
-        private void TriggerStaminaBreak(Vector2 knockbackDirection)
+        private void TriggerStaminaBreak()
         {
             if (CurrentState == EnemyState.Dead) return;
 
@@ -586,13 +635,7 @@ namespace Combat
                 telegraphVisualizer.ShowNoStaminaPopup(transform.position);
             }
 
-            // Небольшой импульс ошеломления
-            if (_rb != null)
-            {
-                float kbX = knockbackDirection.x != 0f ? knockbackDirection.x : -FacingDirection;
-                _rb.linearVelocity = new Vector2(kbX * 2.6f, 1.2f);
-            }
-
+            // Сохраняем физический импульс удара (включая подбрасывание вверх от верхней атаки).
             CurrentState = EnemyState.Stunned;
             Debug.Log($"<color=orange><b>[НЕТ СТАМИНЫ!]</b></color> Враг истощен и оглушен на {staminaBreakStunDuration:F1}с!");
             _stateRoutine = StartCoroutine(StunRoutine(staminaBreakStunDuration, replenishStaminaAfter: true));
