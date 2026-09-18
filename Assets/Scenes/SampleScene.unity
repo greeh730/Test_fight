@@ -8316,8 +8316,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f6ec1ba86e5f0fd43a847c64c2a4f955, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Combat.EnemyAIController2D
-  maxHealth: 120
-  currentHealth: 120
+  maxHealth: 1200
+  currentHealth: 1200
   resetHealthDelay: 3.5
   maxStamina: 100
   currentStamina: 100
@@ -11478,6 +11478,11 @@ MonoBehaviour:
   showAllHitboxesInEditorGizmos: 1
   showBackwardHitboxesInGizmos: 1
   faceTransform: {fileID: 0}
+  currentStance: 0
+  tacticianController: {fileID: 0}
+  onStanceChanged:
+    m_PersistentCalls:
+      m_Calls: []
   onComboStepChanged:
     m_PersistentCalls:
       m_Calls: []

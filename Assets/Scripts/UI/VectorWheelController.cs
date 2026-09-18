@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
 using Combat.Settings;
+using Combat.Stances;
 
 namespace Combat.UI
 {
@@ -678,6 +679,54 @@ namespace Combat.UI
             if (wheelOutlineImage != null) wheelOutlineImage.color = outlineColor;
             if (sectorHighlightImage != null) sectorHighlightImage.color = highlightColor;
             if (centerCoreImage != null) centerCoreImage.color = centerCoreColor;
+        }
+
+        private static readonly string[] DefaultNormalAttackNames = new string[8]
+        {
+            "СРЕДНИЙ ВПЕРЕД ▶",    // Right (0)
+            "ВЕРХНИЙ ВПЕРЕД ↗",    // UpRight (1)
+            "ВЕРХНИЙ УДАР ▲",      // Up (2)
+            "ВЕРХНИЙ НАЗАД ↖",     // UpLeft (3)
+            "СРЕДНИЙ НАЗАД ◀",     // Left (4)
+            "НИЖНИЙ НАЗАД ↙",      // DownLeft (5)
+            "НИЖНИЙ УДАР ▼",       // Down (6)
+            "НИЖНИЙ ВПЕРЕД ↘"      // DownRight (7)
+        };
+
+        private static readonly string[] TacticianAttackNames = new string[8]
+        {
+            "ПРОЩУПЫВАЮЩИЙ ВЫПАД ➡️", // Right (0)
+            "КИНЕТИЧЕСКИЙ ПОДБРОС ↗️", // UpRight (1)
+            "ГРАВИТАЦИОННЫЙ ЯКОРЬ ⬆️", // Up (2)
+            "ВЕЕРНАЯ ЗАЩИТА ↖️",     // UpLeft (3)
+            "ТАКТИЧЕСКИЙ ОТХОД ⬅️",   // Left (4)
+            "МАГИЧЕСКИЙ ГАРПУН ↙️",   // DownLeft (5)
+            "ГЛУБИННАЯ ПЕЧАТЬ ⬇️",    // Down (6)
+            "НАПРАВЛЕННЫЕ ШИПЫ ↘️"    // DownRight (7)
+        };
+
+        /// <summary>
+        /// Переключает отображение колеса и плашки под выбранную боевую стойку
+        /// </summary>
+        public void SetStance(CombatStance stance)
+        {
+            if (stance == CombatStance.Tactician)
+            {
+                attackNames = (string[])TacticianAttackNames.Clone();
+                neutralStanceName = "— СТОЙКА ТАКТИКА —";
+                highlightColor = new Color(0f, 0.85f, 1f, 0.75f); // Runic Cyan
+                outlineColor = new Color(0.6f, 0.95f, 1f, 1f);
+            }
+            else
+            {
+                attackNames = (string[])DefaultNormalAttackNames.Clone();
+                neutralStanceName = "— БОЕВАЯ СТОЙКА —";
+                highlightColor = new Color(1f, 0.12f, 0.25f, 0.65f); // Crimson Neon
+                outlineColor = Color.white;
+            }
+
+            UpdatePlaqueText(CurrentDirection);
+            ApplyVisualColors();
         }
 
         // --- Вспомогательные методы чтения ввода (Input System + Legacy Fallback) ---

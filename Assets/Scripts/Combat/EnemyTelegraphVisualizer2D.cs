@@ -298,5 +298,52 @@ namespace Combat
 
             if (go != null) Destroy(go);
         }
+
+        /// <summary>
+        /// Универсальный метод для создания парящего текста статуса над персонажем
+        /// </summary>
+        public void SpawnCustomPopup(Vector3 position, string text, Color color, float duration = 1.15f)
+        {
+            StartCoroutine(SpawnCustomTextRoutine(position, text, color, duration));
+        }
+
+        private IEnumerator SpawnCustomTextRoutine(Vector3 spawnPos, string text, Color color, float duration)
+        {
+            var go = new GameObject("Status_Popup");
+            go.transform.position = spawnPos;
+
+            var tm = go.AddComponent<TextMesh>();
+            tm.text = text;
+            tm.fontSize = 44;
+            tm.characterSize = 0.085f;
+            tm.alignment = TextAlignment.Center;
+            tm.anchor = TextAnchor.MiddleCenter;
+            tm.fontStyle = FontStyle.Bold;
+            tm.color = color;
+
+            var mr = go.GetComponent<MeshRenderer>();
+            if (mr != null) mr.sortingOrder = 78;
+
+            float elapsed = 0f;
+            Vector3 startPos = go.transform.position;
+            Vector3 endPos = startPos + new Vector3(0f, 1.1f, 0f);
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = elapsed / duration;
+
+                if (go != null)
+                {
+                    go.transform.position = Vector3.Lerp(startPos, endPos, t);
+                    Color c = tm.color;
+                    c.a = Mathf.Clamp01(1f - (t * t));
+                    tm.color = c;
+                }
+                yield return null;
+            }
+
+            if (go != null) Destroy(go);
+        }
     }
 }

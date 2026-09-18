@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 using Combat.UI;
+using Combat.Stances;
+using Combat.Tactician;
 
 namespace Combat
 {
@@ -164,6 +166,16 @@ namespace Combat
         private Vector3 _faceBaseLocalPos = new Vector3(0.16f, 0.14f, 0f);
         private Vector3 _faceBaseLocalScale = new Vector3(0.45f, 0.26f, 1f);
 
+        [Header("--- Stance System Settings ---")]
+        [Tooltip("Текущая боевая стойка игрока (Normal / Tactician)")]
+        [SerializeField] private CombatStance currentStance = CombatStance.Normal;
+        [SerializeField] private TacticianCombatController2D tacticianController;
+        public CombatStance CurrentStance => currentStance;
+
+        [Serializable]
+        public class StanceChangedEvent : UnityEvent<CombatStance> { }
+        public StanceChangedEvent onStanceChanged;
+
         [Header("--- Combo Events ---")]
         public ComboStepEvent onComboStepChanged;
 
@@ -227,6 +239,20 @@ namespace Combat
                 _faceBaseLocalPos = faceTransform.localPosition;
                 _faceBaseLocalScale = faceTransform.localScale;
             }
+
+            if (tacticianController == null)
+            {
+                tacticianController = GetComponent<TacticianCombatController2D>();
+                if (tacticianController == null) tacticianController = gameObject.AddComponent<TacticianCombatController2D>();
+            }
+        }
+
+        private void Start()
+        {
+            if (vectorWheel != null)
+            {
+                vectorWheel.SetStance(currentStance);
+            }
         }
 
         private void OnEnable()
@@ -260,10 +286,90 @@ namespace Combat
 
         private void Update()
         {
+            CheckStanceToggle();
             UpdateFacingDirection();
             UpdateChargeCrawl();
             UpdateComboTimers();
             CheckInputBuffer();
+        }
+
+        private void CheckStanceToggle()
+        {
+            if (IsLeftCtrlDown())
+            {
+                ToggleStance();
+            }
+        }
+
+        private static bool IsLeftCtrlDown()
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (UnityEngine.InputSystem.Keyboard.current != null)
+            {
+                return UnityEngine.InputSystem.Keyboard.current.leftCtrlKey.wasPressedThisFrame;
+            }
+#endif
+            try { return Input.GetKeyDown(KeyCode.LeftControl); } catch { return false; }
+        }
+
+        public void ToggleStance()
+        {
+            currentStance = (currentStance == CombatStance.Normal) ? CombatStance.Tactician : CombatStance.Normal;
+            if (vectorWheel != null)
+            {
+                vectorWheel.SetStance(currentStance);
+            }
+            onStanceChanged?.Invoke(currentStance);
+
+            string stanceText = (currentStance == CombatStance.Tactician)
+                ? "<color=#00E5FF><b>[СТОЙКА ТАКТИКА]</b></color>"
+                : "<color=#FF4444><b>[БОЕВАЯ СТОЙКА]</b></color>";
+            SpawnStancePopup(stanceText, (currentStance == CombatStance.Tactician) ? new Color(0f, 0.95f, 1f) : new Color(1f, 0.25f, 0.25f));
+            Debug.Log($"<color=cyan>[STANCE TOGGLE]</color> Смена боевой стойки: <b>{currentStance}</b>");
+        }
+
+        private void SpawnStancePopup(string text, Color color)
+        {
+            StartCoroutine(SpawnStancePopupRoutine(text, color));
+        }
+
+        private IEnumerator SpawnStancePopupRoutine(string text, Color color)
+        {
+            var go = new GameObject("Stance_Popup");
+            go.transform.position = transform.position + new Vector3(0f, 1.4f, 0f);
+
+            var tm = go.AddComponent<TextMesh>();
+            tm.text = text;
+            tm.fontSize = 46;
+            tm.characterSize = 0.088f;
+            tm.alignment = TextAlignment.Center;
+            tm.anchor = TextAnchor.MiddleCenter;
+            tm.fontStyle = FontStyle.Bold;
+            tm.color = color;
+
+            var mr = go.GetComponent<MeshRenderer>();
+            if (mr != null) mr.sortingOrder = 90;
+
+            float dur = 1.15f;
+            float el = 0f;
+            Vector3 startPos = go.transform.position;
+            Vector3 endPos = startPos + new Vector3(0f, 1.1f, 0f);
+
+            while (el < dur)
+            {
+                el += Time.deltaTime;
+                float t = el / dur;
+                if (go != null)
+                {
+                    go.transform.position = Vector3.Lerp(startPos, endPos, t);
+                    Color c = tm.color;
+                    c.a = Mathf.Clamp01(1f - t);
+                    tm.color = c;
+                }
+                yield return null;
+            }
+
+            if (go != null) Destroy(go);
         }
 
         private void UpdateChargeCrawl()
@@ -384,6 +490,17 @@ namespace Combat
 
         private void OnWheelSwipeCompleted(Direction8 dir, Vector2 vector, float distance)
         {
+            if (dir == Direction8.None) return;
+
+            if (currentStance == CombatStance.Tactician)
+            {
+                if (tacticianController != null)
+                {
+                    tacticianController.ExecuteAbility(dir);
+                }
+                return;
+            }
+
             bool isCharged = vectorWheel != null && vectorWheel.ConsumeCharge();
             AttackIntent? mapped = MapDirection(dir, isCharged);
             if (!mapped.HasValue) return;

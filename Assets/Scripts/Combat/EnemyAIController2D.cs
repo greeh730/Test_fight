@@ -155,6 +155,17 @@ namespace Combat
         private readonly List<Collider2D> _overlapResults = new List<Collider2D>(8);
         private ContactFilter2D _playerFilter;
 
+        // Tactician Status Effects
+        private float _vulnerabilityMultiplier = 1.0f;
+        private float _vulnerabilityTimer = 0f;
+        private bool _isRooted = false;
+        private float _rootTimer = 0f;
+        private bool _isGravitySuspended = false;
+        private float _gravitySuspendTimer = 0f;
+        private Vector2 _gravityAnchorPos;
+        private float _originalGravityScale = 1.0f;
+        private float _disorientTimer = 0f;
+
         private void Awake()
         {
             _rb = GetComponent<Rigidbody2D>();
@@ -248,6 +259,9 @@ namespace Combat
                 }
             }
 
+            // Обновление негативных эффектов Тактика (Root, Gravity, Smoke, Vulnerability)
+            UpdateTacticianStatusEffects();
+
             // Основная машина состояний ИИ
             switch (CurrentState)
             {
@@ -261,8 +275,60 @@ namespace Combat
             }
         }
 
+        private void UpdateTacticianStatusEffects()
+        {
+            // 1. Метка уязвимости
+            if (_vulnerabilityTimer > 0f)
+            {
+                _vulnerabilityTimer -= Time.deltaTime;
+                if (_vulnerabilityTimer <= 0f)
+                {
+                    _vulnerabilityMultiplier = 1.0f;
+                    if (_sr != null && CurrentState != EnemyState.Stunned && CurrentState != EnemyState.Dead)
+                    {
+                        _sr.color = normalColor;
+                    }
+                }
+            }
+
+            // 2. Обездвиживание (Root)
+            if (_isRooted)
+            {
+                _rootTimer -= Time.deltaTime;
+                if (_rootTimer <= 0f)
+                {
+                    _isRooted = false;
+                }
+            }
+
+            // 3. Гравитационный якорь (зависание в невесомости)
+            if (_isGravitySuspended)
+            {
+                _gravitySuspendTimer -= Time.deltaTime;
+                if (_rb != null)
+                {
+                    _rb.linearVelocity = Vector2.zero;
+                    transform.position = Vector3.Lerp(transform.position, _gravityAnchorPos, Time.deltaTime * 6f);
+                }
+
+                if (_gravitySuspendTimer <= 0f)
+                {
+                    _isGravitySuspended = false;
+                    if (_rb != null) _rb.gravityScale = _originalGravityScale;
+                }
+            }
+
+            // 4. Ослепление / дезориентация от дыма
+            if (_disorientTimer > 0f)
+            {
+                _disorientTimer -= Time.deltaTime;
+            }
+        }
+
         private void UpdateIdle()
         {
+            if (_disorientTimer > 0f) return; // Ослеплен, не может обнаружить игрока
+
             float dist = Vector2.Distance(transform.position, _playerTransform.position);
             if (dist <= detectionRange)
             {
@@ -277,6 +343,23 @@ namespace Combat
             if (_hitstunTimer > 0f)
             {
                 _hitstunTimer -= Time.deltaTime;
+                return;
+            }
+
+            if (_isGravitySuspended)
+            {
+                return;
+            }
+
+            if (_isRooted)
+            {
+                _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
+                return;
+            }
+
+            if (_disorientTimer > 0f)
+            {
+                _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
                 return;
             }
 
@@ -494,8 +577,8 @@ namespace Combat
                 SetFacing(Mathf.Sign(_playerTransform.position.x - transform.position.x));
             }
 
-            // 1. Бонусный урон контратаки
-            float baseDmg = attack != null ? attack.damage : 20f;
+            // 1. Бонусный урон контратаки (с учетом метки уязвимости)
+            float baseDmg = (attack != null ? attack.damage : 20f) * _vulnerabilityMultiplier;
             float counterDmg = baseDmg * counterDamageMultiplier;
 
             if (!canDie)
@@ -556,7 +639,8 @@ namespace Combat
 
         private void TakeNormalHit(AttackConfig attack, Vector2 knockbackDirection)
         {
-            float dmg = attack != null ? attack.damage : 20f;
+            float baseDmg = attack != null ? attack.damage : 20f;
+            float dmg = baseDmg * _vulnerabilityMultiplier;
 
             if (!canDie)
             {
@@ -639,6 +723,101 @@ namespace Combat
             CurrentState = EnemyState.Stunned;
             Debug.Log($"<color=orange><b>[НЕТ СТАМИНЫ!]</b></color> Враг истощен и оглушен на {staminaBreakStunDuration:F1}с!");
             _stateRoutine = StartCoroutine(StunRoutine(staminaBreakStunDuration, replenishStaminaAfter: true));
+        }
+
+        // ==========================================
+        // TACTICIAN STATUS EFFECT API
+        // ==========================================
+
+        public void ApplyVulnerabilityMark(float duration, float bonusMultiplier = 1.35f)
+        {
+            if (CurrentState == EnemyState.Dead) return;
+            _vulnerabilityMultiplier = bonusMultiplier;
+            _vulnerabilityTimer = duration;
+
+            if (_sr != null && CurrentState != EnemyState.Stunned)
+            {
+                _sr.color = new Color(0.9f, 0.35f, 1f, 1f); // Фиолетово-рунический оттенок уязвимости
+            }
+
+            if (telegraphVisualizer != null)
+            {
+                telegraphVisualizer.SpawnCustomPopup(transform.position + Vector3.up * 1.3f, "[УЯЗВИМОСТЬ +35%]", new Color(0.85f, 0.4f, 1f));
+            }
+            Debug.Log($"<color=#D866FF>[VULNERABILITY MARK]</color> На врага наложена метка уязвимости на {duration:F1}с (+35% урона)!");
+        }
+
+        public void ApplyRoot(float duration)
+        {
+            if (CurrentState == EnemyState.Dead) return;
+            _isRooted = true;
+            _rootTimer = Mathf.Max(_rootTimer, duration);
+            if (_rb != null) _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
+
+            if (telegraphVisualizer != null)
+            {
+                telegraphVisualizer.SpawnCustomPopup(transform.position + Vector3.up * 1.0f, $"[ОБЕЗДВИЖЕН {duration:F1}с]", new Color(0f, 0.9f, 1f));
+            }
+            Debug.Log($"<color=#00E5FF>[ROOT EFFECT]</color> Враг обездвижен на {duration:F1}с!");
+        }
+
+        public void ApplyGravitySuspension(float duration, Vector2 anchorPos)
+        {
+            if (CurrentState == EnemyState.Dead) return;
+            _isGravitySuspended = true;
+            _gravitySuspendTimer = duration;
+            _gravityAnchorPos = anchorPos;
+
+            if (_rb != null)
+            {
+                _originalGravityScale = _rb.gravityScale > 0.01f ? _rb.gravityScale : 1.0f;
+                _rb.gravityScale = 0f;
+                _rb.linearVelocity = Vector2.zero;
+            }
+
+            if (telegraphVisualizer != null)
+            {
+                telegraphVisualizer.SpawnCustomPopup(transform.position + Vector3.up * 1.2f, $"[ГРАВИТАЦИОННЫЙ ЗАХВАТ {duration:F1}с]", new Color(0.65f, 0.35f, 1f));
+            }
+            Debug.Log($"<color=#9955FF>[GRAVITY ANCHOR]</color> Враг захвачен гравитационной аномалией на {duration:F1}с!");
+        }
+
+        public void DisorientFromSmoke(float duration)
+        {
+            if (CurrentState == EnemyState.Dead) return;
+            _disorientTimer = duration;
+
+            if (CurrentState == EnemyState.TelegraphWindup || CurrentState == EnemyState.ActiveStrike)
+            {
+                if (_stateRoutine != null) { StopCoroutine(_stateRoutine); _stateRoutine = null; }
+                if (telegraphVisualizer != null) telegraphVisualizer.HideHitbox();
+                CurrentState = EnemyState.Idle;
+            }
+
+            if (_rb != null) _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
+
+            if (telegraphVisualizer != null)
+            {
+                telegraphVisualizer.SpawnCustomPopup(transform.position + Vector3.up * 1.1f, "[ОСЛЕПЛЕН / ПОТЕРЯ ЦЕЛИ]", new Color(0.8f, 0.85f, 0.9f));
+            }
+            Debug.Log($"<color=#CCCCCC>[SMOKE BLIND]</color> Враг ослеплен дымовой завесой на {duration:F1}с, атака сорвана!");
+        }
+
+        public void PullTowards(Vector2 targetPos, float pullSpeed)
+        {
+            if (CurrentState == EnemyState.Dead) return;
+            Vector2 dir = (targetPos - (Vector2)transform.position).normalized;
+            if (_rb != null)
+            {
+                _rb.linearVelocity = new Vector2(dir.x * pullSpeed, 4.0f);
+                _hitstunTimer = 0.35f;
+            }
+
+            if (telegraphVisualizer != null)
+            {
+                telegraphVisualizer.SpawnCustomPopup(transform.position + Vector3.up * 1.1f, "[ПРИТЯГИВАНИЕ!]", new Color(0.9f, 0.2f, 0.9f));
+            }
+            Debug.Log($"<color=#E033FF>[HARPOON PULL]</color> Враг притянут к игроку!");
         }
 
         public void Die(Vector2 knockbackDirection, bool wasCounter = false)
