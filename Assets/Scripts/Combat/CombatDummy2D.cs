@@ -66,6 +66,11 @@ namespace Combat
 
         private void OnValidate()
         {
+            if (transform.localScale.sqrMagnitude < 0.001f)
+            {
+                transform.localScale = Vector3.one;
+            }
+
             if (!canDie && IsDead)
             {
                 Respawn();
@@ -85,6 +90,11 @@ namespace Combat
             _spawnPosition = transform.position;
             _spawnRotation = transform.rotation;
             _spawnScale = transform.localScale;
+            if (_spawnScale.sqrMagnitude < 0.001f)
+            {
+                _spawnScale = Vector3.one;
+                transform.localScale = Vector3.one;
+            }
 
             if (!canDie)
             {
@@ -273,6 +283,11 @@ namespace Combat
 
             _vulnerabilityMultiplier = 1.0f;
 
+            if (_spawnScale.sqrMagnitude < 0.001f)
+            {
+                _spawnScale = Vector3.one;
+            }
+
             transform.position = _spawnPosition;
             transform.rotation = _spawnRotation;
             transform.localScale = _spawnScale;
@@ -367,12 +382,14 @@ namespace Combat
 
         private void ShowBrokenPopup(Vector3 pos)
         {
+            if (!Application.isPlaying) return;
             StartCoroutine(SpawnBrokenTextRoutine(pos));
         }
 
         private IEnumerator SpawnBrokenTextRoutine(Vector3 spawnPos)
         {
             var go = new GameObject("DummyBroken_Popup");
+            go.hideFlags = HideFlags.DontSave;
             go.transform.position = spawnPos + new Vector3(0f, 1.2f, 0f);
 
             var tm = go.AddComponent<TextMesh>();
