@@ -7226,6 +7226,9 @@ MonoBehaviour:
   maxHealth: 100
   currentHealth: 100
   resetHealthDelay: 3
+  canDie: 1
+  respawnDelay: 3
+  brokenColor: {r: 0.4, g: 0.4, b: 0.4, a: 0.7}
   normalColor: {r: 0.85, g: 0.85, b: 0.85, a: 1}
   flashDuration: 0.15
   lowZoneTop: -0.2
@@ -7372,7 +7375,7 @@ Transform:
   m_GameObject: {fileID: 1369903010}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -15.79, y: 7.45, z: 0}
+  m_LocalPosition: {x: -5.68, y: -1, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -8316,6 +8319,10 @@ MonoBehaviour:
   maxHealth: 120
   currentHealth: 120
   resetHealthDelay: 3.5
+  canDie: 1
+  respawnOnDeath: 1
+  respawnDelay: 4
+  defeatColor: {r: 0.28, g: 0.28, b: 0.28, a: 0.75}
   detectionRange: 2.62
   loseTargetRange: 14
   visionObstacleLayers:
@@ -11245,7 +11252,7 @@ Transform:
   m_GameObject: {fileID: 2046979054}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -2.49, y: -2.19, z: 0}
+  m_LocalPosition: {x: -3.69, y: -1.852, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -11478,12 +11485,22 @@ MonoBehaviour:
   maxHealth: 100
   currentHealth: 100
   invulnerabilityDuration: 0.4
+  canDie: 1
+  autoRespawnDelay: 3
+  respawnKey: 114
+  deathColor: {r: 0.35, g: 0.35, b: 0.35, a: 0.85}
   hitFlashColor: {r: 1, g: 0.25, b: 0.25, a: 1}
   flashDuration: 0.12
   onHealthChanged:
     m_PersistentCalls:
       m_Calls: []
   onDamaged:
+    m_PersistentCalls:
+      m_Calls: []
+  onDeath:
+    m_PersistentCalls:
+      m_Calls: []
+  onRespawn:
     m_PersistentCalls:
       m_Calls: []
 --- !u!1 &2054004658

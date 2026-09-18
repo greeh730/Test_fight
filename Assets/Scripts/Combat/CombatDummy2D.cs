@@ -14,6 +14,16 @@ namespace Combat
         [SerializeField] private float currentHealth = 100f;
         [SerializeField] private float resetHealthDelay = 3.0f;
 
+        [Header("--- Death & Respawn Settings ---")]
+        [Tooltip("Если включено (галочка), манекен разрушается при HP <= 0. Если выключено — манекен не погибает и восстанавливает HP.")]
+        [SerializeField] private bool canDie = true;
+
+        [Tooltip("Время до автоматического восстановления манекена (сек)")]
+        [SerializeField] private float respawnDelay = 3.0f;
+
+        [Tooltip("Цвет разрушенного манекена")]
+        [SerializeField] private Color brokenColor = new Color(0.4f, 0.4f, 0.4f, 0.7f);
+
         [Header("--- Visual Feedback ---")]
         [SerializeField] private Color normalColor = new Color(0.85f, 0.85f, 0.85f, 1f);
         [SerializeField] private float flashDuration = 0.15f;
@@ -28,14 +38,26 @@ namespace Combat
         private Rigidbody2D _rb;
         private SpriteRenderer _sr;
         private Coroutine _flashRoutine;
+        private Coroutine _respawnRoutine;
         private float _lastHitTime;
 
+        private Vector3 _spawnPosition;
+        private Quaternion _spawnRotation;
+        private Vector3 _spawnScale;
+        private readonly System.Collections.Generic.List<Collider2D> _hurtboxColliders = new System.Collections.Generic.List<Collider2D>();
+
         public float CurrentHealth => currentHealth;
+        public bool CanDie { get => canDie; set => canDie = value; }
+        public bool IsDead { get; private set; }
 
         private void Awake()
         {
             _rb = GetComponent<Rigidbody2D>();
             _sr = GetComponent<SpriteRenderer>();
+
+            _spawnPosition = transform.position;
+            _spawnRotation = transform.rotation;
+            _spawnScale = transform.localScale;
 
             currentHealth = maxHealth;
             if (_sr != null) _sr.color = normalColor;
@@ -79,6 +101,8 @@ namespace Combat
             col.offset = offset;
             col.size = size;
 
+            if (!_hurtboxColliders.Contains(col)) _hurtboxColliders.Add(col);
+
             var hb = go.GetComponent<CombatHurtbox2D>();
             if (hb == null) hb = go.AddComponent<CombatHurtbox2D>();
             hb.Initialize(zone, this);
@@ -86,11 +110,14 @@ namespace Combat
 
         public void TakeHit(AttackConfig attack, CombatZone hitZone, Vector2 hitPoint, Vector2 knockbackDirection)
         {
-            currentHealth = Mathf.Max(0f, currentHealth - attack.damage);
+            if (IsDead) return;
+
+            float damage = attack != null ? attack.damage : 20f;
+            currentHealth = Mathf.Max(0f, currentHealth - damage);
             _lastHitTime = Time.time;
 
             // Применяем физический импульс отталкивания
-            if (_rb != null)
+            if (_rb != null && attack != null)
             {
                 Vector2 force = new Vector2(
                     knockbackDirection.x * attack.knockbackForce.x,
@@ -105,19 +132,138 @@ namespace Combat
             if (_flashRoutine != null) StopCoroutine(_flashRoutine);
             _flashRoutine = StartCoroutine(FlashColorRoutine(zoneColor));
 
-            Debug.Log($"<color=orange><b>[DUMMY HIT!]</b></color> Атака: <b>{attack.attackName}</b> | Зона: <b><color=#{ColorUtility.ToHtmlStringRGB(zoneColor)}>{hitZone}</color></b> | Урон: <b>{attack.damage}</b> | HP: <b>{currentHealth:F0}/{maxHealth}</b>");
+            Debug.Log($"<color=orange><b>[DUMMY HIT!]</b></color> Атака: <b>{attack?.attackName}</b> | Зона: <b><color=#{ColorUtility.ToHtmlStringRGB(zoneColor)}>{hitZone}</color></b> | Урон: <b>{damage:F0}</b> | HP: <b>{currentHealth:F0}/{maxHealth}</b>");
+
+            // Проверка гибели/разрушения
+            if (canDie && currentHealth <= 0f && !IsDead)
+            {
+                Die(knockbackDirection);
+            }
+        }
+
+        public void Die(Vector2 knockbackDirection)
+        {
+            if (IsDead) return;
+            IsDead = true;
+
+            if (_flashRoutine != null) { StopCoroutine(_flashRoutine); _flashRoutine = null; }
+
+            // Отключаем хёртбоксы, чтобы удары не проходили сквозь разрушенный манекен
+            for (int i = 0; i < _hurtboxColliders.Count; i++)
+            {
+                if (_hurtboxColliders[i] != null) _hurtboxColliders[i].enabled = false;
+            }
+
+            // Физическое опрокидывание на бок
+            if (_rb != null)
+            {
+                _rb.linearVelocity = Vector2.zero;
+                _rb.angularVelocity = 0f;
+            }
+
+            float tiltSign = Mathf.Sign(knockbackDirection.x != 0f ? knockbackDirection.x : 1f);
+            transform.rotation = Quaternion.Euler(0f, 0f, -80f * tiltSign);
+
+            if (_sr != null) _sr.color = brokenColor;
+
+            ShowBrokenPopup(transform.position);
+
+            Debug.Log("<color=red><b>[DUMMY BROKEN]</b></color> Манекен разрушен! Восстановление через " + respawnDelay + " сек.");
+
+            if (_respawnRoutine != null) StopCoroutine(_respawnRoutine);
+            _respawnRoutine = StartCoroutine(RespawnRoutine(respawnDelay));
+        }
+
+        public void Respawn()
+        {
+            if (!IsDead) return;
+            IsDead = false;
+
+            transform.position = _spawnPosition;
+            transform.rotation = _spawnRotation;
+            transform.localScale = _spawnScale;
+
+            if (_rb != null)
+            {
+                _rb.linearVelocity = Vector2.zero;
+                _rb.angularVelocity = 0f;
+            }
+
+            currentHealth = maxHealth;
+            if (_sr != null) _sr.color = normalColor;
+
+            // Включаем хёртбоксы обратно
+            for (int i = 0; i < _hurtboxColliders.Count; i++)
+            {
+                if (_hurtboxColliders[i] != null) _hurtboxColliders[i].enabled = true;
+            }
+
+            Debug.Log("<color=cyan><b>[DUMMY RESPAWNED]</b></color> Манекен восстановлен и готов к бою!");
+        }
+
+        private IEnumerator RespawnRoutine(float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            Respawn();
+            _respawnRoutine = null;
+        }
+
+        private void ShowBrokenPopup(Vector3 pos)
+        {
+            StartCoroutine(SpawnBrokenTextRoutine(pos));
+        }
+
+        private IEnumerator SpawnBrokenTextRoutine(Vector3 spawnPos)
+        {
+            var go = new GameObject("DummyBroken_Popup");
+            go.transform.position = spawnPos + new Vector3(0f, 1.2f, 0f);
+
+            var tm = go.AddComponent<TextMesh>();
+            tm.text = "МАНЕКЕН СЛОМАН!";
+            tm.fontSize = 42;
+            tm.characterSize = 0.082f;
+            tm.alignment = TextAlignment.Center;
+            tm.anchor = TextAnchor.MiddleCenter;
+            tm.fontStyle = FontStyle.Bold;
+            tm.color = new Color(1f, 0.45f, 0.15f, 1f);
+
+            var mr = go.GetComponent<MeshRenderer>();
+            if (mr != null) mr.sortingOrder = 70;
+
+            float duration = 1.0f;
+            float elapsed = 0f;
+            Vector3 startPos = go.transform.position;
+            Vector3 endPos = startPos + new Vector3(0f, 0.9f, 0f);
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / duration;
+                if (go != null)
+                {
+                    go.transform.position = Vector3.Lerp(startPos, endPos, t);
+                    Color c = tm.color;
+                    c.a = Mathf.Clamp01(1f - (t * t));
+                    tm.color = c;
+                }
+                yield return null;
+            }
+
+            if (go != null) Destroy(go);
         }
 
         private IEnumerator FlashColorRoutine(Color flashColor)
         {
             if (_sr != null) _sr.color = flashColor;
             yield return new WaitForSeconds(flashDuration);
-            if (_sr != null) _sr.color = normalColor;
+            if (!IsDead && _sr != null) _sr.color = normalColor;
             _flashRoutine = null;
         }
 
         private void Update()
         {
+            if (IsDead) return;
+
             // Автоматическое восстановление здоровья манекена после паузы
             if (currentHealth < maxHealth && Time.time - _lastHitTime > resetHealthDelay)
             {

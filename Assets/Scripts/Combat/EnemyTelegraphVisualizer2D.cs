@@ -202,5 +202,53 @@ namespace Combat
 
             if (go != null) Destroy(go);
         }
+
+        /// <summary>
+        /// Создает парящий текст "ВРАГ ПОВЕРЖЕН!" в мировом пространстве
+        /// </summary>
+        public void ShowDefeatPopup(Vector3 position)
+        {
+            StartCoroutine(SpawnDefeatTextRoutine(position));
+        }
+
+        private IEnumerator SpawnDefeatTextRoutine(Vector3 spawnPos)
+        {
+            var go = new GameObject("DefeatText_Popup");
+            go.transform.position = spawnPos + new Vector3(0f, 1.3f, 0f);
+
+            var tm = go.AddComponent<TextMesh>();
+            tm.text = "ВРАГ ПОВЕРЖЕН!";
+            tm.fontSize = 46;
+            tm.characterSize = 0.088f;
+            tm.alignment = TextAlignment.Center;
+            tm.anchor = TextAnchor.MiddleCenter;
+            tm.fontStyle = FontStyle.Bold;
+            tm.color = new Color(0.3f, 1f, 0.45f, 1f); // Ярко-зеленый/триумфальный
+
+            var mr = go.GetComponent<MeshRenderer>();
+            if (mr != null) mr.sortingOrder = 75;
+
+            float duration = 1.2f;
+            float elapsed = 0f;
+            Vector3 startPos = go.transform.position;
+            Vector3 endPos = startPos + new Vector3(0f, 1.2f, 0f);
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = elapsed / duration;
+
+                if (go != null)
+                {
+                    go.transform.position = Vector3.Lerp(startPos, endPos, t);
+                    Color c = tm.color;
+                    c.a = Mathf.Clamp01(1f - (t * t));
+                    tm.color = c;
+                }
+                yield return null;
+            }
+
+            if (go != null) Destroy(go);
+        }
     }
 }

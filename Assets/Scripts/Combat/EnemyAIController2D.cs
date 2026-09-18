@@ -14,7 +14,8 @@ namespace Combat
         TelegraphWindup, // Окно для контратаки!
         ActiveStrike,
         Recovery,
-        Stunned          // Оглушен после успешной контратаки игрока
+        Stunned,         // Оглушен после успешной контратаки игрока
+        Dead             // Повержен
     }
 
     [DisallowMultipleComponent]
@@ -27,6 +28,19 @@ namespace Combat
         [SerializeField] private float maxHealth = 120f;
         [SerializeField] private float currentHealth = 120f;
         [SerializeField] private float resetHealthDelay = 3.5f;
+
+        [Header("--- Death & Respawn Settings ---")]
+        [Tooltip("Если включено (галочка), враг погибает при HP <= 0. Если выключено — враг бессмертен.")]
+        [SerializeField] private bool canDie = true;
+
+        [Tooltip("Возрождать врага после гибели?")]
+        [SerializeField] private bool respawnOnDeath = true;
+
+        [Tooltip("Задержка перед возрождением врага (сек)")]
+        [SerializeField] private float respawnDelay = 4.0f;
+
+        [Tooltip("Цвет поверженного врага")]
+        [SerializeField] private Color defeatColor = new Color(0.28f, 0.28f, 0.28f, 0.75f);
 
         [Header("--- Vision & Detection (FOV) ---")]
         [Tooltip("Дистанция обнаружения игрока (радиус обзора)")]
@@ -90,14 +104,21 @@ namespace Combat
         public EnemyState CurrentState { get; private set; } = EnemyState.Idle;
         public float CurrentHealth => currentHealth;
         public float FacingDirection { get; private set; } = -1f;
+        public bool CanDie { get => canDie; set => canDie = value; }
+        public bool IsDead => CurrentState == EnemyState.Dead;
 
         private Transform _playerTransform;
+        private PlayerHealth2D _playerHealth;
         private Rigidbody2D _rb;
+        private Collider2D _col;
         private SpriteRenderer _sr;
         private Coroutine _stateRoutine;
         private Coroutine _flashRoutine;
         private Coroutine _hitstopRoutine;
+        private Coroutine _respawnRoutine;
 
+        private Vector3 _spawnPosition;
+        private Quaternion _spawnRotation;
         private Vector3 _faceBaseLocalPos = new Vector3(0.16f, 0.14f, 0f);
         private Vector3 _faceBaseLocalScale = new Vector3(0.45f, 0.26f, 1f);
         private float _lastHitTime;
@@ -107,7 +128,11 @@ namespace Combat
         private void Awake()
         {
             _rb = GetComponent<Rigidbody2D>();
+            _col = GetComponent<Collider2D>();
             _sr = GetComponent<SpriteRenderer>();
+
+            _spawnPosition = transform.position;
+            _spawnRotation = transform.rotation;
 
             if (_sr != null) _sr.color = normalColor;
             currentHealth = maxHealth;
@@ -140,14 +165,31 @@ namespace Combat
         {
             if (_playerTransform != null) return;
             var player = GameObject.FindWithTag("Player") ?? GameObject.Find("Player");
-            if (player != null) _playerTransform = player.transform;
+            if (player != null)
+            {
+                _playerTransform = player.transform;
+                _playerHealth = player.GetComponent<PlayerHealth2D>();
+            }
         }
 
         private void Update()
         {
+            if (CurrentState == EnemyState.Dead) return;
+
             if (_playerTransform == null)
             {
                 FindPlayer();
+                return;
+            }
+
+            // Если игрок погиб — прекращаем погоню и возвращаемся в Idle
+            if (_playerHealth != null && _playerHealth.IsDead)
+            {
+                if (CurrentState == EnemyState.Chasing)
+                {
+                    CurrentState = EnemyState.Idle;
+                    _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
+                }
                 return;
             }
 
@@ -331,6 +373,8 @@ namespace Combat
         /// </summary>
         public void TakeHit(AttackConfig attack, CombatZone hitZone, Vector2 hitPoint, Vector2 knockbackDirection)
         {
+            if (CurrentState == EnemyState.Dead) return;
+
             _lastHitTime = Time.time;
 
             if (CurrentState == EnemyState.TelegraphWindup)
@@ -355,7 +399,15 @@ namespace Combat
             // 1. Бонусный урон контратаки
             float baseDmg = attack != null ? attack.damage : 20f;
             float counterDmg = baseDmg * counterDamageMultiplier;
-            currentHealth = Mathf.Max(0f, currentHealth - counterDmg);
+
+            if (!canDie)
+            {
+                currentHealth = Mathf.Max(1f, currentHealth - counterDmg);
+            }
+            else
+            {
+                currentHealth = Mathf.Max(0f, currentHealth - counterDmg);
+            }
 
             // 2. Мощный импульс отталкивания
             Vector2 kb = (attack != null ? attack.knockbackForce : new Vector2(8f, 4f)) * 1.5f;
@@ -376,17 +428,32 @@ namespace Combat
                 Time.timeScale = 1.0f;
             }
 
+            Debug.Log($"<color=yellow>[КОНТРАТАКА!]</color> Удар врага ПРЕРВАН! Нанесен критический урон: {counterDmg:F1} (x{counterDamageMultiplier:F2}). HP врага: {currentHealth:F0}/{maxHealth:F0}");
+
+            // Проверка гибели от контратаки
+            if (canDie && currentHealth <= 0f)
+            {
+                Die(knockbackDirection, true);
+                return;
+            }
+
             // 5. Переход в состояние оглушения (Stunned)
             CurrentState = EnemyState.Stunned;
             _stateRoutine = StartCoroutine(StunRoutine(counterStunDuration));
-
-            Debug.Log($"<color=yellow>[КОНТРАТАКА!]</color> Удар врага ПРЕРВАН! Нанесен критический урон: {counterDmg:F1} (x{counterDamageMultiplier:F2}). HP врага: {currentHealth:F0}/{maxHealth:F0}");
         }
 
         private void TakeNormalHit(AttackConfig attack, Vector2 knockbackDirection)
         {
             float dmg = attack != null ? attack.damage : 20f;
-            currentHealth = Mathf.Max(0f, currentHealth - dmg);
+
+            if (!canDie)
+            {
+                currentHealth = Mathf.Max(1f, currentHealth - dmg);
+            }
+            else
+            {
+                currentHealth = Mathf.Max(0f, currentHealth - dmg);
+            }
 
             if (attack != null)
             {
@@ -399,11 +466,80 @@ namespace Combat
 
             Debug.Log($"[ENEMY HIT] Получен обычный удар: {dmg:F1} HP. Текущее HP: {currentHealth:F0}/{maxHealth:F0}");
 
+            // Проверка гибели от обычного удара
+            if (canDie && currentHealth <= 0f)
+            {
+                Die(knockbackDirection, false);
+                return;
+            }
+
             // Если не были в атаке или стане — если стояли в Idle, сразу агримся на игрока
             if (CurrentState == EnemyState.Idle)
             {
                 CurrentState = EnemyState.Chasing;
             }
+        }
+
+        public void Die(Vector2 knockbackDirection, bool wasCounter = false)
+        {
+            if (CurrentState == EnemyState.Dead) return;
+            CurrentState = EnemyState.Dead;
+
+            if (_stateRoutine != null) { StopCoroutine(_stateRoutine); _stateRoutine = null; }
+            if (_flashRoutine != null) { StopCoroutine(_flashRoutine); _flashRoutine = null; }
+
+            if (telegraphVisualizer != null)
+            {
+                telegraphVisualizer.HideHitbox();
+                telegraphVisualizer.ShowDefeatPopup(transform.position);
+            }
+
+            if (_col != null) _col.enabled = false;
+
+            // Физический отброс и падение
+            if (_rb != null)
+            {
+                float kbX = knockbackDirection.x != 0f ? knockbackDirection.x : -FacingDirection;
+                _rb.linearVelocity = new Vector2(kbX * 4f, 2.5f);
+            }
+
+            transform.rotation = Quaternion.Euler(0f, 0f, -90f * FacingDirection);
+
+            if (_sr != null) _sr.color = defeatColor;
+
+            Debug.Log($"<color=red><b>[ENEMY DEFEATED]</b></color> Враг повержен! {(wasCounter ? "(Контратакой!) " : "")}Возрождение через {respawnDelay:F1}с");
+
+            if (respawnOnDeath)
+            {
+                if (_respawnRoutine != null) StopCoroutine(_respawnRoutine);
+                _respawnRoutine = StartCoroutine(RespawnRoutine(respawnDelay));
+            }
+        }
+
+        public void Respawn()
+        {
+            if (CurrentState != EnemyState.Dead) return;
+
+            transform.position = _spawnPosition;
+            transform.rotation = _spawnRotation;
+
+            if (_rb != null) _rb.linearVelocity = Vector2.zero;
+
+            currentHealth = maxHealth;
+            if (_sr != null) _sr.color = normalColor;
+            if (_col != null) _col.enabled = true;
+
+            SetFacing(-1f);
+            CurrentState = EnemyState.Idle;
+
+            Debug.Log("<color=green><b>[ENEMY RESPAWNED]</b></color> Враг возродился на исходной позиции!");
+        }
+
+        private IEnumerator RespawnRoutine(float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            Respawn();
+            _respawnRoutine = null;
         }
 
         private IEnumerator StunRoutine(float duration)
@@ -438,7 +574,7 @@ namespace Combat
             if (_sr == null) yield break;
             _sr.color = flashCol;
             yield return new WaitForSeconds(duration);
-            if (CurrentState != EnemyState.Stunned)
+            if (CurrentState != EnemyState.Stunned && CurrentState != EnemyState.Dead)
             {
                 _sr.color = defaultCol;
             }

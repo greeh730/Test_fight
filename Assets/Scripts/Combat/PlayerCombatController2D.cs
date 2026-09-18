@@ -237,8 +237,20 @@ namespace Combat
             }
         }
 
+        public void CancelAttack()
+        {
+            if (_attackRoutine != null)
+            {
+                StopCoroutine(_attackRoutine);
+                _attackRoutine = null;
+            }
+            CurrentState = CombatState.Idle;
+            if (visualizer != null) visualizer.HideHitbox();
+        }
+
         private void OnDisable()
         {
+            CancelAttack();
             if (vectorWheel != null)
             {
                 vectorWheel.onSwipeCompleted.RemoveListener(OnWheelSwipeCompleted);
