@@ -41,6 +41,35 @@ namespace Combat.Tactician
             ActiveTraps.Remove(this);
         }
 
+        public void Initialize(float radius, float dmg, float rootDur, float life, Color color)
+        {
+            triggerRadius = radius;
+            damage = dmg;
+            rootDuration = rootDur;
+            lifetime = life;
+            runeColor = color;
+            burstColor = new Color(Mathf.Min(1f, color.r * 1.2f), Mathf.Min(1f, color.g * 1.2f), Mathf.Min(1f, color.b * 1.2f), 1f);
+
+            if (_circleRenderer != null)
+            {
+                int segments = 24;
+                Vector3[] pts = new Vector3[segments];
+                for (int i = 0; i < segments; i++)
+                {
+                    float rad = i * Mathf.PI * 2f / segments;
+                    pts[i] = new Vector3(Mathf.Cos(rad) * triggerRadius, Mathf.Sin(rad) * triggerRadius * 0.35f, 0f);
+                }
+                _circleRenderer.SetPositions(pts);
+                _circleRenderer.startColor = runeColor;
+                _circleRenderer.endColor = runeColor;
+            }
+
+            if (_centerRuneRenderer != null)
+            {
+                _centerRuneRenderer.color = runeColor;
+            }
+        }
+
         private void Awake()
         {
             _spawnTime = Time.time;

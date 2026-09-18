@@ -11395,6 +11395,7 @@ GameObject:
   - component: {fileID: 2046979061}
   - component: {fileID: 2046979060}
   - component: {fileID: 2046979062}
+  - component: {fileID: 2046979063}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -11687,7 +11688,7 @@ MonoBehaviour:
   showBackwardHitboxesInGizmos: 1
   faceTransform: {fileID: 0}
   currentStance: 0
-  tacticianController: {fileID: 0}
+  tacticianController: {fileID: 2046979063}
   onStanceChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -11727,6 +11728,71 @@ MonoBehaviour:
   onRespawn:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &2046979063
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2046979054}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8f9c656dab4354446abc6a27362e6aff, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Combat.Tactician.TacticianCombatController2D
+  enemyLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  tacticianCyan: {r: 0, g: 0.95, b: 1, a: 1}
+  tacticianPurple: {r: 0.75, g: 0.35, b: 1, a: 1}
+  tacticianGold: {r: 1, g: 0.85, b: 0.2, a: 1}
+  thrustOffset: {x: 1.35, y: 0.05}
+  thrustSize: {x: 1.6, y: 0.65}
+  thrustLungeForce: 3.8
+  thrustDamage: 18
+  thrustKnockback: {x: 4, y: 1}
+  thrustVulnerabilityDuration: 7
+  thrustVulnerabilityMultiplier: 1.35
+  trapSpawnOffset: {x: 0.45, y: -0.6}
+  trapTriggerRadius: 1.1
+  trapDamage: 15
+  trapRootDuration: 1.5
+  trapLifetime: 25
+  anchorSpawnOffset: {x: 1.1, y: 2.35}
+  anchorCaptureRadius: 2
+  anchorSuspensionDuration: 2.5
+  anchorLifetime: 5
+  retreatVelocity: {x: 8.8, y: 3.2}
+  smokeRadius: 2
+  smokeDisorientDuration: 2
+  smokeLifetime: 3.2
+  launchDefaultOffset: {x: 2.6, y: -0.6}
+  launchGeyserRadius: 1.4
+  launchGeyserHeight: 3.2
+  launchDamage: 24
+  launchKnockback: {x: 1.5, y: 10.5}
+  launchAutoTargetRange: 7
+  spikesSpawnOffset: {x: 0.7, y: -0.55}
+  spikesSpeed: 9.5
+  spikesMaxDistance: 6
+  spikesHitRadius: 0.85
+  spikesDamage: 22
+  spikesKnockback: {x: 4.5, y: 2}
+  harpoonSpawnOffset: {x: 0.4, y: 0.1}
+  harpoonReachDistance: 6.5
+  harpoonPullSpeed: 13.5
+  harpoonDamage: 16
+  harpoonKnockback: {x: 8, y: 2}
+  fanArcOffset: {x: 0, y: 1.3}
+  fanArcSize: {x: 2.8, y: 2}
+  fanNormalDamage: 20
+  fanAntiAirDamage: 30
+  fanKnockdownForce: 7
+  fanAirRootDuration: 0.75
+  showGizmosInEditor: 1
+  showAllAbilitiesInGizmos: 1
+  selectedGizmoAbility: 0
+  gizmoFillAlpha: 0.18
 --- !u!1 &2054004658
 GameObject:
   m_ObjectHideFlags: 0

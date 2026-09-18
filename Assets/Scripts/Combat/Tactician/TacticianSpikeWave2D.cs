@@ -24,12 +24,25 @@ namespace Combat.Tactician
 
         private float _direction = 1f;
         private float _traveledDistance = 0f;
+        private Vector2 _knockback = new Vector2(4.5f, 2.0f);
         private readonly HashSet<object> _hitTargets = new HashSet<object>();
         private readonly HashSet<TacticianTrap2D> _detonatedTraps = new HashSet<TacticianTrap2D>();
 
         public void Initialize(float facingDirection)
         {
             _direction = Mathf.Sign(facingDirection);
+            CreateSpikeVisual();
+        }
+
+        public void Initialize(float facingDirection, float travelSpeed, float maxDist, float radius, float dmg, Vector2 kb, Color color)
+        {
+            _direction = Mathf.Sign(facingDirection);
+            speed = travelSpeed;
+            maxDistance = maxDist;
+            hitRadius = radius;
+            damage = dmg;
+            _knockback = kb;
+            spikeColor = color;
             CreateSpikeVisual();
         }
 
@@ -84,7 +97,7 @@ namespace Combat.Tactician
                 new Vector2(1.2f, 0.8f),
                 0f, 0.1f, 0.1f,
                 damage,
-                new Vector2(4.5f * _direction, 2.0f),
+                new Vector2(_knockback.x * _direction, _knockback.y),
                 spikeColor
             );
 

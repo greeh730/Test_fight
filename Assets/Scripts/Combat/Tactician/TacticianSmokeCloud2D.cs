@@ -24,6 +24,14 @@ namespace Combat.Tactician
         private readonly List<SpriteRenderer> _puffs = new List<SpriteRenderer>();
         private float _spawnTime;
 
+        public void Initialize(float radius, float disorientDur, float life, Color color)
+        {
+            cloudRadius = radius;
+            disorientDuration = disorientDur;
+            lifetime = life;
+            smokeColor = color;
+        }
+
         private void Awake()
         {
             _spawnTime = Time.time;

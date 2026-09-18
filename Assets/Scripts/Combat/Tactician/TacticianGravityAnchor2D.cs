@@ -28,6 +28,34 @@ namespace Combat.Tactician
         private float _spawnTime;
         private readonly HashSet<object> _capturedTargets = new HashSet<object>();
 
+        public void Initialize(float radius, float suspDuration, float life, Color color)
+        {
+            captureRadius = radius;
+            suspensionDuration = suspDuration;
+            lifetime = life;
+            coreColor = color;
+            fieldColor = new Color(color.r * 0.7f, color.g * 0.9f, 1f, 0.45f);
+
+            if (_coreRenderer != null)
+            {
+                _coreRenderer.color = coreColor;
+            }
+
+            if (_fieldRing != null)
+            {
+                int segments = 28;
+                Vector3[] pts = new Vector3[segments];
+                for (int i = 0; i < segments; i++)
+                {
+                    float rad = i * Mathf.PI * 2f / segments;
+                    pts[i] = new Vector3(Mathf.Cos(rad) * captureRadius, Mathf.Sin(rad) * captureRadius, 0f);
+                }
+                _fieldRing.SetPositions(pts);
+                _fieldRing.startColor = fieldColor;
+                _fieldRing.endColor = fieldColor;
+            }
+        }
+
         private void Awake()
         {
             _spawnTime = Time.time;
