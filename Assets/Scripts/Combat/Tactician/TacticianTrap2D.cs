@@ -127,7 +127,14 @@ namespace Combat.Tactician
                 var enemy = col.GetComponent<EnemyAIController2D>() ?? col.GetComponentInParent<EnemyAIController2D>();
                 if (enemy != null && !enemy.IsDead)
                 {
-                    Detonate(enemy, isResonance: false);
+                    Detonate(isResonance: false);
+                    return;
+                }
+
+                var dummy = col.GetComponent<CombatDummy2D>() ?? col.GetComponentInParent<CombatDummy2D>();
+                if (dummy != null && !dummy.IsDead)
+                {
+                    Detonate(isResonance: false);
                     return;
                 }
             }
@@ -138,14 +145,31 @@ namespace Combat.Tactician
         /// </summary>
         public void Detonate(EnemyAIController2D primaryTarget, bool isResonance)
         {
+            Detonate(isResonance);
+        }
+
+        public void Detonate(bool isResonance = false)
+        {
             if (_isTriggered) return;
             _isTriggered = true;
 
             float effDmg = isResonance ? damage * 1.6f : damage;
             float effRoot = isResonance ? rootDuration * 1.3f : rootDuration;
 
-            // Наносим урон и Root всем врагам в радиусе взрыва
+            var fakeAttack = new AttackConfig(
+                isResonance ? "Резонанс Печати" : "Глубинная печать",
+                CombatZone.Low | CombatZone.Mid,
+                Vector2.zero,
+                Vector2.one,
+                0f, 0.1f, 0.1f,
+                effDmg,
+                new Vector2(1f, 2f),
+                burstColor
+            );
+
+            // Наносим урон и Root всем врагам и манекенам в радиусе взрыва
             var hits = Physics2D.OverlapCircleAll(transform.position, triggerRadius * (isResonance ? 1.5f : 1.1f), enemyLayers);
+            var hitReceivers = new HashSet<object>();
             for (int i = 0; i < hits.Length; i++)
             {
                 var col = hits[i];
@@ -154,19 +178,22 @@ namespace Combat.Tactician
                 var enemy = col.GetComponent<EnemyAIController2D>() ?? col.GetComponentInParent<EnemyAIController2D>();
                 if (enemy != null && !enemy.IsDead)
                 {
-                    var fakeAttack = new AttackConfig(
-                        isResonance ? "Резонанс Печати" : "Глубинная печать",
-                        CombatZone.Low | CombatZone.Mid,
-                        Vector2.zero,
-                        Vector2.one,
-                        0f, 0.1f, 0.1f,
-                        effDmg,
-                        new Vector2(1f, 2f),
-                        burstColor
-                    );
+                    if (hitReceivers.Add(enemy))
+                    {
+                        enemy.TakeHit(fakeAttack, CombatZone.Low, transform.position, Vector2.up);
+                        enemy.ApplyRoot(effRoot);
+                    }
+                    continue;
+                }
 
-                    enemy.TakeHit(fakeAttack, CombatZone.Low, transform.position, Vector2.up);
-                    enemy.ApplyRoot(effRoot);
+                var dummy = col.GetComponent<CombatDummy2D>() ?? col.GetComponentInParent<CombatDummy2D>();
+                if (dummy != null && !dummy.IsDead)
+                {
+                    if (hitReceivers.Add(dummy))
+                    {
+                        dummy.TakeHit(fakeAttack, CombatZone.Low, transform.position, Vector2.up);
+                        dummy.ApplyRoot(effRoot);
+                    }
                 }
             }
 

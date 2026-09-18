@@ -24,7 +24,7 @@ namespace Combat.Tactician
 
         private float _direction = 1f;
         private float _traveledDistance = 0f;
-        private readonly HashSet<EnemyAIController2D> _hitEnemies = new HashSet<EnemyAIController2D>();
+        private readonly HashSet<object> _hitTargets = new HashSet<object>();
         private readonly HashSet<TacticianTrap2D> _detonatedTraps = new HashSet<TacticianTrap2D>();
 
         public void Initialize(float facingDirection)
@@ -77,28 +77,35 @@ namespace Combat.Tactician
         private void CheckEnemyHits()
         {
             var colliders = Physics2D.OverlapCircleAll(transform.position, hitRadius, enemyLayers);
+            var spikeAttack = new AttackConfig(
+                "Направленные шипы",
+                CombatZone.Low,
+                Vector2.zero,
+                new Vector2(1.2f, 0.8f),
+                0f, 0.1f, 0.1f,
+                damage,
+                new Vector2(4.5f * _direction, 2.0f),
+                spikeColor
+            );
+
             for (int i = 0; i < colliders.Length; i++)
             {
                 var col = colliders[i];
                 if (col == null || col.CompareTag("Player")) continue;
 
                 var enemy = col.GetComponent<EnemyAIController2D>() ?? col.GetComponentInParent<EnemyAIController2D>();
-                if (enemy != null && !enemy.IsDead && !_hitEnemies.Contains(enemy))
+                if (enemy != null && !enemy.IsDead && !_hitTargets.Contains(enemy))
                 {
-                    _hitEnemies.Add(enemy);
-
-                    var spikeAttack = new AttackConfig(
-                        "Направленные шипы",
-                        CombatZone.Low,
-                        Vector2.zero,
-                        new Vector2(1.2f, 0.8f),
-                        0f, 0.1f, 0.1f,
-                        damage,
-                        new Vector2(4.5f * _direction, 2.0f),
-                        spikeColor
-                    );
-
+                    _hitTargets.Add(enemy);
                     enemy.TakeHit(spikeAttack, CombatZone.Low, transform.position, new Vector2(_direction, 0.4f).normalized);
+                    continue;
+                }
+
+                var dummy = col.GetComponent<CombatDummy2D>() ?? col.GetComponentInParent<CombatDummy2D>();
+                if (dummy != null && !dummy.IsDead && !_hitTargets.Contains(dummy))
+                {
+                    _hitTargets.Add(dummy);
+                    dummy.TakeHit(spikeAttack, CombatZone.Low, transform.position, new Vector2(_direction, 0.4f).normalized);
                 }
             }
         }

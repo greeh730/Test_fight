@@ -109,6 +109,18 @@ namespace Combat.Tactician
 
             // Проверка попадания
             var cols = Physics2D.OverlapBoxAll(center, size, 0f, enemyLayers);
+            var attack = new AttackConfig(
+                "Прощупывающий выпад",
+                CombatZone.Mid,
+                Vector2.zero,
+                size,
+                0.05f, 0.1f, 0.1f,
+                18f,
+                new Vector2(facing * 4f, 1f),
+                tacticianCyan
+            );
+
+            var hitReceivers = new HashSet<object>();
             for (int i = 0; i < cols.Length; i++)
             {
                 var c = cols[i];
@@ -117,18 +129,22 @@ namespace Combat.Tactician
                 var enemy = c.GetComponent<EnemyAIController2D>() ?? c.GetComponentInParent<EnemyAIController2D>();
                 if (enemy != null && !enemy.IsDead)
                 {
-                    var attack = new AttackConfig(
-                        "Прощупывающий выпад",
-                        CombatZone.Mid,
-                        Vector2.zero,
-                        size,
-                        0.05f, 0.1f, 0.1f,
-                        18f,
-                        new Vector2(facing * 4f, 1f),
-                        tacticianCyan
-                    );
-                    enemy.TakeHit(attack, CombatZone.Mid, center, new Vector2(facing, 0.2f).normalized);
-                    enemy.ApplyVulnerabilityMark(7.0f, 1.35f);
+                    if (hitReceivers.Add(enemy))
+                    {
+                        enemy.TakeHit(attack, CombatZone.Mid, center, new Vector2(facing, 0.2f).normalized);
+                        enemy.ApplyVulnerabilityMark(7.0f, 1.35f);
+                    }
+                    continue;
+                }
+
+                var dummy = c.GetComponent<CombatDummy2D>() ?? c.GetComponentInParent<CombatDummy2D>();
+                if (dummy != null && !dummy.IsDead)
+                {
+                    if (hitReceivers.Add(dummy))
+                    {
+                        dummy.TakeHit(attack, CombatZone.Mid, center, new Vector2(facing, 0.2f).normalized);
+                        dummy.ApplyVulnerabilityMark(7.0f, 1.35f);
+                    }
                 }
             }
 
@@ -199,12 +215,12 @@ namespace Combat.Tactician
         {
             float facing = GetFacing();
 
-            // Ищем ближайшего врага перед нами для точечного взрыва
+            // Ищем ближайшего врага или манекен перед нами для точечного взрыва
             Vector3 targetGroundPos = transform.position + new Vector3(facing * 2.6f, -0.6f, 0f);
-            var enemy = FindNearestEnemy(7.0f);
-            if (enemy != null && Mathf.Abs(enemy.transform.position.x - transform.position.x) > 0.5f)
+            FindNearestTarget(7.0f, out var targetT, out _, out _);
+            if (targetT != null && Mathf.Abs(targetT.position.x - transform.position.x) > 0.5f)
             {
-                targetGroundPos = new Vector3(enemy.transform.position.x, transform.position.y - 0.6f, 0f);
+                targetGroundPos = new Vector3(targetT.position.x, transform.position.y - 0.6f, 0f);
             }
 
             // Короткий замах
@@ -214,6 +230,18 @@ namespace Combat.Tactician
             StartCoroutine(KineticGeyserVisualRoutine(targetGroundPos));
 
             var hits = Physics2D.OverlapCircleAll(targetGroundPos, 1.4f, enemyLayers);
+            var hitReceivers = new HashSet<object>();
+            var launchAttack = new AttackConfig(
+                "Кинетический подброс",
+                CombatZone.Mid | CombatZone.High,
+                Vector2.zero,
+                new Vector2(1.8f, 2.5f),
+                0f, 0.1f, 0.1f,
+                24f,
+                new Vector2(facing * 1.5f, 10.5f), // Мощнейший запуск прямо в воздух!
+                tacticianCyan
+            );
+
             for (int i = 0; i < hits.Length; i++)
             {
                 var col = hits[i];
@@ -222,17 +250,20 @@ namespace Combat.Tactician
                 var targetEnemy = col.GetComponent<EnemyAIController2D>() ?? col.GetComponentInParent<EnemyAIController2D>();
                 if (targetEnemy != null && !targetEnemy.IsDead)
                 {
-                    var launchAttack = new AttackConfig(
-                        "Кинетический подброс",
-                        CombatZone.Mid | CombatZone.High,
-                        Vector2.zero,
-                        new Vector2(1.8f, 2.5f),
-                        0f, 0.1f, 0.1f,
-                        24f,
-                        new Vector2(facing * 1.5f, 10.5f), // Мощнейший запуск прямо в воздух!
-                        tacticianCyan
-                    );
-                    targetEnemy.TakeHit(launchAttack, CombatZone.Mid, targetGroundPos, Vector2.up);
+                    if (hitReceivers.Add(targetEnemy))
+                    {
+                        targetEnemy.TakeHit(launchAttack, CombatZone.Mid, targetGroundPos, Vector2.up);
+                    }
+                    continue;
+                }
+
+                var targetDummy = col.GetComponent<CombatDummy2D>() ?? col.GetComponentInParent<CombatDummy2D>();
+                if (targetDummy != null && !targetDummy.IsDead)
+                {
+                    if (hitReceivers.Add(targetDummy))
+                    {
+                        targetDummy.TakeHit(launchAttack, CombatZone.Mid, targetGroundPos, Vector2.up);
+                    }
                 }
             }
 
@@ -299,8 +330,8 @@ namespace Combat.Tactician
             float facing = GetFacing();
             Vector3 origin = transform.position + new Vector3(facing * 0.4f, 0.1f, 0f);
 
-            var enemy = FindNearestEnemy(6.5f);
-            Vector3 targetPos = enemy != null ? enemy.transform.position : origin + new Vector3(facing * 5.5f, -0.4f, 0f);
+            FindNearestTarget(6.5f, out var targetT, out var enemy, out var dummy);
+            Vector3 targetPos = targetT != null ? targetT.position : origin + new Vector3(facing * 5.5f, -0.4f, 0f);
 
             // Отрисовка спектральной цепи/хлыста
             var tetherObj = new GameObject("Harpoon_Tether");
@@ -317,22 +348,28 @@ namespace Combat.Tactician
             lr.startColor = tacticianPurple;
             lr.endColor = tacticianCyan;
 
+            var harpoonAttack = new AttackConfig(
+                "Магический гарпун",
+                CombatZone.Mid | CombatZone.Low,
+                Vector2.zero,
+                Vector2.one,
+                0f, 0.1f, 0.1f,
+                16f,
+                new Vector2(-facing * 8f, 2f),
+                tacticianPurple
+            );
+
             if (enemy != null && !enemy.IsDead)
             {
-                var harpoonAttack = new AttackConfig(
-                    "Магический гарпун",
-                    CombatZone.Mid | CombatZone.Low,
-                    Vector2.zero,
-                    Vector2.one,
-                    0f, 0.1f, 0.1f,
-                    16f,
-                    new Vector2(-facing * 8f, 2f),
-                    tacticianPurple
-                );
-
                 enemy.TakeHit(harpoonAttack, CombatZone.Mid, targetPos, -Vector2.right * facing);
                 // Притягиваем врага прямо под ноги игроку!
                 enemy.PullTowards(transform.position + new Vector3(facing * 1.2f, 0f, 0f), 13.5f);
+                SpawnPopupText(origin + Vector3.up * 1.0f, "[МАГИЧЕСКИЙ ГАРПУН!]", tacticianPurple);
+            }
+            else if (dummy != null && !dummy.IsDead)
+            {
+                dummy.TakeHit(harpoonAttack, CombatZone.Mid, targetPos, -Vector2.right * facing);
+                dummy.PullTowards(transform.position + new Vector3(facing * 1.2f, 0f, 0f), 13.5f);
                 SpawnPopupText(origin + Vector3.up * 1.0f, "[МАГИЧЕСКИЙ ГАРПУН!]", tacticianPurple);
             }
 
@@ -358,6 +395,7 @@ namespace Combat.Tactician
             yield return new WaitForSeconds(0.08f);
 
             var hits = Physics2D.OverlapBoxAll(arcCenter, arcSize, 0f, enemyLayers);
+            var hitReceivers = new HashSet<object>();
             for (int i = 0; i < hits.Length; i++)
             {
                 var col = hits[i];
@@ -366,25 +404,57 @@ namespace Combat.Tactician
                 var enemy = col.GetComponent<EnemyAIController2D>() ?? col.GetComponentInParent<EnemyAIController2D>();
                 if (enemy != null && !enemy.IsDead)
                 {
-                    bool isAirborne = enemy.transform.position.y > transform.position.y + 0.35f;
-                    float dmg = isAirborne ? 30f : 20f;
-
-                    var fanAttack = new AttackConfig(
-                        isAirborne ? "Анти-Эйр Крит!" : "Веерная защита",
-                        CombatZone.High,
-                        Vector2.zero,
-                        arcSize,
-                        0f, 0.1f, 0.1f,
-                        dmg,
-                        new Vector2(facing * 2f, isAirborne ? -7f : 1f), // Сбивает прыгающих врагов вниз!
-                        tacticianGold
-                    );
-
-                    enemy.TakeHit(fanAttack, CombatZone.High, arcCenter, isAirborne ? Vector2.down : Vector2.up);
-                    if (isAirborne)
+                    if (hitReceivers.Add(enemy))
                     {
-                        enemy.ApplyRoot(0.75f); // Микро-стан при сбивании с воздуха
-                        SpawnPopupText(enemy.transform.position + Vector3.up * 1.2f, "[АНТИ-ЭЙР КРИТ!]", tacticianGold);
+                        bool isAirborne = enemy.transform.position.y > transform.position.y + 0.35f;
+                        float dmg = isAirborne ? 30f : 20f;
+
+                        var fanAttack = new AttackConfig(
+                            isAirborne ? "Анти-Эйр Крит!" : "Веерная защита",
+                            CombatZone.High,
+                            Vector2.zero,
+                            arcSize,
+                            0f, 0.1f, 0.1f,
+                            dmg,
+                            new Vector2(facing * 2f, isAirborne ? -7f : 1f), // Сбивает прыгающих врагов вниз!
+                            tacticianGold
+                        );
+
+                        enemy.TakeHit(fanAttack, CombatZone.High, arcCenter, isAirborne ? Vector2.down : Vector2.up);
+                        if (isAirborne)
+                        {
+                            enemy.ApplyRoot(0.75f); // Микро-стан при сбивании с воздуха
+                            SpawnPopupText(enemy.transform.position + Vector3.up * 1.2f, "[АНТИ-ЭЙР КРИТ!]", tacticianGold);
+                        }
+                    }
+                    continue;
+                }
+
+                var dummy = col.GetComponent<CombatDummy2D>() ?? col.GetComponentInParent<CombatDummy2D>();
+                if (dummy != null && !dummy.IsDead)
+                {
+                    if (hitReceivers.Add(dummy))
+                    {
+                        bool isAirborne = dummy.transform.position.y > transform.position.y + 0.35f;
+                        float dmg = isAirborne ? 30f : 20f;
+
+                        var fanAttack = new AttackConfig(
+                            isAirborne ? "Анти-Эйр Крит!" : "Веерная защита",
+                            CombatZone.High,
+                            Vector2.zero,
+                            arcSize,
+                            0f, 0.1f, 0.1f,
+                            dmg,
+                            new Vector2(facing * 2f, isAirborne ? -7f : 1f),
+                            tacticianGold
+                        );
+
+                        dummy.TakeHit(fanAttack, CombatZone.High, arcCenter, isAirborne ? Vector2.down : Vector2.up);
+                        if (isAirborne)
+                        {
+                            dummy.ApplyRoot(0.75f);
+                            SpawnPopupText(dummy.transform.position + Vector3.up * 1.2f, "[АНТИ-ЭЙР КРИТ!]", tacticianGold);
+                        }
                     }
                 }
             }
@@ -394,12 +464,14 @@ namespace Combat.Tactician
             _abilityRoutine = null;
         }
 
-        private EnemyAIController2D FindNearestEnemy(float maxDist)
+        private void FindNearestTarget(float maxDist, out Transform targetTransform, out EnemyAIController2D enemy, out CombatDummy2D dummy)
         {
-            var enemies = FindObjectsByType<EnemyAIController2D>(FindObjectsSortMode.None);
-            EnemyAIController2D nearest = null;
+            targetTransform = null;
+            enemy = null;
+            dummy = null;
             float minDist = maxDist;
 
+            var enemies = FindObjectsByType<EnemyAIController2D>(FindObjectsSortMode.None);
             for (int i = 0; i < enemies.Length; i++)
             {
                 var e = enemies[i];
@@ -408,10 +480,31 @@ namespace Combat.Tactician
                 if (d < minDist)
                 {
                     minDist = d;
-                    nearest = e;
+                    enemy = e;
+                    targetTransform = e.transform;
                 }
             }
-            return nearest;
+
+            var dummies = FindObjectsByType<CombatDummy2D>(FindObjectsSortMode.None);
+            for (int i = 0; i < dummies.Length; i++)
+            {
+                var dm = dummies[i];
+                if (dm == null || dm.IsDead) continue;
+                float d = Vector2.Distance(transform.position, dm.transform.position);
+                if (d < minDist)
+                {
+                    minDist = d;
+                    enemy = null;
+                    dummy = dm;
+                    targetTransform = dm.transform;
+                }
+            }
+        }
+
+        private EnemyAIController2D FindNearestEnemy(float maxDist)
+        {
+            FindNearestTarget(maxDist, out _, out var enemy, out _);
+            return enemy;
         }
 
         private void SpawnPopupText(Vector3 pos, string text, Color color)

@@ -39,7 +39,10 @@ namespace Combat
         private SpriteRenderer _sr;
         private Coroutine _flashRoutine;
         private Coroutine _respawnRoutine;
+        private Coroutine _statusEffectRoutine;
         private float _lastHitTime;
+        private float _vulnerabilityMultiplier = 1.0f;
+        private float _originalGravityScale = 1.0f;
 
         private Vector3 _spawnPosition;
         private Quaternion _spawnRotation;
@@ -47,22 +50,63 @@ namespace Combat
         private readonly System.Collections.Generic.List<Collider2D> _hurtboxColliders = new System.Collections.Generic.List<Collider2D>();
 
         public float CurrentHealth => currentHealth;
-        public bool CanDie { get => canDie; set => canDie = value; }
+        public bool CanDie
+        {
+            get => canDie;
+            set
+            {
+                canDie = value;
+                if (!canDie && IsDead)
+                {
+                    Respawn();
+                }
+            }
+        }
         public bool IsDead { get; private set; }
+
+        private void OnValidate()
+        {
+            if (!canDie && IsDead)
+            {
+                Respawn();
+            }
+        }
 
         private void Awake()
         {
             _rb = GetComponent<Rigidbody2D>();
             _sr = GetComponent<SpriteRenderer>();
 
+            if (_rb != null)
+            {
+                _originalGravityScale = _rb.gravityScale;
+            }
+
             _spawnPosition = transform.position;
             _spawnRotation = transform.rotation;
             _spawnScale = transform.localScale;
 
+            if (!canDie)
+            {
+                IsDead = false;
+            }
             currentHealth = maxHealth;
+
             if (_sr != null) _sr.color = normalColor;
 
             EnsureHurtboxes();
+        }
+
+        private void Start()
+        {
+            if (!canDie && IsDead)
+            {
+                Respawn();
+            }
+            else if (!IsDead)
+            {
+                EnableAllColliders(true);
+            }
         }
 
         private void EnsureHurtboxes()
@@ -95,11 +139,14 @@ namespace Combat
                 go = child.gameObject;
             }
 
+            go.layer = gameObject.layer;
+
             var col = go.GetComponent<BoxCollider2D>();
             if (col == null) col = go.AddComponent<BoxCollider2D>();
             col.isTrigger = true;
             col.offset = offset;
             col.size = size;
+            col.enabled = !IsDead;
 
             if (!_hurtboxColliders.Contains(col)) _hurtboxColliders.Add(col);
 
@@ -108,12 +155,43 @@ namespace Combat
             hb.Initialize(zone, this);
         }
 
+        private void EnableAllColliders(bool enable)
+        {
+            var rootCol = GetComponent<Collider2D>();
+            if (rootCol != null) rootCol.enabled = enable;
+
+            for (int i = 0; i < _hurtboxColliders.Count; i++)
+            {
+                if (_hurtboxColliders[i] != null) _hurtboxColliders[i].enabled = enable;
+            }
+        }
+
         public void TakeHit(AttackConfig attack, CombatZone hitZone, Vector2 hitPoint, Vector2 knockbackDirection)
         {
-            if (IsDead) return;
+            if (IsDead)
+            {
+                if (!canDie)
+                {
+                    Respawn();
+                }
+                else
+                {
+                    return;
+                }
+            }
 
-            float damage = attack != null ? attack.damage : 20f;
-            currentHealth = Mathf.Max(0f, currentHealth - damage);
+            float baseDamage = attack != null ? attack.damage : 20f;
+            float damage = baseDamage * _vulnerabilityMultiplier;
+
+            if (!canDie)
+            {
+                // Режим бессмертия: HP не опускается ниже 1, манекен никогда не разрушается
+                currentHealth = Mathf.Max(1f, currentHealth - damage);
+            }
+            else
+            {
+                currentHealth = Mathf.Max(0f, currentHealth - damage);
+            }
             _lastHitTime = Time.time;
 
             // Применяем физический импульс отталкивания
@@ -147,6 +225,8 @@ namespace Combat
             IsDead = true;
 
             if (_flashRoutine != null) { StopCoroutine(_flashRoutine); _flashRoutine = null; }
+            if (_statusEffectRoutine != null) { StopCoroutine(_statusEffectRoutine); _statusEffectRoutine = null; }
+            _vulnerabilityMultiplier = 1.0f;
 
             // Отключаем хёртбоксы, чтобы удары не проходили сквозь разрушенный манекен
             for (int i = 0; i < _hurtboxColliders.Count; i++)
@@ -159,6 +239,7 @@ namespace Combat
             {
                 _rb.linearVelocity = Vector2.zero;
                 _rb.angularVelocity = 0f;
+                _rb.gravityScale = _originalGravityScale;
             }
 
             float tiltSign = Mathf.Sign(knockbackDirection.x != 0f ? knockbackDirection.x : 1f);
@@ -176,8 +257,21 @@ namespace Combat
 
         public void Respawn()
         {
-            if (!IsDead) return;
             IsDead = false;
+
+            if (_respawnRoutine != null)
+            {
+                StopCoroutine(_respawnRoutine);
+                _respawnRoutine = null;
+            }
+
+            if (_statusEffectRoutine != null)
+            {
+                StopCoroutine(_statusEffectRoutine);
+                _statusEffectRoutine = null;
+            }
+
+            _vulnerabilityMultiplier = 1.0f;
 
             transform.position = _spawnPosition;
             transform.rotation = _spawnRotation;
@@ -187,16 +281,14 @@ namespace Combat
             {
                 _rb.linearVelocity = Vector2.zero;
                 _rb.angularVelocity = 0f;
+                _rb.gravityScale = _originalGravityScale;
             }
 
             currentHealth = maxHealth;
             if (_sr != null) _sr.color = normalColor;
 
-            // Включаем хёртбоксы обратно
-            for (int i = 0; i < _hurtboxColliders.Count; i++)
-            {
-                if (_hurtboxColliders[i] != null) _hurtboxColliders[i].enabled = true;
-            }
+            // Включаем все коллайдеры хёртбоксов и основной коллайдер
+            EnableAllColliders(true);
 
             Debug.Log("<color=cyan><b>[DUMMY RESPAWNED]</b></color> Манекен восстановлен и готов к бою!");
         }
@@ -206,6 +298,71 @@ namespace Combat
             yield return new WaitForSeconds(delay);
             Respawn();
             _respawnRoutine = null;
+        }
+
+        public void ApplyVulnerabilityMark(float duration, float multiplier)
+        {
+            if (IsDead) return;
+            if (_statusEffectRoutine != null) StopCoroutine(_statusEffectRoutine);
+            _statusEffectRoutine = StartCoroutine(VulnerabilityRoutine(duration, multiplier));
+        }
+
+        private IEnumerator VulnerabilityRoutine(float duration, float multiplier)
+        {
+            _vulnerabilityMultiplier = multiplier;
+            if (_sr != null) _sr.color = new Color(0.9f, 0.4f, 1f, 1f);
+            yield return new WaitForSeconds(duration);
+            _vulnerabilityMultiplier = 1.0f;
+            if (!IsDead && _sr != null) _sr.color = normalColor;
+            _statusEffectRoutine = null;
+        }
+
+        public void ApplyRoot(float duration)
+        {
+            if (IsDead) return;
+            StartCoroutine(RootRoutine(duration));
+        }
+
+        private IEnumerator RootRoutine(float duration)
+        {
+            if (_rb != null) _rb.linearVelocity = Vector2.zero;
+            yield return new WaitForSeconds(duration);
+        }
+
+        public void ApplyGravitySuspension(float duration, Vector2 anchorPos)
+        {
+            if (IsDead) return;
+            StartCoroutine(GravitySuspensionRoutine(duration, anchorPos));
+        }
+
+        private IEnumerator GravitySuspensionRoutine(float duration, Vector2 anchorPos)
+        {
+            if (_rb != null)
+            {
+                _rb.linearVelocity = Vector2.zero;
+                _rb.gravityScale = 0f;
+            }
+            float elapsed = 0f;
+            while (elapsed < duration && !IsDead)
+            {
+                elapsed += Time.deltaTime;
+                transform.position = Vector3.Lerp(transform.position, (Vector3)anchorPos, Time.deltaTime * 5f);
+                yield return null;
+            }
+            if (_rb != null)
+            {
+                _rb.gravityScale = _originalGravityScale;
+            }
+        }
+
+        public void PullTowards(Vector2 targetPos, float speed)
+        {
+            if (IsDead) return;
+            Vector2 dir = (targetPos - (Vector2)transform.position).normalized;
+            if (_rb != null)
+            {
+                _rb.linearVelocity = dir * speed;
+            }
         }
 
         private void ShowBrokenPopup(Vector3 pos)

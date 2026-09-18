@@ -26,7 +26,7 @@ namespace Combat.Tactician
         private LineRenderer _fieldRing;
         private SpriteRenderer _coreRenderer;
         private float _spawnTime;
-        private readonly HashSet<EnemyAIController2D> _capturedEnemies = new HashSet<EnemyAIController2D>();
+        private readonly HashSet<object> _capturedTargets = new HashSet<object>();
 
         private void Awake()
         {
@@ -112,10 +112,18 @@ namespace Combat.Tactician
                 if (col == null || col.CompareTag("Player")) continue;
 
                 var enemy = col.GetComponent<EnemyAIController2D>() ?? col.GetComponentInParent<EnemyAIController2D>();
-                if (enemy != null && !enemy.IsDead && !_capturedEnemies.Contains(enemy))
+                if (enemy != null && !enemy.IsDead && !_capturedTargets.Contains(enemy))
                 {
-                    _capturedEnemies.Add(enemy);
+                    _capturedTargets.Add(enemy);
                     enemy.ApplyGravitySuspension(suspensionDuration, transform.position);
+                    continue;
+                }
+
+                var dummy = col.GetComponent<CombatDummy2D>() ?? col.GetComponentInParent<CombatDummy2D>();
+                if (dummy != null && !dummy.IsDead && !_capturedTargets.Contains(dummy))
+                {
+                    _capturedTargets.Add(dummy);
+                    dummy.ApplyGravitySuspension(suspensionDuration, transform.position);
                 }
             }
         }
