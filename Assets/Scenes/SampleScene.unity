@@ -8319,6 +8319,17 @@ MonoBehaviour:
   maxHealth: 120
   currentHealth: 120
   resetHealthDelay: 3.5
+  maxStamina: 100
+  currentStamina: 100
+  staminaDrainMultiplier: 1
+  staminaCounterDrain: 55
+  staminaBreakStunDuration: 2.5
+  staminaRegenIdleDelay: 7
+  staminaRegenRate: 35
+  knockbackMultAtFullStamina: 0.2
+  knockbackMultAtZeroStamina: 1
+  stunDurationMultAtZeroStamina: 1.5
+  staminaBar: {fileID: 0}
   canDie: 1
   respawnOnDeath: 1
   respawnDelay: 4

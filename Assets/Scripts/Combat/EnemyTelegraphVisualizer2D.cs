@@ -250,5 +250,53 @@ namespace Combat
 
             if (go != null) Destroy(go);
         }
+
+        /// <summary>
+        /// Создает парящий текст "НЕТ СТАМИНЫ!" при исчерпании шкалы выносливости
+        /// </summary>
+        public void ShowNoStaminaPopup(Vector3 position)
+        {
+            StartCoroutine(SpawnNoStaminaTextRoutine(position));
+        }
+
+        private IEnumerator SpawnNoStaminaTextRoutine(Vector3 spawnPos)
+        {
+            var go = new GameObject("NoStaminaText_Popup");
+            go.transform.position = spawnPos + new Vector3(0f, 1.4f, 0f);
+
+            var tm = go.AddComponent<TextMesh>();
+            tm.text = "НЕТ СТАМИНЫ!";
+            tm.fontSize = 46;
+            tm.characterSize = 0.088f;
+            tm.alignment = TextAlignment.Center;
+            tm.anchor = TextAnchor.MiddleCenter;
+            tm.fontStyle = FontStyle.Bold;
+            tm.color = new Color(1f, 0.45f, 0.1f, 1f); // Яркий янтарно-оранжевый
+
+            var mr = go.GetComponent<MeshRenderer>();
+            if (mr != null) mr.sortingOrder = 76;
+
+            float duration = 1.15f;
+            float elapsed = 0f;
+            Vector3 startPos = go.transform.position;
+            Vector3 endPos = startPos + new Vector3(0f, 1.1f, 0f);
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = elapsed / duration;
+
+                if (go != null)
+                {
+                    go.transform.position = Vector3.Lerp(startPos, endPos, t);
+                    Color c = tm.color;
+                    c.a = Mathf.Clamp01(1f - (t * t));
+                    tm.color = c;
+                }
+                yield return null;
+            }
+
+            if (go != null) Destroy(go);
+        }
     }
 }

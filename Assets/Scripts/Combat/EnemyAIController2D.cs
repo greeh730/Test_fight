@@ -29,6 +29,33 @@ namespace Combat
         [SerializeField] private float currentHealth = 120f;
         [SerializeField] private float resetHealthDelay = 3.5f;
 
+        [Header("--- Stamina & Poise System ---")]
+        [SerializeField] private float maxStamina = 100f;
+        [SerializeField] private float currentStamina = 100f;
+        [Tooltip("Множитель урона по стамине при обычных ударах")]
+        [SerializeField] private float staminaDrainMultiplier = 1.0f;
+        [Tooltip("Урон по стамине при успешной контратаке игрока")]
+        [SerializeField] private float staminaCounterDrain = 55f;
+        [Tooltip("Длительность оглушения при полном истощении стамины (сек)")]
+        [SerializeField] private float staminaBreakStunDuration = 2.5f;
+        [Tooltip("Задержка без получения урона до начала регенерации стамины (сек)")]
+        [SerializeField] private float staminaRegenIdleDelay = 7.0f;
+        [Tooltip("Скорость восстановления стамины в секунду")]
+        [SerializeField] private float staminaRegenRate = 35f;
+
+        [Header("--- Poise / Knockback Curve Settings ---")]
+        [Tooltip("Множитель отталкивания при полной (100%) стамине (например 0.2 = высокая устойчивость)")]
+        [SerializeField] private float knockbackMultAtFullStamina = 0.2f;
+
+        [Tooltip("Множитель отталкивания при пустой (0%) стамине (например 1.0 = нормальное, 1.5+ = усиленное)")]
+        [SerializeField] private float knockbackMultAtZeroStamina = 1.0f;
+
+        [Tooltip("Множитель длительности стана от контратак при пустой стамине (1.0 = базовый, 1.8 = увеличенный)")]
+        [SerializeField] private float stunDurationMultAtZeroStamina = 1.5f;
+
+        [Header("--- UI & Visuals ---")]
+        [SerializeField] private EnemyStaminaBar2D staminaBar;
+
         [Header("--- Death & Respawn Settings ---")]
         [Tooltip("Если включено (галочка), враг погибает при HP <= 0. Если выключено — враг бессмертен.")]
         [SerializeField] private bool canDie = true;
@@ -106,6 +133,8 @@ namespace Combat
         public float FacingDirection { get; private set; } = -1f;
         public bool CanDie { get => canDie; set => canDie = value; }
         public bool IsDead => CurrentState == EnemyState.Dead;
+        public float MaxStamina => maxStamina;
+        public float CurrentStamina => currentStamina;
 
         private Transform _playerTransform;
         private PlayerHealth2D _playerHealth;
@@ -136,6 +165,7 @@ namespace Combat
 
             if (_sr != null) _sr.color = normalColor;
             currentHealth = maxHealth;
+            currentStamina = maxStamina;
 
             if (faceTransform == null) faceTransform = transform.Find("Face");
             if (faceTransform != null)
@@ -149,6 +179,13 @@ namespace Combat
                 telegraphVisualizer = GetComponent<EnemyTelegraphVisualizer2D>();
                 if (telegraphVisualizer == null) telegraphVisualizer = gameObject.AddComponent<EnemyTelegraphVisualizer2D>();
             }
+
+            if (staminaBar == null)
+            {
+                staminaBar = GetComponent<EnemyStaminaBar2D>();
+                if (staminaBar == null) staminaBar = gameObject.AddComponent<EnemyStaminaBar2D>();
+            }
+            staminaBar.Initialize(maxStamina);
 
             _playerFilter = new ContactFilter2D();
             _playerFilter.useTriggers = true;
@@ -198,6 +235,16 @@ namespace Combat
             {
                 currentHealth = maxHealth;
                 if (_sr != null) _sr.color = normalColor;
+            }
+
+            // Регенерация стамины, если врага не трогали 7 секунд (и он не в стане)
+            if (currentStamina < maxStamina && CurrentState != EnemyState.Stunned && Time.time - _lastHitTime >= staminaRegenIdleDelay)
+            {
+                currentStamina = Mathf.MoveTowards(currentStamina, maxStamina, staminaRegenRate * Time.deltaTime);
+                if (staminaBar != null)
+                {
+                    staminaBar.SetStamina(currentStamina, maxStamina);
+                }
             }
 
             // Основная машина состояний ИИ
@@ -391,6 +438,31 @@ namespace Combat
             }
         }
 
+        public Vector2 CalculateEffectiveKnockback(Vector2 baseKnockback)
+        {
+            float ratio = Mathf.Clamp01(currentStamina / maxStamina);
+            // При ratio = 1 (100% стамины) -> mult = knockbackMultAtFullStamina (по умолчанию 0.2)
+            // При ratio = 0 (0% стамины) -> mult = knockbackMultAtZeroStamina (по умолчанию 1.0)
+            float mult = Mathf.Lerp(knockbackMultAtZeroStamina, knockbackMultAtFullStamina, ratio);
+            return baseKnockback * mult;
+        }
+
+        public float CalculateEffectiveStunDuration(float baseDuration)
+        {
+            float ratio = Mathf.Clamp01(currentStamina / maxStamina);
+            float mult = Mathf.Lerp(stunDurationMultAtZeroStamina, 1.0f, ratio);
+            return baseDuration * mult;
+        }
+
+        private void DrainStamina(float amount)
+        {
+            currentStamina = Mathf.Max(0f, currentStamina - amount);
+            if (staminaBar != null)
+            {
+                staminaBar.SetStamina(currentStamina, maxStamina);
+            }
+        }
+
         private void TriggerCounterAttackSuccess(AttackConfig attack, Vector2 knockbackDirection)
         {
             if (_stateRoutine != null) StopCoroutine(_stateRoutine);
@@ -409,15 +481,19 @@ namespace Combat
                 currentHealth = Mathf.Max(0f, currentHealth - counterDmg);
             }
 
-            // 2. Мощный импульс отталкивания
-            Vector2 kb = (attack != null ? attack.knockbackForce : new Vector2(8f, 4f)) * 1.5f;
-            kb.x *= knockbackDirection.x;
-            _rb.linearVelocity = kb;
+            // 2. Мощный импульс отталкивания с учетом кривой стойкости (стамина)
+            Vector2 baseKb = (attack != null ? attack.knockbackForce : new Vector2(8f, 4f)) * 1.5f;
+            Vector2 effectiveKb = CalculateEffectiveKnockback(baseKb);
+            effectiveKb.x *= knockbackDirection.x;
+            _rb.linearVelocity = effectiveKb;
 
-            // 3. Всплывающий текст "КОНТРАТАКА!"
+            // 3. Списание стамины от контратаки
+            DrainStamina(staminaCounterDrain);
+
+            // 4. Всплывающий текст "КОНТРАТАКА!"
             telegraphVisualizer.ShowCounterAttackPopup(transform.position);
 
-            // 4. Запускаем хитстоп через централизованный контроллер игрока
+            // 5. Запускаем хитстоп через централизованный контроллер игрока
             var pCombat = _playerTransform != null ? _playerTransform.GetComponent<PlayerCombatController2D>() : null;
             if (pCombat != null)
             {
@@ -428,7 +504,7 @@ namespace Combat
                 Time.timeScale = 1.0f;
             }
 
-            Debug.Log($"<color=yellow>[КОНТРАТАКА!]</color> Удар врага ПРЕРВАН! Нанесен критический урон: {counterDmg:F1} (x{counterDamageMultiplier:F2}). HP врага: {currentHealth:F0}/{maxHealth:F0}");
+            Debug.Log($"<color=yellow>[КОНТРАТАКА!]</color> Удар врага ПРЕРВАН! Нанесен критический урон: {counterDmg:F1} (x{counterDamageMultiplier:F2}). HP: {currentHealth:F0}/{maxHealth:F0} | Стамина: {currentStamina:F0}/{maxStamina:F0}");
 
             // Проверка гибели от контратаки
             if (canDie && currentHealth <= 0f)
@@ -437,9 +513,17 @@ namespace Combat
                 return;
             }
 
-            // 5. Переход в состояние оглушения (Stunned)
+            // Если стамина опустилась до 0 — наступает Stamina Break!
+            if (currentStamina <= 0f)
+            {
+                TriggerStaminaBreak(knockbackDirection);
+                return;
+            }
+
+            // 6. Обычный стан от контратаки (длительность масштабируется при низкой стамине)
+            float effectiveStun = CalculateEffectiveStunDuration(counterStunDuration);
             CurrentState = EnemyState.Stunned;
-            _stateRoutine = StartCoroutine(StunRoutine(counterStunDuration));
+            _stateRoutine = StartCoroutine(StunRoutine(effectiveStun, replenishStaminaAfter: false));
         }
 
         private void TakeNormalHit(AttackConfig attack, Vector2 knockbackDirection)
@@ -457,14 +541,18 @@ namespace Combat
 
             if (attack != null)
             {
-                Vector2 kb = new Vector2(knockbackDirection.x * attack.knockbackForce.x, attack.knockbackForce.y);
-                _rb.linearVelocity = kb;
+                Vector2 rawKb = new Vector2(knockbackDirection.x * attack.knockbackForce.x, attack.knockbackForce.y);
+                Vector2 effectiveKb = CalculateEffectiveKnockback(rawKb);
+                _rb.linearVelocity = effectiveKb;
             }
+
+            // Списание стамины от обычного удара
+            DrainStamina(dmg * staminaDrainMultiplier);
 
             if (_flashRoutine != null) StopCoroutine(_flashRoutine);
             _flashRoutine = StartCoroutine(FlashRoutine(normalColor, flashColor, 0.12f));
 
-            Debug.Log($"[ENEMY HIT] Получен обычный удар: {dmg:F1} HP. Текущее HP: {currentHealth:F0}/{maxHealth:F0}");
+            Debug.Log($"[ENEMY HIT] Получен обычный удар: {dmg:F1} HP. Текущее HP: {currentHealth:F0}/{maxHealth:F0} | Стамина: {currentStamina:F0}/{maxStamina:F0}");
 
             // Проверка гибели от обычного удара
             if (canDie && currentHealth <= 0f)
@@ -473,11 +561,41 @@ namespace Combat
                 return;
             }
 
+            // Если стамина опустилась до 0 — наступает Stamina Break!
+            if (currentStamina <= 0f)
+            {
+                TriggerStaminaBreak(knockbackDirection);
+                return;
+            }
+
             // Если не были в атаке или стане — если стояли в Idle, сразу агримся на игрока
             if (CurrentState == EnemyState.Idle)
             {
                 CurrentState = EnemyState.Chasing;
             }
+        }
+
+        private void TriggerStaminaBreak(Vector2 knockbackDirection)
+        {
+            if (CurrentState == EnemyState.Dead) return;
+
+            if (_stateRoutine != null) { StopCoroutine(_stateRoutine); _stateRoutine = null; }
+            if (telegraphVisualizer != null)
+            {
+                telegraphVisualizer.HideHitbox();
+                telegraphVisualizer.ShowNoStaminaPopup(transform.position);
+            }
+
+            // Небольшой импульс ошеломления
+            if (_rb != null)
+            {
+                float kbX = knockbackDirection.x != 0f ? knockbackDirection.x : -FacingDirection;
+                _rb.linearVelocity = new Vector2(kbX * 2.6f, 1.2f);
+            }
+
+            CurrentState = EnemyState.Stunned;
+            Debug.Log($"<color=orange><b>[НЕТ СТАМИНЫ!]</b></color> Враг истощен и оглушен на {staminaBreakStunDuration:F1}с!");
+            _stateRoutine = StartCoroutine(StunRoutine(staminaBreakStunDuration, replenishStaminaAfter: true));
         }
 
         public void Die(Vector2 knockbackDirection, bool wasCounter = false)
@@ -493,6 +611,8 @@ namespace Combat
                 telegraphVisualizer.HideHitbox();
                 telegraphVisualizer.ShowDefeatPopup(transform.position);
             }
+
+            if (staminaBar != null) staminaBar.SetVisible(false);
 
             if (_col != null) _col.enabled = false;
 
@@ -526,13 +646,20 @@ namespace Combat
             if (_rb != null) _rb.linearVelocity = Vector2.zero;
 
             currentHealth = maxHealth;
+            currentStamina = maxStamina;
+            if (staminaBar != null)
+            {
+                staminaBar.SetStamina(currentStamina, maxStamina);
+                staminaBar.SetVisible(true);
+            }
+
             if (_sr != null) _sr.color = normalColor;
             if (_col != null) _col.enabled = true;
 
             SetFacing(-1f);
             CurrentState = EnemyState.Idle;
 
-            Debug.Log("<color=green><b>[ENEMY RESPAWNED]</b></color> Враг возродился на исходной позиции!");
+            Debug.Log("<color=green><b>[ENEMY RESPAWNED]</b></color> Враг возродился на исходной позиции со 100% HP и стамины!");
         }
 
         private IEnumerator RespawnRoutine(float delay)
@@ -542,7 +669,7 @@ namespace Combat
             _respawnRoutine = null;
         }
 
-        private IEnumerator StunRoutine(float duration)
+        private IEnumerator StunRoutine(float duration, bool replenishStaminaAfter = false)
         {
             if (_sr != null) _sr.color = stunColor;
 
@@ -560,6 +687,18 @@ namespace Combat
             }
 
             if (_sr != null) _sr.color = normalColor;
+
+            // Восстановление стамины после стана
+            if (replenishStaminaAfter || currentStamina <= 0f)
+            {
+                currentStamina = maxStamina;
+                if (staminaBar != null)
+                {
+                    staminaBar.SetStamina(currentStamina, maxStamina);
+                }
+                Debug.Log("<color=yellow>[STAMINA RESTORED]</color> Стамина врага полностью восстановилась после стана!");
+            }
+
             CurrentState = EnemyState.Chasing;
             _stateRoutine = null;
         }
