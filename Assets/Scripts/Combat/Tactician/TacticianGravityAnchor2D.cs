@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Combat.Common;
 
 namespace Combat.Tactician
 {
@@ -13,20 +14,20 @@ namespace Combat.Tactician
     [DisallowMultipleComponent]
     public class TacticianGravityAnchor2D : MonoBehaviour
     {
-        [Header("--- Anchor Settings ---")]
-        [SerializeField] private float captureRadius = 1.85f;
-        [SerializeField] private float suspensionDuration = 2.0f;
+        [Header("--- Gravity Anchor Settings ---")]
+        [SerializeField] private float captureRadius = 2.6f;
+        [SerializeField] private float suspensionDuration = 5.0f;
         [SerializeField] private float lifetime = 5.0f;
         [SerializeField] private LayerMask enemyLayers = ~0;
 
         [Header("--- Visuals ---")]
-        [SerializeField] private Color coreColor = new Color(0.7f, 0.3f, 1f, 0.95f);    // Фиолетовый
-        [SerializeField] private Color fieldColor = new Color(0.35f, 0.8f, 1f, 0.45f); // Голубоватый шлейф
+        [SerializeField] private Color coreColor = new Color(0.75f, 0.35f, 1f, 1f);
+        [SerializeField] private Color fieldColor = new Color(0.55f, 0.2f, 0.9f, 0.45f);
 
-        private LineRenderer _fieldRing;
         private SpriteRenderer _coreRenderer;
+        private LineRenderer _fieldRing;
         private float _spawnTime;
-        private readonly HashSet<object> _capturedTargets = new HashSet<object>();
+        private readonly HashSet<ICombatEntity2D> _capturedTargets = new HashSet<ICombatEntity2D>();
 
         public void Initialize(float radius, float suspDuration, float life, Color color)
         {
@@ -68,11 +69,7 @@ namespace Combat.Tactician
             var coreObj = new GameObject("Anchor_Core");
             coreObj.transform.SetParent(transform, false);
             _coreRenderer = coreObj.AddComponent<SpriteRenderer>();
-
-            var tex = new Texture2D(2, 2);
-            tex.SetPixels(new Color[] { Color.white, Color.white, Color.white, Color.white });
-            tex.Apply();
-            _coreRenderer.sprite = Sprite.Create(tex, new Rect(0, 0, 2, 2), new Vector2(0.5f, 0.5f), 2);
+            _coreRenderer.sprite = CombatSprites.WhiteBox;
             coreObj.transform.localScale = new Vector3(0.42f, 0.42f, 1f);
             coreObj.transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
             _coreRenderer.color = coreColor;
@@ -133,25 +130,16 @@ namespace Combat.Tactician
 
         private void CheckForEnemies()
         {
-            var colliders = Physics2D.OverlapCircleAll(transform.position, captureRadius, enemyLayers);
-            for (int i = 0; i < colliders.Length; i++)
+            var targets = CombatTargetResolver.GetUniqueAliveTargets(
+                Physics2D.OverlapCircleAll(transform.position, captureRadius, enemyLayers),
+                gameObject
+            );
+            for (int i = 0; i < targets.Count; i++)
             {
-                var col = colliders[i];
-                if (col == null || col.CompareTag("Player")) continue;
-
-                var enemy = col.GetComponent<EnemyAIController2D>() ?? col.GetComponentInParent<EnemyAIController2D>();
-                if (enemy != null && !enemy.IsDead && !_capturedTargets.Contains(enemy))
+                var target = targets[i];
+                if (_capturedTargets.Add(target))
                 {
-                    _capturedTargets.Add(enemy);
-                    enemy.ApplyGravitySuspension(suspensionDuration, transform.position);
-                    continue;
-                }
-
-                var dummy = col.GetComponent<CombatDummy2D>() ?? col.GetComponentInParent<CombatDummy2D>();
-                if (dummy != null && !dummy.IsDead && !_capturedTargets.Contains(dummy))
-                {
-                    _capturedTargets.Add(dummy);
-                    dummy.ApplyGravitySuspension(suspensionDuration, transform.position);
+                    target.ApplyGravitySuspension(suspensionDuration, transform.position);
                 }
             }
         }

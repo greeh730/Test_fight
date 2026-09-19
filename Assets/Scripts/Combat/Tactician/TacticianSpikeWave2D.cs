@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Combat.Common;
 
 namespace Combat.Tactician
 {
@@ -25,7 +26,7 @@ namespace Combat.Tactician
         private float _direction = 1f;
         private float _traveledDistance = 0f;
         private Vector2 _knockback = new Vector2(4.5f, 2.0f);
-        private readonly HashSet<object> _hitTargets = new HashSet<object>();
+        private readonly HashSet<ICombatEntity2D> _hitTargets = new HashSet<ICombatEntity2D>();
         private readonly HashSet<TacticianTrap2D> _detonatedTraps = new HashSet<TacticianTrap2D>();
 
         public void Initialize(float facingDirection)
@@ -48,10 +49,7 @@ namespace Combat.Tactician
 
         private void CreateSpikeVisual()
         {
-            var tex = new Texture2D(2, 2);
-            tex.SetPixels(new Color[] { Color.white, Color.white, Color.white, Color.white });
-            tex.Apply();
-            var sprite = Sprite.Create(tex, new Rect(0, 0, 2, 2), new Vector2(0.5f, 0.5f), 2);
+            var sprite = CombatSprites.WhiteBox;
 
             // Создаем форму кристаллического шипа
             for (int i = 0; i < 3; i++)
@@ -101,24 +99,13 @@ namespace Combat.Tactician
                 spikeColor
             );
 
-            for (int i = 0; i < colliders.Length; i++)
+            var targets = CombatTargetResolver.GetUniqueAliveTargets(colliders, gameObject);
+            foreach (var target in targets)
             {
-                var col = colliders[i];
-                if (col == null || col.CompareTag("Player")) continue;
-
-                var enemy = col.GetComponent<EnemyAIController2D>() ?? col.GetComponentInParent<EnemyAIController2D>();
-                if (enemy != null && !enemy.IsDead && !_hitTargets.Contains(enemy))
+                if (!_hitTargets.Contains(target))
                 {
-                    _hitTargets.Add(enemy);
-                    enemy.TakeHit(spikeAttack, CombatZone.Low, transform.position, new Vector2(_direction, 0.4f).normalized);
-                    continue;
-                }
-
-                var dummy = col.GetComponent<CombatDummy2D>() ?? col.GetComponentInParent<CombatDummy2D>();
-                if (dummy != null && !dummy.IsDead && !_hitTargets.Contains(dummy))
-                {
-                    _hitTargets.Add(dummy);
-                    dummy.TakeHit(spikeAttack, CombatZone.Low, transform.position, new Vector2(_direction, 0.4f).normalized);
+                    _hitTargets.Add(target);
+                    target.TakeHit(spikeAttack, CombatZone.Low, transform.position, new Vector2(_direction, 0.4f).normalized);
                 }
             }
         }

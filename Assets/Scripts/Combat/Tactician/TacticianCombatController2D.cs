@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using Combat.Player;
 using Combat.UI;
+using Combat.Common;
 
 namespace Combat.Tactician
 {
@@ -232,30 +233,18 @@ namespace Combat.Tactician
                 tacticianCyan
             );
 
-            var hitReceivers = new HashSet<object>();
+            var hitReceivers = new HashSet<ICombatEntity2D>();
             for (int i = 0; i < cols.Length; i++)
             {
                 var c = cols[i];
                 if (c == null || c.CompareTag("Player")) continue;
 
-                var enemy = c.GetComponent<EnemyAIController2D>() ?? c.GetComponentInParent<EnemyAIController2D>();
-                if (enemy != null && !enemy.IsDead)
+                if (CombatTargetResolver.IsAliveTarget(c, out var target))
                 {
-                    if (hitReceivers.Add(enemy))
+                    if (hitReceivers.Add(target))
                     {
-                        enemy.TakeHit(attack, CombatZone.Mid, center, new Vector2(facing, 0.2f).normalized);
-                        enemy.ApplyVulnerabilityMark(thrustVulnerabilityDuration, thrustVulnerabilityMultiplier);
-                    }
-                    continue;
-                }
-
-                var dummy = c.GetComponent<CombatDummy2D>() ?? c.GetComponentInParent<CombatDummy2D>();
-                if (dummy != null && !dummy.IsDead)
-                {
-                    if (hitReceivers.Add(dummy))
-                    {
-                        dummy.TakeHit(attack, CombatZone.Mid, center, new Vector2(facing, 0.2f).normalized);
-                        dummy.ApplyVulnerabilityMark(thrustVulnerabilityDuration, thrustVulnerabilityMultiplier);
+                        target.TakeHit(attack, CombatZone.Mid, center, new Vector2(facing, 0.2f).normalized);
+                        target.ApplyVulnerabilityMark(thrustVulnerabilityDuration, thrustVulnerabilityMultiplier);
                     }
                 }
             }
@@ -332,7 +321,7 @@ namespace Combat.Tactician
 
             // Ищем ближайшего врага или манекен перед нами для точечного взрыва
             Vector3 targetGroundPos = transform.position + new Vector3(facing * launchDefaultOffset.x, launchDefaultOffset.y, 0f);
-            FindNearestTarget(launchAutoTargetRange, out var targetT, out _, out _);
+            FindNearestTarget(launchAutoTargetRange, out var targetT, out _);
             if (targetT != null && Mathf.Abs(targetT.position.x - transform.position.x) > 0.5f)
             {
                 targetGroundPos = new Vector3(targetT.position.x, transform.position.y - 0.6f, 0f);
@@ -353,42 +342,22 @@ namespace Combat.Tactician
             // Создаем гейзер под ногами цели
             StartCoroutine(KineticGeyserVisualRoutine(targetGroundPos));
 
-            var hits = Physics2D.OverlapCircleAll(targetGroundPos, launchGeyserRadius, enemyLayers);
-            var hitReceivers = new HashSet<object>();
+            var hits = Physics2D.OverlapBoxAll(geyserCenter, geyserBoxSize, 0f, enemyLayers);
             var launchAttack = new AttackConfig(
                 "Кинетический подброс",
-                CombatZone.Mid | CombatZone.High,
+                CombatZone.Mid,
                 Vector2.zero,
                 geyserBoxSize,
-                0f, 0.1f, 0.1f,
+                0f, 0.15f, 0.1f,
                 launchDamage,
-                new Vector2(facing * launchKnockback.x, launchKnockback.y), // Мощнейший запуск прямо в воздух!
+                new Vector2(facing * launchKnockback.x, launchKnockback.y),
                 tacticianCyan
             );
 
-            for (int i = 0; i < hits.Length; i++)
+            var targets = CombatTargetResolver.GetUniqueAliveTargets(hits, gameObject);
+            for (int i = 0; i < targets.Count; i++)
             {
-                var col = hits[i];
-                if (col == null || col.CompareTag("Player")) continue;
-
-                var targetEnemy = col.GetComponent<EnemyAIController2D>() ?? col.GetComponentInParent<EnemyAIController2D>();
-                if (targetEnemy != null && !targetEnemy.IsDead)
-                {
-                    if (hitReceivers.Add(targetEnemy))
-                    {
-                        targetEnemy.TakeHit(launchAttack, CombatZone.Mid, targetGroundPos, Vector2.up);
-                    }
-                    continue;
-                }
-
-                var targetDummy = col.GetComponent<CombatDummy2D>() ?? col.GetComponentInParent<CombatDummy2D>();
-                if (targetDummy != null && !targetDummy.IsDead)
-                {
-                    if (hitReceivers.Add(targetDummy))
-                    {
-                        targetDummy.TakeHit(launchAttack, CombatZone.Mid, targetGroundPos, Vector2.up);
-                    }
-                }
+                targets[i].TakeHit(launchAttack, CombatZone.Mid, targetGroundPos, Vector2.up);
             }
 
             yield return new WaitForSeconds(0.18f);
@@ -457,7 +426,7 @@ namespace Combat.Tactician
             float facing = GetFacing();
             Vector3 origin = transform.position + new Vector3(facing * harpoonSpawnOffset.x, harpoonSpawnOffset.y, 0f);
 
-            FindNearestTarget(harpoonReachDistance, out var targetT, out var enemy, out var dummy);
+            FindNearestTarget(harpoonReachDistance, out var targetT, out var targetEntity);
             Vector3 targetPos = targetT != null ? targetT.position : origin + new Vector3(facing * harpoonReachDistance * 0.85f, -0.4f, 0f);
 
             // Отрисовка спектральной цепи/хлыста
@@ -491,17 +460,11 @@ namespace Combat.Tactician
                 tacticianPurple
             );
 
-            if (enemy != null && !enemy.IsDead)
+            if (targetEntity != null && !targetEntity.IsDead)
             {
-                enemy.TakeHit(harpoonAttack, CombatZone.Mid, targetPos, -Vector2.right * facing);
-                // Притягиваем врага прямо под ноги игроку!
-                enemy.PullTowards(transform.position + new Vector3(facing * 1.2f, 0f, 0f), harpoonPullSpeed);
-                SpawnPopupText(origin + Vector3.up * 1.0f, "[МАГИЧЕСКИЙ ГАРПУН!]", tacticianPurple);
-            }
-            else if (dummy != null && !dummy.IsDead)
-            {
-                dummy.TakeHit(harpoonAttack, CombatZone.Mid, targetPos, -Vector2.right * facing);
-                dummy.PullTowards(transform.position + new Vector3(facing * 1.2f, 0f, 0f), harpoonPullSpeed);
+                targetEntity.TakeHit(harpoonAttack, CombatZone.Mid, targetPos, -Vector2.right * facing);
+                // Притягиваем цель прямо под ноги игроку!
+                targetEntity.PullTowards(transform.position + new Vector3(facing * 1.2f, 0f, 0f), harpoonPullSpeed);
                 SpawnPopupText(origin + Vector3.up * 1.0f, "[МАГИЧЕСКИЙ ГАРПУН!]", tacticianPurple);
             }
 
@@ -528,67 +491,29 @@ namespace Combat.Tactician
             yield return new WaitForSeconds(0.08f);
 
             var hits = Physics2D.OverlapBoxAll(arcCenter, arcSize, 0f, enemyLayers);
-            var hitReceivers = new HashSet<object>();
-            for (int i = 0; i < hits.Length; i++)
+            var targets = CombatTargetResolver.GetUniqueAliveTargets(hits, gameObject);
+            for (int i = 0; i < targets.Count; i++)
             {
-                var col = hits[i];
-                if (col == null || col.CompareTag("Player")) continue;
+                var target = targets[i];
+                bool isAirborne = target.transform.position.y > transform.position.y + 0.35f;
+                float dmg = isAirborne ? fanAntiAirDamage : fanNormalDamage;
 
-                var enemy = col.GetComponent<EnemyAIController2D>() ?? col.GetComponentInParent<EnemyAIController2D>();
-                if (enemy != null && !enemy.IsDead)
+                var fanAttack = new AttackConfig(
+                    isAirborne ? "Анти-Эйр Крит!" : "Веерная защита",
+                    CombatZone.High,
+                    Vector2.zero,
+                    arcSize,
+                    0f, 0.1f, 0.1f,
+                    dmg,
+                    new Vector2(facing * 2f, isAirborne ? -fanKnockdownForce : 1f), // Сбивает прыгающих врагов вниз!
+                    tacticianGold
+                );
+
+                target.TakeHit(fanAttack, CombatZone.High, arcCenter, isAirborne ? Vector2.down : Vector2.up);
+                if (isAirborne)
                 {
-                    if (hitReceivers.Add(enemy))
-                    {
-                        bool isAirborne = enemy.transform.position.y > transform.position.y + 0.35f;
-                        float dmg = isAirborne ? fanAntiAirDamage : fanNormalDamage;
-
-                        var fanAttack = new AttackConfig(
-                            isAirborne ? "Анти-Эйр Крит!" : "Веерная защита",
-                            CombatZone.High,
-                            Vector2.zero,
-                            arcSize,
-                            0f, 0.1f, 0.1f,
-                            dmg,
-                            new Vector2(facing * 2f, isAirborne ? -fanKnockdownForce : 1f), // Сбивает прыгающих врагов вниз!
-                            tacticianGold
-                        );
-
-                        enemy.TakeHit(fanAttack, CombatZone.High, arcCenter, isAirborne ? Vector2.down : Vector2.up);
-                        if (isAirborne)
-                        {
-                            enemy.ApplyRoot(fanAirRootDuration); // Микро-стан при сбивании с воздуха
-                            SpawnPopupText(enemy.transform.position + Vector3.up * 1.2f, "[АНТИ-ЭЙР КРИТ!]", tacticianGold);
-                        }
-                    }
-                    continue;
-                }
-
-                var dummy = col.GetComponent<CombatDummy2D>() ?? col.GetComponentInParent<CombatDummy2D>();
-                if (dummy != null && !dummy.IsDead)
-                {
-                    if (hitReceivers.Add(dummy))
-                    {
-                        bool isAirborne = dummy.transform.position.y > transform.position.y + 0.35f;
-                        float dmg = isAirborne ? fanAntiAirDamage : fanNormalDamage;
-
-                        var fanAttack = new AttackConfig(
-                            isAirborne ? "Анти-Эйр Крит!" : "Веерная защита",
-                            CombatZone.High,
-                            Vector2.zero,
-                            arcSize,
-                            0f, 0.1f, 0.1f,
-                            dmg,
-                            new Vector2(facing * 2f, isAirborne ? -fanKnockdownForce : 1f),
-                            tacticianGold
-                        );
-
-                        dummy.TakeHit(fanAttack, CombatZone.High, arcCenter, isAirborne ? Vector2.down : Vector2.up);
-                        if (isAirborne)
-                        {
-                            dummy.ApplyRoot(fanAirRootDuration);
-                            SpawnPopupText(dummy.transform.position + Vector3.up * 1.2f, "[АНТИ-ЭЙР КРИТ!]", tacticianGold);
-                        }
-                    }
+                    target.ApplyRoot(fanAirRootDuration); // Микро-стан при сбивании с воздуха
+                    SpawnPopupText(target.transform.position + Vector3.up * 1.2f, "[АНТИ-ЭЙР КРИТ!]", tacticianGold);
                 }
             }
 
@@ -597,91 +522,19 @@ namespace Combat.Tactician
             _abilityRoutine = null;
         }
 
-        private void FindNearestTarget(float maxDist, out Transform targetTransform, out EnemyAIController2D enemy, out CombatDummy2D dummy)
+        private void FindNearestTarget(float maxDist, out Transform targetTransform, out ICombatEntity2D targetEntity)
         {
             targetTransform = null;
-            enemy = null;
-            dummy = null;
-            float minDist = maxDist;
-
-            var enemies = FindObjectsByType<EnemyAIController2D>();
-            for (int i = 0; i < enemies.Length; i++)
+            targetEntity = null;
+            if (CombatTargetResolver.FindNearest(transform.position, maxDist, out targetEntity))
             {
-                var e = enemies[i];
-                if (e == null || e.IsDead) continue;
-                float d = Vector2.Distance(transform.position, e.transform.position);
-                if (d < minDist)
-                {
-                    minDist = d;
-                    enemy = e;
-                    targetTransform = e.transform;
-                }
+                targetTransform = targetEntity.transform;
             }
-
-            var dummies = FindObjectsByType<CombatDummy2D>();
-            for (int i = 0; i < dummies.Length; i++)
-            {
-                var dm = dummies[i];
-                if (dm == null || dm.IsDead) continue;
-                float d = Vector2.Distance(transform.position, dm.transform.position);
-                if (d < minDist)
-                {
-                    minDist = d;
-                    enemy = null;
-                    dummy = dm;
-                    targetTransform = dm.transform;
-                }
-            }
-        }
-
-        private EnemyAIController2D FindNearestEnemy(float maxDist)
-        {
-            FindNearestTarget(maxDist, out _, out var enemy, out _);
-            return enemy;
         }
 
         private void SpawnPopupText(Vector3 pos, string text, Color color)
         {
-            StartCoroutine(PopupTextRoutine(pos, text, color));
-        }
-
-        private IEnumerator PopupTextRoutine(Vector3 pos, string text, Color color)
-        {
-            var go = new GameObject("Tactician_Popup");
-            go.transform.position = pos;
-
-            var tm = go.AddComponent<TextMesh>();
-            tm.text = text;
-            tm.fontSize = 42;
-            tm.characterSize = 0.082f;
-            tm.alignment = TextAlignment.Center;
-            tm.anchor = TextAnchor.MiddleCenter;
-            tm.fontStyle = FontStyle.Bold;
-            tm.color = color;
-
-            var mr = go.GetComponent<MeshRenderer>();
-            if (mr != null) mr.sortingOrder = 80;
-
-            float dur = 1.0f;
-            float el = 0f;
-            Vector3 startPos = pos;
-            Vector3 endPos = pos + new Vector3(0f, 0.9f, 0f);
-
-            while (el < dur)
-            {
-                el += Time.deltaTime;
-                float t = el / dur;
-                if (go != null)
-                {
-                    go.transform.position = Vector3.Lerp(startPos, endPos, t);
-                    Color c = tm.color;
-                    c.a = Mathf.Clamp01(1f - t);
-                    tm.color = c;
-                }
-                yield return null;
-            }
-
-            if (go != null) Destroy(go);
+            CombatFloatingText.Spawn(pos, text, color);
         }
 
         private void OnDrawGizmosSelected()

@@ -32,25 +32,11 @@ namespace Combat
         private float _currentDisplayedStamina = 100f;
         private float _ghostStamina = 100f;
         private float _ghostCatchupTimer;
-
-        private static Sprite _boxSprite;
         private bool _isInitialized;
 
         private void Awake()
         {
-            EnsureSprite();
             BuildBarObjects();
-        }
-
-        private static void EnsureSprite()
-        {
-            if (_boxSprite != null) return;
-            var tex = new Texture2D(4, 4);
-            var cols = new Color[16];
-            for (int i = 0; i < 16; i++) cols[i] = Color.white;
-            tex.SetPixels(cols);
-            tex.Apply();
-            _boxSprite = Sprite.Create(tex, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f), 4);
         }
 
         private void BuildBarObjects()
@@ -66,7 +52,7 @@ namespace Combat
             var bgObj = new GameObject("Bar_BG");
             bgObj.transform.SetParent(_rootObj.transform, false);
             _bgRenderer = bgObj.AddComponent<SpriteRenderer>();
-            _bgRenderer.sprite = _boxSprite;
+            _bgRenderer.sprite = Combat.Common.CombatSprites.WhiteBox;
             _bgRenderer.color = backgroundColor;
             _bgRenderer.sortingOrder = 48;
             bgObj.transform.localScale = new Vector3(barWidth + 0.06f, barHeight + 0.05f, 1f);
@@ -75,7 +61,7 @@ namespace Combat
             var ghostObj = new GameObject("Bar_Ghost");
             ghostObj.transform.SetParent(_rootObj.transform, false);
             _ghostRenderer = ghostObj.AddComponent<SpriteRenderer>();
-            _ghostRenderer.sprite = _boxSprite;
+            _ghostRenderer.sprite = Combat.Common.CombatSprites.WhiteBox;
             _ghostRenderer.color = ghostBarColor;
             _ghostRenderer.sortingOrder = 49;
 
@@ -83,7 +69,7 @@ namespace Combat
             var fillObj = new GameObject("Bar_Fill");
             fillObj.transform.SetParent(_rootObj.transform, false);
             _fillRenderer = fillObj.AddComponent<SpriteRenderer>();
-            _fillRenderer.sprite = _boxSprite;
+            _fillRenderer.sprite = Combat.Common.CombatSprites.WhiteBox;
             _fillRenderer.color = fullStaminaColor;
             _fillRenderer.sortingOrder = 50;
 

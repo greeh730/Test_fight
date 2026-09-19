@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Combat.Common;
 
 namespace Combat.Tactician
 {
@@ -40,12 +41,7 @@ namespace Combat.Tactician
 
         private void CreateSmokePuffs()
         {
-            var tex = new Texture2D(4, 4);
-            var cols = new Color[16];
-            for (int i = 0; i < 16; i++) cols[i] = Color.white;
-            tex.SetPixels(cols);
-            tex.Apply();
-            var sprite = Sprite.Create(tex, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f), 4);
+            var sprite = CombatSprites.WhiteBox;
 
             int count = 6;
             for (int i = 0; i < count; i++)
@@ -96,16 +92,10 @@ namespace Combat.Tactician
         private void CheckEnemiesInSmoke()
         {
             var colliders = Physics2D.OverlapCircleAll(transform.position, cloudRadius, enemyLayers);
-            for (int i = 0; i < colliders.Length; i++)
+            var targets = CombatTargetResolver.GetUniqueAliveTargets(colliders, gameObject);
+            foreach (var target in targets)
             {
-                var col = colliders[i];
-                if (col == null || col.CompareTag("Player")) continue;
-
-                var enemy = col.GetComponent<EnemyAIController2D>() ?? col.GetComponentInParent<EnemyAIController2D>();
-                if (enemy != null && !enemy.IsDead)
-                {
-                    enemy.DisorientFromSmoke(disorientDuration);
-                }
+                target.Disorient(disorientDuration);
             }
         }
     }

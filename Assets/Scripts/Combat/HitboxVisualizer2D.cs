@@ -32,7 +32,6 @@ namespace Combat
         private GameObject _activeVisualObj;
         private SpriteRenderer _fillRenderer;
         private LineRenderer _borderRenderer;
-        private static Sprite _whiteBoxSprite;
 
         public bool ShowInGameVisuals
         {
@@ -45,20 +44,7 @@ namespace Combat
 
         private void Awake()
         {
-            EnsureSprite();
             CreateVisualObject();
-        }
-
-        private static void EnsureSprite()
-        {
-            if (_whiteBoxSprite != null) return;
-
-            var tex = new Texture2D(4, 4);
-            var cols = new Color[16];
-            for (int i = 0; i < 16; i++) cols[i] = Color.white;
-            tex.SetPixels(cols);
-            tex.Apply();
-            _whiteBoxSprite = Sprite.Create(tex, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f), 4);
         }
 
         private void CreateVisualObject()
@@ -70,7 +56,7 @@ namespace Combat
 
             // Sprite fill
             _fillRenderer = _activeVisualObj.AddComponent<SpriteRenderer>();
-            _fillRenderer.sprite = _whiteBoxSprite;
+            _fillRenderer.sprite = Combat.Common.CombatSprites.WhiteBox;
             _fillRenderer.sortingOrder = 50;
 
             // Line outline
@@ -127,51 +113,41 @@ namespace Combat
         }
 
         /// <summary>
+        /// Универсальный показ прямоугольной области с произвольными цветами заливки и границы.
+        /// </summary>
+        public void ShowBox(Vector2 center, Vector2 size, Color fillColor, Color borderColor, float borderWidth = 0.04f)
+        {
+            if (!showInGameVisuals) return;
+            if (_activeVisualObj == null) CreateVisualObject();
+
+            _activeVisualObj.transform.position = new Vector3(center.x, center.y, 0f);
+            _activeVisualObj.transform.localScale = new Vector3(size.x, size.y, 1f);
+
+            _fillRenderer.color = fillColor;
+
+            Vector3[] corners = new Vector3[5]
+            {
+                new Vector3(-0.5f, -0.5f, 0f),
+                new Vector3(0.5f, -0.5f, 0f),
+                new Vector3(0.5f, 0.5f, 0f),
+                new Vector3(-0.5f, 0.5f, 0f),
+                new Vector3(-0.5f, -0.5f, 0f)
+            };
+            _borderRenderer.SetPositions(corners);
+            _borderRenderer.startWidth = borderWidth;
+            _borderRenderer.endWidth = borderWidth;
+            _borderRenderer.startColor = borderColor;
+            _borderRenderer.endColor = borderColor;
+
+            _activeVisualObj.SetActive(true);
+        }
+
+        /// <summary>
         /// Создает парящий текст "УСИЛЕННАЯ АТАКА!" в мировом пространстве
         /// </summary>
         public void ShowEmpoweredPopup(Vector3 position)
         {
-            StartCoroutine(SpawnEmpoweredTextRoutine(position));
-        }
-
-        private System.Collections.IEnumerator SpawnEmpoweredTextRoutine(Vector3 spawnPos)
-        {
-            var go = new GameObject("EmpoweredText_Popup");
-            go.transform.position = spawnPos + new Vector3(0f, 1.1f, 0f);
-
-            var tm = go.AddComponent<TextMesh>();
-            tm.text = "УСИЛЕННАЯ АТАКА!";
-            tm.fontSize = 42;
-            tm.characterSize = 0.082f;
-            tm.alignment = TextAlignment.Center;
-            tm.anchor = TextAnchor.MiddleCenter;
-            tm.fontStyle = FontStyle.Bold;
-            tm.color = new Color(1f, 0.75f, 0.1f, 1f); // Яркий золотисто-янтарный
-
-            var mr = go.GetComponent<MeshRenderer>();
-            if (mr != null) mr.sortingOrder = 70;
-
-            float duration = 0.9f;
-            float elapsed = 0f;
-            Vector3 startPos = go.transform.position;
-            Vector3 endPos = startPos + new Vector3(0f, 1.1f, 0f);
-
-            while (elapsed < duration)
-            {
-                elapsed += Time.unscaledDeltaTime;
-                float t = elapsed / duration;
-
-                if (go != null)
-                {
-                    go.transform.position = Vector3.Lerp(startPos, endPos, t);
-                    Color c = tm.color;
-                    c.a = Mathf.Clamp01(1f - t * t);
-                    tm.color = c;
-                }
-                yield return null;
-            }
-
-            if (go != null) Destroy(go);
+            Combat.Common.CombatFloatingText.ShowEmpowered(position);
         }
 
         /// <summary>

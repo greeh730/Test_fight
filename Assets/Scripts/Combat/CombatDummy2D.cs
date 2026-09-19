@@ -1,13 +1,14 @@
 using System;
 using System.Collections;
 using UnityEngine;
+using Combat.Common;
 
 namespace Combat
 {
     [DisallowMultipleComponent]
     [RequireComponent(typeof(Rigidbody2D))]
     [RequireComponent(typeof(SpriteRenderer))]
-    public class CombatDummy2D : MonoBehaviour, IHurtboxTarget2D
+    public class CombatDummy2D : MonoBehaviour, ICombatEntity2D
     {
         [Header("--- Dummy Settings ---")]
         [SerializeField] private float maxHealth = 100f;
@@ -63,6 +64,17 @@ namespace Combat
             }
         }
         public bool IsDead { get; private set; }
+        public Rigidbody2D Rigidbody => _rb;
+
+        private void OnEnable()
+        {
+            CombatTargetResolver.Register(this);
+        }
+
+        private void OnDisable()
+        {
+            CombatTargetResolver.Unregister(this);
+        }
 
         private void OnValidate()
         {
@@ -380,50 +392,14 @@ namespace Combat
             }
         }
 
-        private void ShowBrokenPopup(Vector3 pos)
+        public void Disorient(float duration)
         {
-            if (!Application.isPlaying) return;
-            StartCoroutine(SpawnBrokenTextRoutine(pos));
+            // Манекен не имеет AI для дезориентации
         }
 
-        private IEnumerator SpawnBrokenTextRoutine(Vector3 spawnPos)
+        private void ShowBrokenPopup(Vector3 pos)
         {
-            var go = new GameObject("DummyBroken_Popup");
-            go.hideFlags = HideFlags.DontSave;
-            go.transform.position = spawnPos + new Vector3(0f, 1.2f, 0f);
-
-            var tm = go.AddComponent<TextMesh>();
-            tm.text = "МАНЕКЕН СЛОМАН!";
-            tm.fontSize = 42;
-            tm.characterSize = 0.082f;
-            tm.alignment = TextAlignment.Center;
-            tm.anchor = TextAnchor.MiddleCenter;
-            tm.fontStyle = FontStyle.Bold;
-            tm.color = new Color(1f, 0.45f, 0.15f, 1f);
-
-            var mr = go.GetComponent<MeshRenderer>();
-            if (mr != null) mr.sortingOrder = 70;
-
-            float duration = 1.0f;
-            float elapsed = 0f;
-            Vector3 startPos = go.transform.position;
-            Vector3 endPos = startPos + new Vector3(0f, 0.9f, 0f);
-
-            while (elapsed < duration)
-            {
-                elapsed += Time.deltaTime;
-                float t = elapsed / duration;
-                if (go != null)
-                {
-                    go.transform.position = Vector3.Lerp(startPos, endPos, t);
-                    Color c = tm.color;
-                    c.a = Mathf.Clamp01(1f - (t * t));
-                    tm.color = c;
-                }
-                yield return null;
-            }
-
-            if (go != null) Destroy(go);
+            CombatFloatingText.ShowDummyBroken(pos);
         }
 
         private IEnumerator FlashColorRoutine(Color flashColor)

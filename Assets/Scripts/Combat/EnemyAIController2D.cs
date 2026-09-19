@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 using Combat.Player;
+using Combat.Common;
 
 namespace Combat
 {
@@ -22,7 +23,7 @@ namespace Combat
     [RequireComponent(typeof(Rigidbody2D))]
     [RequireComponent(typeof(Collider2D))]
     [RequireComponent(typeof(SpriteRenderer))]
-    public class EnemyAIController2D : MonoBehaviour, IHurtboxTarget2D
+    public class EnemyAIController2D : MonoBehaviour, ICombatEntity2D
     {
         [Header("--- Health & Defense ---")]
         [SerializeField] private float maxHealth = 120f;
@@ -135,6 +136,18 @@ namespace Combat
         public bool IsDead => CurrentState == EnemyState.Dead;
         public float MaxStamina => maxStamina;
         public float CurrentStamina => currentStamina;
+        public Rigidbody2D Rigidbody => _rb;
+
+        private void OnEnable()
+        {
+            CombatTargetResolver.Register(this);
+        }
+
+        private void OnDisable()
+        {
+            Time.timeScale = 1.0f;
+            CombatTargetResolver.Unregister(this);
+        }
 
         private Transform _playerTransform;
         private PlayerHealth2D _playerHealth;
@@ -781,6 +794,7 @@ namespace Combat
             }
             Debug.Log($"<color=#9955FF>[GRAVITY ANCHOR]</color> Враг захвачен гравитационной аномалией на {duration:F1}с!");
         }
+        public void Disorient(float duration) => DisorientFromSmoke(duration);
 
         public void DisorientFromSmoke(float duration)
         {
@@ -925,10 +939,6 @@ namespace Combat
             _stateRoutine = null;
         }
 
-        private void OnDisable()
-        {
-            Time.timeScale = 1.0f;
-        }
 
         private IEnumerator FlashRoutine(Color defaultCol, Color flashCol, float duration)
         {

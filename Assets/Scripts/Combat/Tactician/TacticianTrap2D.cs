@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Combat.Common;
 
 namespace Combat.Tactician
 {
@@ -105,11 +106,7 @@ namespace Combat.Tactician
             var runeObj = new GameObject("Center_Rune");
             runeObj.transform.SetParent(transform, false);
             _centerRuneRenderer = runeObj.AddComponent<SpriteRenderer>();
-
-            var tex = new Texture2D(2, 2);
-            tex.SetPixels(new Color[] { Color.white, Color.white, Color.white, Color.white });
-            tex.Apply();
-            _centerRuneRenderer.sprite = Sprite.Create(tex, new Rect(0, 0, 2, 2), new Vector2(0.5f, 0.5f), 2);
+            _centerRuneRenderer.sprite = CombatSprites.WhiteBox;
             runeObj.transform.localScale = new Vector3(0.35f, 0.35f, 1f);
             runeObj.transform.localRotation = Quaternion.Euler(0f, 0f, 45f); // Ромбическая руна
             _centerRuneRenderer.color = runeColor;
@@ -153,15 +150,7 @@ namespace Combat.Tactician
                 var col = colliders[i];
                 if (col == null || col.CompareTag("Player")) continue;
 
-                var enemy = col.GetComponent<EnemyAIController2D>() ?? col.GetComponentInParent<EnemyAIController2D>();
-                if (enemy != null && !enemy.IsDead)
-                {
-                    Detonate(isResonance: false);
-                    return;
-                }
-
-                var dummy = col.GetComponent<CombatDummy2D>() ?? col.GetComponentInParent<CombatDummy2D>();
-                if (dummy != null && !dummy.IsDead)
+                if (CombatTargetResolver.IsAliveTarget(col, out _))
                 {
                     Detonate(isResonance: false);
                     return;
@@ -172,7 +161,7 @@ namespace Combat.Tactician
         /// <summary>
         /// Подрыв ловушки при наступании или детонации шипами
         /// </summary>
-        public void Detonate(EnemyAIController2D primaryTarget, bool isResonance)
+        public void Detonate(ICombatEntity2D primaryTarget, bool isResonance)
         {
             Detonate(isResonance);
         }
@@ -198,32 +187,12 @@ namespace Combat.Tactician
 
             // Наносим урон и Root всем врагам и манекенам в радиусе взрыва
             var hits = Physics2D.OverlapCircleAll(transform.position, triggerRadius * (isResonance ? 1.5f : 1.1f), enemyLayers);
-            var hitReceivers = new HashSet<object>();
-            for (int i = 0; i < hits.Length; i++)
+            var targets = CombatTargetResolver.GetUniqueAliveTargets(hits, gameObject);
+            for (int i = 0; i < targets.Count; i++)
             {
-                var col = hits[i];
-                if (col == null || col.CompareTag("Player")) continue;
-
-                var enemy = col.GetComponent<EnemyAIController2D>() ?? col.GetComponentInParent<EnemyAIController2D>();
-                if (enemy != null && !enemy.IsDead)
-                {
-                    if (hitReceivers.Add(enemy))
-                    {
-                        enemy.TakeHit(fakeAttack, CombatZone.Low, transform.position, Vector2.up);
-                        enemy.ApplyRoot(effRoot);
-                    }
-                    continue;
-                }
-
-                var dummy = col.GetComponent<CombatDummy2D>() ?? col.GetComponentInParent<CombatDummy2D>();
-                if (dummy != null && !dummy.IsDead)
-                {
-                    if (hitReceivers.Add(dummy))
-                    {
-                        dummy.TakeHit(fakeAttack, CombatZone.Low, transform.position, Vector2.up);
-                        dummy.ApplyRoot(effRoot);
-                    }
-                }
+                var target = targets[i];
+                target.TakeHit(fakeAttack, CombatZone.Low, transform.position, Vector2.up);
+                target.ApplyRoot(effRoot);
             }
 
             StartCoroutine(DetonationVisualRoutine(isResonance));
@@ -238,11 +207,7 @@ namespace Combat.Tactician
             var burstObj = new GameObject("Trap_Burst");
             burstObj.transform.position = transform.position;
             var sr = burstObj.AddComponent<SpriteRenderer>();
-
-            var tex = new Texture2D(2, 2);
-            tex.SetPixels(new Color[] { Color.white, Color.white, Color.white, Color.white });
-            tex.Apply();
-            sr.sprite = Sprite.Create(tex, new Rect(0, 0, 2, 2), new Vector2(0.5f, 0.5f), 2);
+            sr.sprite = CombatSprites.WhiteBox;
             sr.sortingOrder = 35;
             sr.color = isResonance ? new Color(1f, 0.85f, 0.2f, 1f) : burstColor;
 

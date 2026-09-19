@@ -21,24 +21,10 @@ namespace Combat
         private GameObject _alertObj;
         private TextMesh _alertText;
 
-        private static Sprite _boxSprite;
-
         private void Awake()
         {
-            EnsureSprite();
             CreateHitboxObjects();
             CreateAlertObjects();
-        }
-
-        private static void EnsureSprite()
-        {
-            if (_boxSprite != null) return;
-            var tex = new Texture2D(4, 4);
-            var cols = new Color[16];
-            for (int i = 0; i < 16; i++) cols[i] = Color.white;
-            tex.SetPixels(cols);
-            tex.Apply();
-            _boxSprite = Sprite.Create(tex, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f), 4);
         }
 
         private void CreateHitboxObjects()
@@ -49,7 +35,7 @@ namespace Combat
             _hitboxObj.transform.SetParent(transform, false);
 
             _fillRenderer = _hitboxObj.AddComponent<SpriteRenderer>();
-            _fillRenderer.sprite = _boxSprite;
+            _fillRenderer.sprite = Combat.Common.CombatSprites.WhiteBox;
             _fillRenderer.sortingOrder = 45;
 
             _borderRenderer = _hitboxObj.AddComponent<LineRenderer>();
@@ -159,48 +145,7 @@ namespace Combat
         /// </summary>
         public void ShowCounterAttackPopup(Vector3 position)
         {
-            StartCoroutine(SpawnCounterTextRoutine(position));
-        }
-
-        private IEnumerator SpawnCounterTextRoutine(Vector3 spawnPos)
-        {
-            var go = new GameObject("CounterText_Popup");
-            go.transform.position = spawnPos + new Vector3(0f, 1.2f, 0f);
-
-            var tm = go.AddComponent<TextMesh>();
-            tm.text = "КОНТРАТАКА!";
-            tm.fontSize = 44;
-            tm.characterSize = 0.085f;
-            tm.alignment = TextAlignment.Center;
-            tm.anchor = TextAnchor.MiddleCenter;
-            tm.fontStyle = FontStyle.Bold;
-            tm.color = new Color(1f, 0.9f, 0.2f, 1f); // Золотисто-желтый
-
-            var mr = go.GetComponent<MeshRenderer>();
-            if (mr != null) mr.sortingOrder = 70;
-
-            float duration = 0.95f;
-            float elapsed = 0f;
-            Vector3 startPos = go.transform.position;
-            Vector3 endPos = startPos + new Vector3(0f, 1.1f, 0f);
-
-            while (elapsed < duration)
-            {
-                elapsed += Time.unscaledDeltaTime;
-                float t = elapsed / duration;
-
-                if (go != null)
-                {
-                    go.transform.position = Vector3.Lerp(startPos, endPos, t);
-                    // Fade out
-                    Color c = tm.color;
-                    c.a = Mathf.Clamp01(1f - (t * t));
-                    tm.color = c;
-                }
-                yield return null;
-            }
-
-            if (go != null) Destroy(go);
+            Combat.Common.CombatFloatingText.ShowCounterAttack(position);
         }
 
         /// <summary>
@@ -208,47 +153,7 @@ namespace Combat
         /// </summary>
         public void ShowDefeatPopup(Vector3 position)
         {
-            StartCoroutine(SpawnDefeatTextRoutine(position));
-        }
-
-        private IEnumerator SpawnDefeatTextRoutine(Vector3 spawnPos)
-        {
-            var go = new GameObject("DefeatText_Popup");
-            go.transform.position = spawnPos + new Vector3(0f, 1.3f, 0f);
-
-            var tm = go.AddComponent<TextMesh>();
-            tm.text = "ВРАГ ПОВЕРЖЕН!";
-            tm.fontSize = 46;
-            tm.characterSize = 0.088f;
-            tm.alignment = TextAlignment.Center;
-            tm.anchor = TextAnchor.MiddleCenter;
-            tm.fontStyle = FontStyle.Bold;
-            tm.color = new Color(0.3f, 1f, 0.45f, 1f); // Ярко-зеленый/триумфальный
-
-            var mr = go.GetComponent<MeshRenderer>();
-            if (mr != null) mr.sortingOrder = 75;
-
-            float duration = 1.2f;
-            float elapsed = 0f;
-            Vector3 startPos = go.transform.position;
-            Vector3 endPos = startPos + new Vector3(0f, 1.2f, 0f);
-
-            while (elapsed < duration)
-            {
-                elapsed += Time.unscaledDeltaTime;
-                float t = elapsed / duration;
-
-                if (go != null)
-                {
-                    go.transform.position = Vector3.Lerp(startPos, endPos, t);
-                    Color c = tm.color;
-                    c.a = Mathf.Clamp01(1f - (t * t));
-                    tm.color = c;
-                }
-                yield return null;
-            }
-
-            if (go != null) Destroy(go);
+            Combat.Common.CombatFloatingText.ShowDefeat(position);
         }
 
         /// <summary>
@@ -256,47 +161,7 @@ namespace Combat
         /// </summary>
         public void ShowNoStaminaPopup(Vector3 position)
         {
-            StartCoroutine(SpawnNoStaminaTextRoutine(position));
-        }
-
-        private IEnumerator SpawnNoStaminaTextRoutine(Vector3 spawnPos)
-        {
-            var go = new GameObject("NoStaminaText_Popup");
-            go.transform.position = spawnPos + new Vector3(0f, 1.4f, 0f);
-
-            var tm = go.AddComponent<TextMesh>();
-            tm.text = "НЕТ СТАМИНЫ!";
-            tm.fontSize = 46;
-            tm.characterSize = 0.088f;
-            tm.alignment = TextAlignment.Center;
-            tm.anchor = TextAnchor.MiddleCenter;
-            tm.fontStyle = FontStyle.Bold;
-            tm.color = new Color(1f, 0.45f, 0.1f, 1f); // Яркий янтарно-оранжевый
-
-            var mr = go.GetComponent<MeshRenderer>();
-            if (mr != null) mr.sortingOrder = 76;
-
-            float duration = 1.15f;
-            float elapsed = 0f;
-            Vector3 startPos = go.transform.position;
-            Vector3 endPos = startPos + new Vector3(0f, 1.1f, 0f);
-
-            while (elapsed < duration)
-            {
-                elapsed += Time.unscaledDeltaTime;
-                float t = elapsed / duration;
-
-                if (go != null)
-                {
-                    go.transform.position = Vector3.Lerp(startPos, endPos, t);
-                    Color c = tm.color;
-                    c.a = Mathf.Clamp01(1f - (t * t));
-                    tm.color = c;
-                }
-                yield return null;
-            }
-
-            if (go != null) Destroy(go);
+            Combat.Common.CombatFloatingText.ShowNoStamina(position);
         }
 
         /// <summary>
@@ -304,46 +169,7 @@ namespace Combat
         /// </summary>
         public void SpawnCustomPopup(Vector3 position, string text, Color color, float duration = 1.15f)
         {
-            StartCoroutine(SpawnCustomTextRoutine(position, text, color, duration));
-        }
-
-        private IEnumerator SpawnCustomTextRoutine(Vector3 spawnPos, string text, Color color, float duration)
-        {
-            var go = new GameObject("Status_Popup");
-            go.transform.position = spawnPos;
-
-            var tm = go.AddComponent<TextMesh>();
-            tm.text = text;
-            tm.fontSize = 44;
-            tm.characterSize = 0.085f;
-            tm.alignment = TextAlignment.Center;
-            tm.anchor = TextAnchor.MiddleCenter;
-            tm.fontStyle = FontStyle.Bold;
-            tm.color = color;
-
-            var mr = go.GetComponent<MeshRenderer>();
-            if (mr != null) mr.sortingOrder = 78;
-
-            float elapsed = 0f;
-            Vector3 startPos = go.transform.position;
-            Vector3 endPos = startPos + new Vector3(0f, 1.1f, 0f);
-
-            while (elapsed < duration)
-            {
-                elapsed += Time.unscaledDeltaTime;
-                float t = elapsed / duration;
-
-                if (go != null)
-                {
-                    go.transform.position = Vector3.Lerp(startPos, endPos, t);
-                    Color c = tm.color;
-                    c.a = Mathf.Clamp01(1f - (t * t));
-                    tm.color = c;
-                }
-                yield return null;
-            }
-
-            if (go != null) Destroy(go);
+            Combat.Common.CombatFloatingText.Spawn(position, text, color, duration);
         }
     }
 }
