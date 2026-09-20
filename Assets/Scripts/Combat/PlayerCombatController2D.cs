@@ -403,6 +403,7 @@ namespace Combat
         private void UpdateChargeCrawl()
         {
             if (vectorWheel == null || !vectorWheel.IsDragging) return;
+            if (vectorWheel.ActiveGestureButton != Combat.UI.WheelGestureButton.LMB) return;
             if (vectorWheel.DirectionHoldTimer < 0.2f) return;
             if (CurrentState != CombatState.Idle) return;
 

@@ -34,6 +34,13 @@ namespace Combat.UI
         RelativeScreenCenter = 3
     }
 
+    public enum WheelGestureButton
+    {
+        None = 0,
+        LMB = 1,
+        RMB = 2
+    }
+
     [DisallowMultipleComponent]
     [RequireComponent(typeof(RectTransform))]
     public class VectorWheelController : MonoBehaviour
@@ -118,7 +125,14 @@ namespace Combat.UI
         public class GesturePathEvent : UnityEvent<IReadOnlyList<Vector2>, Direction8> { }
         public GesturePathEvent onGesturePathCompleted;
 
+        [Serializable]
+        public class ParrySwipeCompletedEvent : UnityEvent<Direction8, Vector2, float> { }
+        [Header("--- Parry & Defense Events (ПКМ) ---")]
+        public ParrySwipeCompletedEvent onParrySwipeCompleted;
+        public UnityEvent<bool> onBlockStateChanged;
+
         // Runtime State
+        public WheelGestureButton ActiveGestureButton { get; private set; } = WheelGestureButton.None;
         public Direction8 CurrentDirection { get; private set; } = Direction8.None;
         public Vector2 CurrentVector { get; private set; } = Vector2.zero;
         public float CurrentRawAngle { get; private set; } = 0f;
@@ -260,7 +274,12 @@ namespace Combat.UI
 
         public void CancelDrag()
         {
+            if (ActiveGestureButton == WheelGestureButton.RMB)
+            {
+                onBlockStateChanged?.Invoke(false);
+            }
             IsDragging = false;
+            ActiveGestureButton = WheelGestureButton.None;
             CurrentDirection = Direction8.None;
             CurrentVector = Vector2.zero;
             _directionHoldTimer = 0f;
@@ -284,7 +303,7 @@ namespace Combat.UI
 
             if (trackingMode == MouseTrackingMode.LMBDragSwipe)
             {
-                HandleLMBGestureTrail();
+                HandleGestureTrail();
             }
             else
             {
@@ -295,7 +314,7 @@ namespace Combat.UI
             UpdateVisuals(instant: false);
         }
 
-        private void HandleLMBGestureTrail()
+        private void HandleGestureTrail()
         {
             // Если курсор мыши находится над элементом интерфейса, не начинаем жест колеса
             if (!IsDragging && EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
@@ -307,31 +326,32 @@ namespace Combat.UI
             bool isToggle = _currentSettings != null && _currentSettings.activationMode == ActivationMode.Toggle;
 
             // 1. Активация жеста
-            if (isToggle)
+            if (!IsDragging)
             {
                 if (IsLMBDown())
                 {
-                    if (!IsDragging)
-                    {
-                        StartDrag(mousePos);
-                    }
-                    else
-                    {
-                        ExecuteSwipeComplete();
-                        return;
-                    }
-                }
-            }
-            else // Режим удержания (Hold)
-            {
-                if (IsLMBDown())
-                {
+                    ActiveGestureButton = WheelGestureButton.LMB;
                     StartDrag(mousePos);
                 }
+                else if (IsRMBDown())
+                {
+                    ActiveGestureButton = WheelGestureButton.RMB;
+                    StartDrag(mousePos);
+                    onBlockStateChanged?.Invoke(true);
+                    UpdatePlaqueText(Direction8.None);
+                }
+            }
+            else if (isToggle && ActiveGestureButton == WheelGestureButton.LMB && IsLMBDown())
+            {
+                ExecuteSwipeComplete();
+                return;
             }
 
             // 2. Движение мыши или правого стика геймпада
-            if (IsDragging && (isToggle || IsLMBHeld()))
+            bool isHeld = (ActiveGestureButton == WheelGestureButton.LMB && (isToggle || IsLMBHeld()))
+                       || (ActiveGestureButton == WheelGestureButton.RMB && IsRMBHeld());
+
+            if (IsDragging && isHeld)
             {
                 Vector2 mouseDelta = mousePos - _lastMousePos;
                 _lastMousePos = mousePos;
@@ -381,7 +401,7 @@ namespace Combat.UI
                         UpdatePlaqueText(CurrentDirection);
                         onDirectionChanged?.Invoke(CurrentDirection);
                     }
-                    else
+                    else if (ActiveGestureButton == WheelGestureButton.LMB)
                     {
                         _directionHoldTimer += Time.deltaTime;
 
@@ -395,7 +415,7 @@ namespace Combat.UI
                             UpdateChargingPlaqueText(CurrentDirection, ChargeProgress);
                         }
 
-                        // Автоматический выпуск при максимальном удержании
+                        // Автоматический выпуск при максимальном удержании (только для LMB)
                         if (_directionHoldTimer >= maxHoldAutoReleaseTime)
                         {
                             ExecuteSwipeComplete();
@@ -407,11 +427,17 @@ namespace Combat.UI
                 }
                 else
                 {
+                    if (CurrentDirection != Direction8.None)
+                    {
+                        CurrentDirection = Direction8.None;
+                        UpdatePlaqueText(Direction8.None);
+                        onDirectionChanged?.Invoke(Direction8.None);
+                    }
                     _directionHoldTimer = 0f;
                 }
 
-                // Быстрый удар при касании края колеса (Quick-Cast on Edge)
-                if (_currentSettings != null && _currentSettings.quickCastOnEdge && dist >= wheelRadius * 0.95f)
+                // Быстрый удар при касании края колеса (Quick-Cast on Edge, только для LMB)
+                if (ActiveGestureButton == WheelGestureButton.LMB && _currentSettings != null && _currentSettings.quickCastOnEdge && dist >= wheelRadius * 0.95f)
                 {
                     ExecuteSwipeComplete();
                     return;
@@ -419,9 +445,16 @@ namespace Combat.UI
             }
 
             // 3. Завершение жеста в режиме Hold
-            if (!isToggle && IsDragging && IsLMBUp())
+            if (IsDragging)
             {
-                ExecuteSwipeComplete();
+                if (ActiveGestureButton == WheelGestureButton.LMB && !isToggle && IsLMBUp())
+                {
+                    ExecuteSwipeComplete();
+                }
+                else if (ActiveGestureButton == WheelGestureButton.RMB && IsRMBUp())
+                {
+                    ExecuteRMBComplete();
+                }
             }
 
             // 4. Плавное затухание в покое
@@ -478,7 +511,37 @@ namespace Combat.UI
             }
 
             IsDragging = false;
+            ActiveGestureButton = WheelGestureButton.None;
             CurrentVector = Vector2.zero;
+        }
+
+        private void ExecuteRMBComplete()
+        {
+            if (!IsDragging) return;
+
+            float dist = _penPosition.magnitude;
+            Direction8 releasedDir = CurrentDirection;
+            Vector2 releasedVec = _penPosition.normalized;
+
+            if (dist >= minSwipeDistance && releasedDir != Direction8.None)
+            {
+                // Игрок выбрал направление на колесе и отпустил ПКМ -> Направленное Парирование!
+                onParrySwipeCompleted?.Invoke(releasedDir, releasedVec, dist);
+            }
+
+            // В любом случае блок снимается
+            onBlockStateChanged?.Invoke(false);
+
+            if (wheelTrailGraphic != null)
+            {
+                wheelTrailGraphic.FadeOut();
+            }
+
+            IsDragging = false;
+            ActiveGestureButton = WheelGestureButton.None;
+            CurrentVector = Vector2.zero;
+            _directionHoldTimer = 0f;
+            UpdatePlaqueText(Direction8.None);
         }
 
         private void HandleContinuousModes()
@@ -601,8 +664,12 @@ namespace Combat.UI
                 if (CurrentDirection != Direction8.None)
                 {
                     float pulse = 1f + 0.18f * Mathf.Sin(Time.time * sectorPulseSpeed);
-                    Color col = Color.Lerp(highlightColor, Color.white, _flashIntensity * 0.7f);
-                    col.a = Mathf.Clamp01(highlightColor.a * _fadeAlpha * pulse);
+                    Color baseCol = (ActiveGestureButton == WheelGestureButton.RMB)
+                        ? new Color(1f, 0.85f, 0.22f, 0.85f)
+                        : highlightColor;
+
+                    Color col = Color.Lerp(baseCol, Color.white, _flashIntensity * 0.7f);
+                    col.a = Mathf.Clamp01(baseCol.a * _fadeAlpha * pulse);
                     sectorHighlightImage.color = col;
 
                     float targetSectorAngle = CurrentDirection.ToAngle();
@@ -610,7 +677,9 @@ namespace Combat.UI
                 }
                 else
                 {
-                    Color col = highlightColor;
+                    Color col = (ActiveGestureButton == WheelGestureButton.RMB)
+                        ? new Color(1f, 0.85f, 0.22f, 0f)
+                        : highlightColor;
                     col.a = 0f;
                     sectorHighlightImage.color = col;
                 }
@@ -619,7 +688,10 @@ namespace Combat.UI
             // 2. Центральное ядро-реактор
             if (centerCoreImage != null)
             {
-                Color coreCol = centerCoreColor;
+                Color baseCore = (ActiveGestureButton == WheelGestureButton.RMB)
+                    ? new Color(0.2f, 0.85f, 1f, 1f)
+                    : centerCoreColor;
+                Color coreCol = baseCore;
                 coreCol.a = effectiveOutlineAlpha * (0.5f + 0.5f * _fadeAlpha);
                 centerCoreImage.color = coreCol;
             }
@@ -637,6 +709,25 @@ namespace Combat.UI
             if (attackNameText == null) return;
 
             _textPunchScale = 1.14f;
+
+            if (ActiveGestureButton == WheelGestureButton.RMB)
+            {
+                if (dir == Direction8.None)
+                {
+                    attackNameText.text = "🛡️ КРУГОВОЙ БЛОК (ПКМ)";
+                    attackNameText.color = new Color(0.25f, 0.88f, 1f, 1f);
+                }
+                else
+                {
+                    int idx = (int)dir;
+                    if (idx >= 0 && idx < ParryDirectionNames.Length)
+                    {
+                        attackNameText.text = $"🛡️ ПАРИРОВАНИЕ {ParryDirectionNames[idx]}";
+                        attackNameText.color = new Color(1f, 0.88f, 0.25f, 1f);
+                    }
+                }
+                return;
+            }
 
             if (dir == Direction8.None)
             {
@@ -709,6 +800,18 @@ namespace Combat.UI
             if (sectorHighlightImage != null) sectorHighlightImage.color = highlightColor;
             if (centerCoreImage != null) centerCoreImage.color = centerCoreColor;
         }
+
+        private static readonly string[] ParryDirectionNames = new string[8]
+        {
+            "ВПЕРЕД ▶",       // Right (0)
+            "ВВЕРХ-ВПЕРЕД ↗", // UpRight (1)
+            "ВВЕРХ ▲",         // Up (2)
+            "ВВЕРХ-НАЗАД ↖",   // UpLeft (3)
+            "НАЗАД ◀",        // Left (4)
+            "ВНИЗ-НАЗАД ↙",    // DownLeft (5)
+            "ВНИЗ ▼",          // Down (6)
+            "ВНИЗ-ВПЕРЕД ↘"    // DownRight (7)
+        };
 
         private static readonly string[] DefaultNormalAttackNames = new string[8]
         {
@@ -813,6 +916,39 @@ namespace Combat.UI
             }
 #endif
             try { return Input.GetMouseButtonUp(0); } catch { return false; }
+        }
+
+        private static bool IsRMBDown()
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (UnityEngine.InputSystem.Mouse.current != null)
+            {
+                return UnityEngine.InputSystem.Mouse.current.rightButton.wasPressedThisFrame;
+            }
+#endif
+            try { return Input.GetMouseButtonDown(1); } catch { return false; }
+        }
+
+        private static bool IsRMBHeld()
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (UnityEngine.InputSystem.Mouse.current != null)
+            {
+                return UnityEngine.InputSystem.Mouse.current.rightButton.isPressed;
+            }
+#endif
+            try { return Input.GetMouseButton(1); } catch { return false; }
+        }
+
+        private static bool IsRMBUp()
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (UnityEngine.InputSystem.Mouse.current != null)
+            {
+                return UnityEngine.InputSystem.Mouse.current.rightButton.wasReleasedThisFrame;
+            }
+#endif
+            try { return Input.GetMouseButtonUp(1); } catch { return false; }
         }
 
         private static Vector2 GetGamepadRightStick()

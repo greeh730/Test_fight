@@ -4,6 +4,8 @@ using UnityEngine;
 using UnityEngine.Events;
 using Combat;
 using Combat.Common;
+using Combat.Stances;
+using Combat.UI;
 
 namespace Combat.Player
 {
@@ -44,7 +46,7 @@ namespace Combat.Player
         [SerializeField] private float parryStartupDuration = 0.05f;
 
         [Tooltip("Длительность активного окна парирования (в секундах)")]
-        [SerializeField] private float parryActiveDuration = 0.22f;
+        [SerializeField] private float parryActiveDuration = 0.35f;
 
         [Tooltip("Длительность стаггера (наказания) при неудачном парировании")]
         [SerializeField] private float parryWhiffDuration = 0.35f;
@@ -63,6 +65,9 @@ namespace Combat.Player
 
         [Tooltip("Максимальное время от нажатия до отпускания ПКМ для быстрого тапа/парирования")]
         [SerializeField] private float quickTapParryWindow = 0.26f;
+
+        [Header("--- Vector Wheel Integration ---")]
+        [SerializeField] private Combat.UI.VectorWheelController vectorWheel;
 
         [Header("--- Visual & Colors ---")]
         [SerializeField] private Color blockNormalColor = new Color(0.15f, 0.75f, 1f, 0.75f);
@@ -159,6 +164,67 @@ namespace Combat.Player
             _shieldRootObj.SetActive(false);
         }
 
+        private void Start()
+        {
+            EnsureWheelConnection();
+        }
+
+        private void OnEnable()
+        {
+            EnsureWheelConnection();
+        }
+
+        public void EnsureWheelConnection()
+        {
+            if (vectorWheel == null)
+            {
+                vectorWheel = FindAnyObjectByType<Combat.UI.VectorWheelController>();
+            }
+
+            if (vectorWheel != null)
+            {
+                vectorWheel.onBlockStateChanged.RemoveListener(OnWheelBlockStateChanged);
+                vectorWheel.onParrySwipeCompleted.RemoveListener(OnWheelParrySwipeCompleted);
+
+                vectorWheel.onBlockStateChanged.AddListener(OnWheelBlockStateChanged);
+                vectorWheel.onParrySwipeCompleted.AddListener(OnWheelParrySwipeCompleted);
+            }
+        }
+
+        private void OnDisable()
+        {
+            if (vectorWheel != null)
+            {
+                vectorWheel.onBlockStateChanged.RemoveListener(OnWheelBlockStateChanged);
+                vectorWheel.onParrySwipeCompleted.RemoveListener(OnWheelParrySwipeCompleted);
+            }
+            StopBlocking();
+            CancelParryAndStagger();
+        }
+
+        public void OnWheelBlockStateChanged(bool blocking)
+        {
+            if (blocking)
+            {
+                if (!IsParrying && CanEnterBlock())
+                {
+                    StartBlocking();
+                }
+            }
+            else
+            {
+                StopBlocking();
+            }
+        }
+
+        public void OnWheelParrySwipeCompleted(Direction8 dir, Vector2 dirVec, float distance)
+        {
+            if (IsParryStaggered) return;
+
+            StopBlocking();
+            ExecuteParry(dirVec);
+        }
+
         private void Update()
         {
             if (Combat.UI.PauseMenuController.IsGamePaused || Time.timeScale <= 0.0001f)
@@ -174,7 +240,12 @@ namespace Combat.Player
                 return;
             }
 
-            HandleInput();
+            // Если Векторное Колесо подключено, оно управляет жестами и событиями блока/парирования
+            if (vectorWheel == null)
+            {
+                HandleInput();
+            }
+
             UpdateVisuals();
         }
 
@@ -316,10 +387,15 @@ namespace Combat.Player
         /// <summary>
         /// Запускает процесс парирования в выбранном направлении.
         /// </summary>
-        private void ExecuteParry(Vector2 direction)
+        public void ExecuteParry(Vector2 direction)
         {
             EnsureComponents();
             if (IsParrying || IsParryStaggered) return;
+
+            if (Mathf.Abs(direction.x) > 0.05f && _movement != null)
+            {
+                _movement.SetFacing(direction.x);
+            }
 
             if (_parryRoutine != null) StopCoroutine(_parryRoutine);
             _parryRoutine = StartCoroutine(ParrySequenceRoutine(direction));
@@ -342,9 +418,9 @@ namespace Combat.Player
                 yield return new WaitForSeconds(startup);
             }
 
-            // 2. Активное окно парирования
+            // 2. Активное окно парирования (золотое сияние щита вместо текстового спама)
             float timer = active;
-            CombatFloatingText.Spawn(transform.position + Vector3.up * 1.5f, "[ПАРИРОВАНИЕ...]", new Color(1f, 0.9f, 0.2f), 0.4f);
+            StartCoroutine(ShieldFlashRoutine(parryActiveColor, 0.25f));
 
             while (timer > 0f)
             {
@@ -411,11 +487,25 @@ namespace Combat.Player
             // 1. Проверка ПАРИРОВАНИЯ (Parry)
             if (IsParrying)
             {
-                OnSuccessfulParry(attack);
-                hitAbsorbed = true;
-                damageMultiplier = 0f;
-                modifiedKnockback = Vector2.zero;
-                return true;
+                bool parryDirectionMatches = true;
+                if (attack != null && attack.attacker != null)
+                {
+                    Vector2 toAttacker = (attack.attacker.transform.position - transform.position).normalized;
+                    // Если атакующий находится с противоположной стороны от парирования (dot < -0.3f)
+                    if (Vector2.Dot(toAttacker, _parryDirection) < -0.3f)
+                    {
+                        parryDirectionMatches = false;
+                    }
+                }
+
+                if (parryDirectionMatches)
+                {
+                    OnSuccessfulParry(attack);
+                    hitAbsorbed = true;
+                    damageMultiplier = 0f;
+                    modifiedKnockback = Vector2.zero;
+                    return true;
+                }
             }
 
             // 2. Проверка БЛОКИРОВАНИЯ (Block)
@@ -596,12 +686,6 @@ namespace Combat.Player
             if (_staggerRoutine != null) { StopCoroutine(_staggerRoutine); _staggerRoutine = null; }
             IsParrying = false;
             IsParryStaggered = false;
-        }
-
-        private void OnDisable()
-        {
-            StopBlocking();
-            CancelParryAndStagger();
         }
 
         private static Vector2 GetMousePosition()

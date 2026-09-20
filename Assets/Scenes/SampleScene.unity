@@ -5418,6 +5418,12 @@ MonoBehaviour:
   onGesturePathCompleted:
     m_PersistentCalls:
       m_Calls: []
+  onParrySwipeCompleted:
+    m_PersistentCalls:
+      m_Calls: []
+  onBlockStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!1 &754542169
 GameObject:
   m_ObjectHideFlags: 0
@@ -9564,7 +9570,7 @@ Transform:
   m_GameObject: {fileID: 1586116505}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 4.84, y: -1.48, z: 0}
+  m_LocalPosition: {x: -2.83, y: -2.01, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -12831,7 +12837,7 @@ MonoBehaviour:
   groundCheckDistance: 0.08
   enableJuiceSquashStretch: 1
   squashStretchSpeed: 12
-  faceTransform: {fileID: 0}
+  faceTransform: {fileID: 1876393203}
 --- !u!61 &2046979058
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -13171,6 +13177,7 @@ MonoBehaviour:
   parryHitstopDuration: 0.12
   gestureSwipeThreshold: 25
   quickTapParryWindow: 0.26
+  vectorWheel: {fileID: 754024233}
   blockNormalColor: {r: 0.15, g: 0.75, b: 1, a: 0.75}
   blockChipColor: {r: 1, g: 0.35, b: 0.15, a: 0.85}
   parryActiveColor: {r: 1, g: 0.92, b: 0.3, a: 0.95}
