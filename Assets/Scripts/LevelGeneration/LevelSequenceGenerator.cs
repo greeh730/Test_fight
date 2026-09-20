@@ -36,7 +36,7 @@ namespace LevelGeneration
     {
         [Header("--- Стартовая привязка ---")]
         [Tooltip("Мировая координата, с которой начинается уровень (первый вход)")]
-        [SerializeField] private Vector3 startOrigin = new Vector3(-20f, -3.18f, 0f);
+        [SerializeField] private Vector3 startOrigin = new Vector3(-20f, -2.78f, 0f);
 
         [Header("--- Настройки генерации ---")]
         [Tooltip("Генерировать ли уровень автоматически при старте игры?")]
@@ -75,10 +75,33 @@ namespace LevelGeneration
 
         private void Update()
         {
-            // Быстрая перегенерация по горячей клавише
-            if (regenerateHotkey != KeyCode.None && Input.GetKeyDown(regenerateHotkey))
+            // Быстрая перегенерация по горячей клавише F4
+            bool triggerRegen = false;
+
+#if ENABLE_INPUT_SYSTEM
+            if (UnityEngine.InputSystem.Keyboard.current != null)
             {
-                Debug.Log("<color=yellow>[LevelGen]</color> Нажата горячая клавиша перегенерации (" + regenerateHotkey + ")");
+                if (UnityEngine.InputSystem.Keyboard.current.f4Key.wasPressedThisFrame)
+                {
+                    triggerRegen = true;
+                }
+            }
+            else
+#endif
+            {
+                try
+                {
+                    if (regenerateHotkey != KeyCode.None && Input.GetKeyDown(regenerateHotkey))
+                    {
+                        triggerRegen = true;
+                    }
+                }
+                catch { /* Игнорируем в случае строгого New Input System */ }
+            }
+
+            if (triggerRegen)
+            {
+                Debug.Log("<color=yellow>[LevelGen]</color> Нажата горячая клавиша перегенерации (F4)...");
                 GenerateLevel();
             }
         }

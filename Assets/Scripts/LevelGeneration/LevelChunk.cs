@@ -24,7 +24,7 @@ namespace LevelGeneration
 
         public Transform EntryPoint => entryPoint != null ? entryPoint : transform;
         public Transform ExitPoint => exitPoint != null ? exitPoint : transform;
-        public Transform PlayerSpawnPoint => playerSpawnPoint;
+        public Transform PlayerSpawnPoint => playerSpawnPoint != null ? playerSpawnPoint : null;
 
         /// <summary>
         /// Длина чанка между точками входа и выхода

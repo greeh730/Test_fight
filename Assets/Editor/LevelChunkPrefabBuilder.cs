@@ -2,7 +2,6 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 using LevelGeneration;
-using Combat;
 using Combat.Common;
 
 namespace LevelGeneration.Editor
@@ -23,13 +22,14 @@ namespace LevelGeneration.Editor
                 AssetDatabase.CreateFolder("Assets/Prefabs", "LevelChunks");
             }
 
-            Sprite squareSprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/Background.psd");
+            // Загружаем точный спрайт 1x1 метр (256x256 с PPU 256)
+            Sprite squareSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Packages/com.unity.2d.sprite/Editor/ObjectMenuCreation/DefaultAssets/Textures/v2/Square.png");
             if (squareSprite == null)
             {
                 var sprites = Resources.FindObjectsOfTypeAll<Sprite>();
                 foreach (var s in sprites)
                 {
-                    if (s.name == "Square" || s.name == "WhiteBox")
+                    if (s.name == "Square" && Mathf.Approximately(s.bounds.size.x, 1f))
                     {
                         squareSprite = s;
                         break;
@@ -41,104 +41,162 @@ namespace LevelGeneration.Editor
                 squareSprite = CombatSprites.WhiteBox;
             }
 
-            Color groundColor = new Color(0.16f, 0.20f, 0.26f, 1f);
-            Color groundTopColor = new Color(0.24f, 0.60f, 0.85f, 1f);
-            Color platformColor = new Color(0.22f, 0.32f, 0.44f, 1f);
-            Color decorColor = new Color(0.85f, 0.70f, 0.25f, 0.9f);
+            Material spriteMat = AssetDatabase.GetBuiltinExtraResource<Material>("Sprites-Default.mat");
 
-            // 1. CHUNK_START_INTRO (Fixed Start)
+            // Цветовая палитра уровня
+            Color groundBaseColor = new Color(0.12f, 0.16f, 0.22f, 1f);
+            Color groundGlowColor = new Color(0.20f, 0.78f, 0.98f, 1f);
+            Color platformBodyColor = new Color(0.18f, 0.24f, 0.32f, 1f);
+            Color platformGlowColor = new Color(1.0f, 0.68f, 0.22f, 1f);
+            Color wallColor = new Color(0.10f, 0.13f, 0.18f, 1f);
+            Color decorDark = new Color(0.22f, 0.18f, 0.34f, 1f);
+            Color decorBright = new Color(0.85f, 0.75f, 0.30f, 1f);
+            Color victoryCrystalColor = new Color(0.30f, 0.90f, 1.0f, 0.95f);
+
+            // =========================================================================
+            // 1. CHUNK_START_INTRO (Фиксированный старт: 18 метров)
+            // =========================================================================
             {
                 var root = new GameObject("Chunk_Start_Intro");
-                SetupSockets(root, new Vector3(0f, 0f, 0f), new Vector3(16f, 0f, 0f), new Vector3(3.5f, 0.85f, 0f));
+                SetupSockets(root, new Vector3(0f, 0f, 0f), new Vector3(18f, 0f, 0f), new Vector3(4.0f, 0.55f, 0f));
 
-                CreatePlatform(root.transform, "Ground", new Vector3(8f, -0.4f, 0f), new Vector2(16f, 0.8f), groundColor, squareSprite);
-                CreatePlatform(root.transform, "Ground_Glow_Top", new Vector3(8f, -0.04f, 0f), new Vector2(16f, 0.08f), groundTopColor, squareSprite);
-                CreatePlatform(root.transform, "Wall_Left", new Vector3(-0.4f, 2.5f, 0f), new Vector2(0.8f, 5.8f), groundColor, squareSprite);
+                // Полная толстая земля (глубина 3 метра вниз)
+                CreatePlatform(root.transform, "Ground_Base", new Vector3(9f, -1.5f, 0f), new Vector2(18f, 3.0f), groundBaseColor, squareSprite, spriteMat, true, 4);
+                // Неоновый край пола сверху
+                CreatePlatform(root.transform, "Ground_Glow_Top", new Vector3(9f, -0.06f, 0f), new Vector2(18f, 0.12f), groundGlowColor, squareSprite, spriteMat, false, 6);
 
-                var decor = CreatePlatform(root.transform, "Start_Signpost", new Vector3(3.5f, 1.8f, 0f), new Vector2(0.25f, 2.4f), decorColor, squareSprite);
-                CreatePlatform(decor.transform, "Sign_Placard", new Vector3(0f, 0.8f, 0f), new Vector2(2.5f, 0.8f), new Color(0.9f, 0.85f, 0.3f, 1f), squareSprite);
+                // Левая граница уровня (стена 10 метров)
+                CreatePlatform(root.transform, "Wall_Left", new Vector3(-0.5f, 4.5f, 0f), new Vector2(1.0f, 10.0f), wallColor, squareSprite, spriteMat, true, 4);
+                CreatePlatform(root.transform, "Wall_Left_Glow", new Vector3(0.02f, 4.5f, 0f), new Vector2(0.06f, 10.0f), groundGlowColor, squareSprite, spriteMat, false, 6);
+
+                // Стартовая арка / ворота
+                CreatePlatform(root.transform, "Gate_Pillar_L", new Vector3(2.5f, 2.0f, 0f), new Vector2(0.35f, 4.0f), wallColor, squareSprite, spriteMat, false, 5);
+                CreatePlatform(root.transform, "Gate_Pillar_R", new Vector3(6.5f, 2.0f, 0f), new Vector2(0.35f, 4.0f), wallColor, squareSprite, spriteMat, false, 5);
+                CreatePlatform(root.transform, "Gate_Lintel", new Vector3(4.5f, 4.1f, 0f), new Vector2(4.4f, 0.4f), platformBodyColor, squareSprite, spriteMat, false, 5);
+                CreatePlatform(root.transform, "Gate_Sigil", new Vector3(4.5f, 3.5f, 0f), new Vector2(0.8f, 0.8f), decorBright, squareSprite, spriteMat, false, 7);
 
                 SavePrefab(root, $"{Folder}/Chunk_Start_Intro.prefab");
             }
 
-            // 2. CHUNK_VARIANT_A_COMBATARENA (Variant A)
+            // =========================================================================
+            // 2. CHUNK_VARIANT_A_COMBATARENA (Вариант А: Боевая арена с подвесными платформами, 24 метра)
+            // =========================================================================
             {
                 var root = new GameObject("Chunk_Variant_A_CombatArena");
-                SetupSockets(root, new Vector3(0f, 0f, 0f), new Vector3(22f, 0f, 0f));
+                SetupSockets(root, new Vector3(0f, 0f, 0f), new Vector3(24f, 0f, 0f));
 
-                CreatePlatform(root.transform, "Ground", new Vector3(11f, -0.4f, 0f), new Vector2(22f, 0.8f), groundColor, squareSprite);
-                CreatePlatform(root.transform, "Ground_Glow_Top", new Vector3(11f, -0.04f, 0f), new Vector2(22f, 0.08f), groundTopColor, squareSprite);
+                CreatePlatform(root.transform, "Ground_Base", new Vector3(12f, -1.5f, 0f), new Vector2(24f, 3.0f), groundBaseColor, squareSprite, spriteMat, true, 4);
+                CreatePlatform(root.transform, "Ground_Glow_Top", new Vector3(12f, -0.06f, 0f), new Vector2(24f, 0.12f), groundGlowColor, squareSprite, spriteMat, false, 6);
 
-                CreatePlatform(root.transform, "Platform_Floating_1", new Vector3(6.5f, 2.3f, 0f), new Vector2(5.5f, 0.4f), platformColor, squareSprite);
-                CreatePlatform(root.transform, "Platform_Floating_2", new Vector3(15.5f, 2.3f, 0f), new Vector2(5.5f, 0.4f), platformColor, squareSprite);
-                CreatePlatform(root.transform, "Center_Pillar", new Vector3(11f, 1.0f, 0f), new Vector2(1.2f, 2.0f), new Color(0.2f, 0.28f, 0.38f), squareSprite);
+                // Левая подвесная платформа (высота верха Y=2.4)
+                CreatePlatform(root.transform, "Platform_Left", new Vector3(6.5f, 2.15f, 0f), new Vector2(6.0f, 0.5f), platformBodyColor, squareSprite, spriteMat, true, 5);
+                CreatePlatform(root.transform, "Platform_Left_Glow", new Vector3(6.5f, 2.36f, 0f), new Vector2(6.0f, 0.08f), platformGlowColor, squareSprite, spriteMat, false, 6);
+
+                // Правая подвесная платформа (высота верха Y=2.4)
+                CreatePlatform(root.transform, "Platform_Right", new Vector3(17.5f, 2.15f, 0f), new Vector2(6.0f, 0.5f), platformBodyColor, squareSprite, spriteMat, true, 5);
+                CreatePlatform(root.transform, "Platform_Right_Glow", new Vector3(17.5f, 2.36f, 0f), new Vector2(6.0f, 0.08f), platformGlowColor, squareSprite, spriteMat, false, 6);
+
+                // Верхняя центральная снайперская балка (высота верха Y=4.2)
+                CreatePlatform(root.transform, "Platform_Top", new Vector3(12.0f, 3.95f, 0f), new Vector2(4.5f, 0.5f), platformBodyColor, squareSprite, spriteMat, true, 5);
+                CreatePlatform(root.transform, "Platform_Top_Glow", new Vector3(12.0f, 4.16f, 0f), new Vector2(4.5f, 0.08f), groundGlowColor, squareSprite, spriteMat, false, 6);
+
+                // Центральный боевой монумент
+                CreatePlatform(root.transform, "Shrine_Base", new Vector3(12.0f, 0.85f, 0f), new Vector2(1.6f, 1.7f), decorDark, squareSprite, spriteMat, false, 5);
+                CreatePlatform(root.transform, "Shrine_Core", new Vector3(12.0f, 2.0f, 0f), new Vector2(0.8f, 0.8f), new Color(0.95f, 0.25f, 0.55f, 0.95f), squareSprite, spriteMat, false, 7);
 
                 SavePrefab(root, $"{Folder}/Chunk_Variant_A_CombatArena.prefab");
             }
 
-            // 3. CHUNK_VARIANT_B_TWOTIERELEVATION (Variant B)
+            // =========================================================================
+            // 3. CHUNK_VARIANT_B_TWOTIERELEVATION (Вариант B: Двухуровневая терраса, 26 метров)
+            // =========================================================================
             {
                 var root = new GameObject("Chunk_Variant_B_TwoTierElevation");
-                SetupSockets(root, new Vector3(0f, 0f, 0f), new Vector3(24f, 0f, 0f));
+                SetupSockets(root, new Vector3(0f, 0f, 0f), new Vector3(26f, 0f, 0f));
 
-                CreatePlatform(root.transform, "Ground_Entry", new Vector3(2.5f, -0.4f, 0f), new Vector2(5f, 0.8f), groundColor, squareSprite);
-                CreatePlatform(root.transform, "Ground_Entry_Top", new Vector3(2.5f, -0.04f, 0f), new Vector2(5f, 0.08f), groundTopColor, squareSprite);
+                // Секция 1: Входной пол (X: 0..6, верх Y=0)
+                CreatePlatform(root.transform, "Ground_Entry", new Vector3(3.0f, -1.5f, 0f), new Vector2(6.0f, 3.0f), groundBaseColor, squareSprite, spriteMat, true, 4);
+                CreatePlatform(root.transform, "Ground_Entry_Glow", new Vector3(3.0f, -0.06f, 0f), new Vector2(6.0f, 0.12f), groundGlowColor, squareSprite, spriteMat, false, 6);
 
-                CreatePlatform(root.transform, "Step_Up_1", new Vector3(6.5f, 0.1f, 0f), new Vector2(3f, 1.8f), groundColor, squareSprite);
-                CreatePlatform(root.transform, "Step_Up_1_Top", new Vector3(6.5f, 0.96f, 0f), new Vector2(3f, 0.08f), groundTopColor, squareSprite);
+                // Секция 2: Подъем 1 (X: 6..10, верх Y=1.2)
+                CreatePlatform(root.transform, "Step_Up_1", new Vector3(8.0f, -0.9f, 0f), new Vector2(4.0f, 4.2f), groundBaseColor, squareSprite, spriteMat, true, 4);
+                CreatePlatform(root.transform, "Step_Up_1_Glow", new Vector3(8.0f, 1.14f, 0f), new Vector2(4.0f, 0.12f), groundGlowColor, squareSprite, spriteMat, false, 6);
 
-                CreatePlatform(root.transform, "Terrace_Center", new Vector3(12f, 0.6f, 0f), new Vector2(8f, 2.8f), groundColor, squareSprite);
-                CreatePlatform(root.transform, "Terrace_Center_Top", new Vector3(12f, 1.96f, 0f), new Vector2(8f, 0.08f), new Color(1f, 0.65f, 0.2f, 1f), squareSprite);
+                // Секция 3: Центральная возвышенность / Терраса (X: 10..16, верх Y=2.4)
+                CreatePlatform(root.transform, "Terrace_Center", new Vector3(13.0f, -0.3f, 0f), new Vector2(6.0f, 5.4f), groundBaseColor, squareSprite, spriteMat, true, 4);
+                CreatePlatform(root.transform, "Terrace_Center_Glow", new Vector3(13.0f, 2.34f, 0f), new Vector2(6.0f, 0.12f), platformGlowColor, squareSprite, spriteMat, false, 6);
 
-                CreatePlatform(root.transform, "Step_Down_1", new Vector3(17.5f, 0.1f, 0f), new Vector2(3f, 1.8f), groundColor, squareSprite);
-                CreatePlatform(root.transform, "Step_Down_1_Top", new Vector3(17.5f, 0.96f, 0f), new Vector2(3f, 0.08f), groundTopColor, squareSprite);
+                // Секция 4: Спуск 1 (X: 16..20, верх Y=1.2)
+                CreatePlatform(root.transform, "Step_Down_1", new Vector3(18.0f, -0.9f, 0f), new Vector2(4.0f, 4.2f), groundBaseColor, squareSprite, spriteMat, true, 4);
+                CreatePlatform(root.transform, "Step_Down_1_Glow", new Vector3(18.0f, 1.14f, 0f), new Vector2(4.0f, 0.12f), groundGlowColor, squareSprite, spriteMat, false, 6);
 
-                CreatePlatform(root.transform, "Ground_Exit", new Vector3(21.5f, -0.4f, 0f), new Vector2(5f, 0.8f), groundColor, squareSprite);
-                CreatePlatform(root.transform, "Ground_Exit_Top", new Vector3(21.5f, -0.04f, 0f), new Vector2(5f, 0.08f), groundTopColor, squareSprite);
+                // Секция 5: Выходной пол (X: 20..26, верх Y=0)
+                CreatePlatform(root.transform, "Ground_Exit", new Vector3(23.0f, -1.5f, 0f), new Vector2(6.0f, 3.0f), groundBaseColor, squareSprite, spriteMat, true, 4);
+                CreatePlatform(root.transform, "Ground_Exit_Glow", new Vector3(23.0f, -0.06f, 0f), new Vector2(6.0f, 0.12f), groundGlowColor, squareSprite, spriteMat, false, 6);
 
                 SavePrefab(root, $"{Folder}/Chunk_Variant_B_TwoTierElevation.prefab");
             }
 
-            // 4. CHUNK_VARIANT_C_SPLITPATH (Variant C)
+            // =========================================================================
+            // 4. CHUNK_VARIANT_C_SPLITPATH (Вариант C: Нижняя полоса + верхняя эстакада, 28 метров)
+            // =========================================================================
             {
                 var root = new GameObject("Chunk_Variant_C_SplitPath");
-                SetupSockets(root, new Vector3(0f, 0f, 0f), new Vector3(26f, 0f, 0f));
+                SetupSockets(root, new Vector3(0f, 0f, 0f), new Vector3(28f, 0f, 0f));
 
-                CreatePlatform(root.transform, "Ground", new Vector3(13f, -0.4f, 0f), new Vector2(26f, 0.8f), groundColor, squareSprite);
-                CreatePlatform(root.transform, "Ground_Glow_Top", new Vector3(13f, -0.04f, 0f), new Vector2(26f, 0.08f), groundTopColor, squareSprite);
+                CreatePlatform(root.transform, "Ground_Base", new Vector3(14.0f, -1.5f, 0f), new Vector2(28.0f, 3.0f), groundBaseColor, squareSprite, spriteMat, true, 4);
+                CreatePlatform(root.transform, "Ground_Glow_Top", new Vector3(14.0f, -0.06f, 0f), new Vector2(28.0f, 0.12f), groundGlowColor, squareSprite, spriteMat, false, 6);
 
-                CreatePlatform(root.transform, "HighBeam_1", new Vector3(6f, 2.7f, 0f), new Vector2(4.5f, 0.35f), platformColor, squareSprite);
-                CreatePlatform(root.transform, "HighBeam_2", new Vector3(13f, 3.2f, 0f), new Vector2(5.5f, 0.35f), platformColor, squareSprite);
-                CreatePlatform(root.transform, "HighBeam_3", new Vector3(20f, 2.7f, 0f), new Vector2(4.5f, 0.35f), platformColor, squareSprite);
+                // Верхняя воздушная магистраль
+                CreatePlatform(root.transform, "Skyway_1", new Vector3(6.5f, 2.55f, 0f), new Vector2(5.5f, 0.5f), platformBodyColor, squareSprite, spriteMat, true, 5);
+                CreatePlatform(root.transform, "Skyway_1_Glow", new Vector3(6.5f, 2.76f, 0f), new Vector2(5.5f, 0.08f), platformGlowColor, squareSprite, spriteMat, false, 6);
 
-                CreatePlatform(root.transform, "Hanger_1", new Vector3(6f, 4.2f, 0f), new Vector2(0.12f, 3.0f), new Color(0.5f, 0.6f, 0.7f, 0.7f), squareSprite);
-                CreatePlatform(root.transform, "Hanger_2", new Vector3(20f, 4.2f, 0f), new Vector2(0.12f, 3.0f), new Color(0.5f, 0.6f, 0.7f, 0.7f), squareSprite);
+                CreatePlatform(root.transform, "Skyway_2", new Vector3(14.0f, 3.55f, 0f), new Vector2(7.0f, 0.5f), platformBodyColor, squareSprite, spriteMat, true, 5);
+                CreatePlatform(root.transform, "Skyway_2_Glow", new Vector3(14.0f, 3.76f, 0f), new Vector2(7.0f, 0.08f), platformGlowColor, squareSprite, spriteMat, false, 6);
+
+                CreatePlatform(root.transform, "Skyway_3", new Vector3(21.5f, 2.55f, 0f), new Vector2(5.5f, 0.5f), platformBodyColor, squareSprite, spriteMat, true, 5);
+                CreatePlatform(root.transform, "Skyway_3_Glow", new Vector3(21.5f, 2.76f, 0f), new Vector2(5.5f, 0.08f), platformGlowColor, squareSprite, spriteMat, false, 6);
+
+                // Подвесные тросы
+                CreatePlatform(root.transform, "Cable_1", new Vector3(6.5f, 5.2f, 0f), new Vector2(0.12f, 4.8f), new Color(0.4f, 0.5f, 0.6f, 0.75f), squareSprite, spriteMat, false, 5);
+                CreatePlatform(root.transform, "Cable_2", new Vector3(21.5f, 5.2f, 0f), new Vector2(0.12f, 4.8f), new Color(0.4f, 0.5f, 0.6f, 0.75f), squareSprite, spriteMat, false, 5);
 
                 SavePrefab(root, $"{Folder}/Chunk_Variant_C_SplitPath.prefab");
             }
 
-            // 5. CHUNK_END_OUTRO (Fixed End)
+            // =========================================================================
+            // 5. CHUNK_END_OUTRO (Фиксированный финал: 18 метров)
+            // =========================================================================
             {
                 var root = new GameObject("Chunk_End_Outro");
-                SetupSockets(root, new Vector3(0f, 0f, 0f), new Vector3(16f, 0f, 0f));
+                SetupSockets(root, new Vector3(0f, 0f, 0f), new Vector3(18f, 0f, 0f));
 
-                CreatePlatform(root.transform, "Ground", new Vector3(8f, -0.4f, 0f), new Vector2(16f, 0.8f), groundColor, squareSprite);
-                CreatePlatform(root.transform, "Ground_Glow_Top", new Vector3(8f, -0.04f, 0f), new Vector2(16f, 0.08f), groundTopColor, squareSprite);
-                CreatePlatform(root.transform, "Wall_Right", new Vector3(16.4f, 2.5f, 0f), new Vector2(0.8f, 5.8f), groundColor, squareSprite);
+                CreatePlatform(root.transform, "Ground_Base", new Vector3(9f, -1.5f, 0f), new Vector2(18f, 3.0f), groundBaseColor, squareSprite, spriteMat, true, 4);
+                CreatePlatform(root.transform, "Ground_Glow_Top", new Vector3(9f, -0.06f, 0f), new Vector2(18f, 0.12f), groundGlowColor, squareSprite, spriteMat, false, 6);
 
-                CreatePlatform(root.transform, "Victory_Pedestal_Base", new Vector3(11f, 0.3f, 0f), new Vector2(4f, 0.6f), new Color(0.28f, 0.22f, 0.45f), squareSprite);
-                CreatePlatform(root.transform, "Victory_Pedestal_Top", new Vector3(11f, 0.8f, 0f), new Vector2(2.5f, 0.4f), new Color(0.38f, 0.30f, 0.60f), squareSprite);
-                CreatePlatform(root.transform, "Victory_Crystal", new Vector3(11f, 1.8f, 0f), new Vector2(1.0f, 1.5f), new Color(0.3f, 0.9f, 1f, 0.85f), squareSprite);
+                // Правая граница уровня (стена 10 метров)
+                CreatePlatform(root.transform, "Wall_Right", new Vector3(18.5f, 4.5f, 0f), new Vector2(1.0f, 10.0f), wallColor, squareSprite, spriteMat, true, 4);
+                CreatePlatform(root.transform, "Wall_Right_Glow", new Vector3(17.98f, 4.5f, 0f), new Vector2(0.06f, 10.0f), groundGlowColor, squareSprite, spriteMat, false, 6);
+
+                // Финальный портал и постамент победы
+                CreatePlatform(root.transform, "Victory_Pedestal_Base", new Vector3(13.0f, 0.35f, 0f), new Vector2(5.0f, 0.7f), decorDark, squareSprite, spriteMat, true, 5);
+                CreatePlatform(root.transform, "Victory_Pedestal_Tier2", new Vector3(13.0f, 0.85f, 0f), new Vector2(3.2f, 0.5f), platformBodyColor, squareSprite, spriteMat, true, 5);
+
+                CreatePlatform(root.transform, "Portal_Col_L", new Vector3(10.8f, 2.6f, 0f), new Vector2(0.4f, 4.6f), wallColor, squareSprite, spriteMat, false, 5);
+                CreatePlatform(root.transform, "Portal_Col_R", new Vector3(15.2f, 2.6f, 0f), new Vector2(0.4f, 4.6f), wallColor, squareSprite, spriteMat, false, 5);
+                CreatePlatform(root.transform, "Portal_Lintel", new Vector3(13.0f, 5.0f, 0f), new Vector2(5.2f, 0.5f), platformBodyColor, squareSprite, spriteMat, false, 5);
+
+                CreatePlatform(root.transform, "Victory_Crystal", new Vector3(13.0f, 2.0f, 0f), new Vector2(1.2f, 1.6f), victoryCrystalColor, squareSprite, spriteMat, false, 7);
 
                 SavePrefab(root, $"{Folder}/Chunk_End_Outro.prefab");
             }
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            return "All 5 level chunk prefabs built successfully!";
+            return "All 5 level chunk prefabs built successfully with full 1:1 visuals and solid depth!";
         }
 
-        private static GameObject CreatePlatform(Transform parent, string name, Vector3 localPos, Vector2 size, Color col, Sprite sprite)
+        private static GameObject CreatePlatform(Transform parent, string name, Vector3 localPos, Vector2 size, Color col, Sprite sprite, Material mat, bool addCollider = true, int sortingOrder = 4)
         {
             var go = new GameObject(name);
             go.transform.SetParent(parent, false);
@@ -148,10 +206,14 @@ namespace LevelGeneration.Editor
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = sprite;
             sr.color = col;
-            sr.sortingOrder = 5;
+            sr.sortingOrder = sortingOrder;
+            if (mat != null) sr.sharedMaterial = mat;
 
-            var col2d = go.AddComponent<BoxCollider2D>();
-            col2d.size = Vector2.one;
+            if (addCollider)
+            {
+                var col2d = go.AddComponent<BoxCollider2D>();
+                col2d.size = Vector2.one;
+            }
 
             return go;
         }
