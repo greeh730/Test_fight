@@ -112,6 +112,26 @@ namespace Combat.Player
             if (_isInvulnerable || IsDead) return;
 
             float damage = attack != null ? attack.damage : 15f;
+            Vector2 effectiveKnockbackDir = knockbackDirection;
+
+            // Проверка перехвата удара Блоком или Парированием
+            var blockParry = GetComponent<PlayerBlockAndParry2D>();
+            if (blockParry != null && blockParry.TryInterceptAttack(attack, hitZone, hitPoint, knockbackDirection, out bool hitAbsorbed, out float damageMultiplier, out Vector2 modifiedKnockback))
+            {
+                if (hitAbsorbed)
+                {
+                    // Удар полностью спарирован или заблокирован (0 урона!)
+                    if (_rb != null && modifiedKnockback.sqrMagnitude > 0.001f)
+                    {
+                        _rb.linearVelocity = modifiedKnockback;
+                    }
+                    return;
+                }
+
+                // Частичный урон (Chip Damage) сквозь пробитый блок при нулевой выносливости
+                damage *= damageMultiplier;
+                effectiveKnockbackDir = modifiedKnockback;
+            }
 
             if (!canDie)
             {
@@ -126,7 +146,7 @@ namespace Combat.Player
             // Физический импульс отталкивания
             if (_rb != null && attack != null)
             {
-                Vector2 kb = new Vector2(knockbackDirection.x * attack.knockbackForce.x, attack.knockbackForce.y);
+                Vector2 kb = new Vector2(effectiveKnockbackDir.x * attack.knockbackForce.x, attack.knockbackForce.y);
                 _rb.linearVelocity = kb;
             }
 

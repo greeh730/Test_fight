@@ -207,6 +207,7 @@ namespace Combat
         private Rigidbody2D _rb;
         private SpriteRenderer _sr;
         private PlayerStamina2D _stamina;
+        private PlayerBlockAndParry2D _blockParry;
 
         public AttackConfig AttackHigh => attackHigh;
         public AttackConfig AttackMid => attackMid;
@@ -217,6 +218,7 @@ namespace Combat
             _rb = GetComponent<Rigidbody2D>();
             _sr = GetComponent<SpriteRenderer>();
             _stamina = GetComponent<PlayerStamina2D>();
+            _blockParry = GetComponent<PlayerBlockAndParry2D>();
 
             _contactFilter = new ContactFilter2D();
             _contactFilter.SetLayerMask(targetLayers);
@@ -495,6 +497,8 @@ namespace Combat
 
         public bool CanExecuteAttackNow()
         {
+            if (_blockParry == null) _blockParry = GetComponent<PlayerBlockAndParry2D>();
+            if (_blockParry != null && (_blockParry.IsBlocking || _blockParry.IsParrying || _blockParry.IsParryStaggered)) return false;
             if (CurrentState == CombatState.Idle) return true;
             if (_canCancelIntoCombo) return true;
             return false;

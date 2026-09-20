@@ -69,6 +69,7 @@ namespace Combat.Player
         }
 
         public float ExhaustionSlowdownFactor => exhaustionSlowdownFactor;
+        public bool IsRegenPaused { get; set; } = false;
 
         private void Awake()
         {
@@ -79,8 +80,8 @@ namespace Combat.Player
 
         private void Update()
         {
-            // Регенерация стамины
-            if (Time.time - _lastActionTime >= regenDelay && currentStamina < maxStamina)
+            // Регенерация стамины (приостанавливается при удержании блока)
+            if (!IsRegenPaused && Time.time - _lastActionTime >= regenDelay && currentStamina < maxStamina)
             {
                 currentStamina = Mathf.MoveTowards(currentStamina, maxStamina, Time.deltaTime * regenRate);
                 onStaminaChanged?.Invoke(currentStamina, maxStamina);

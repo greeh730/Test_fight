@@ -1986,6 +1986,53 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   m_IsOn: 0
+--- !u!1 &324053578
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 324053580}
+  - component: {fileID: 324053579}
+  m_Layer: 0
+  m_Name: CombatSaveManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &324053579
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 324053578}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2b6049d04466b464197a23c96913505e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Combat.Save.CombatSaveManager
+  quickSaveKey: 286
+  quickLoadKey: 290
+  defaultSaveSlot: quicksave
+--- !u!4 &324053580
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 324053578}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &328433103
 GameObject:
   m_ObjectHideFlags: 0
@@ -12654,6 +12701,7 @@ GameObject:
   - component: {fileID: 2046979063}
   - component: {fileID: 2046979065}
   - component: {fileID: 2046979064}
+  - component: {fileID: 2046979066}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -13097,6 +13145,45 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   onExhaustionChanged:
+    m_PersistentCalls:
+      m_Calls: []
+--- !u!114 &2046979066
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2046979054}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 538d3f27313879d43bd5f7ec2a571738, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Combat.Player.PlayerBlockAndParry2D
+  blockStaminaCost: 20
+  chipDamageMultiplier: 0.45
+  blockMoveSpeedMultiplier: 0.35
+  blockPushbackMultiplier: 0.25
+  parryStartupDuration: 0.05
+  parryActiveDuration: 0.22
+  parryWhiffDuration: 0.35
+  parryWhiffStaminaCost: 20
+  parryStunDuration: 2
+  parryHitstopDuration: 0.12
+  gestureSwipeThreshold: 25
+  quickTapParryWindow: 0.26
+  blockNormalColor: {r: 0.15, g: 0.75, b: 1, a: 0.75}
+  blockChipColor: {r: 1, g: 0.35, b: 0.15, a: 0.85}
+  parryActiveColor: {r: 1, g: 0.92, b: 0.3, a: 0.95}
+  onBlockStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  onParryStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  onParrySuccess:
+    m_PersistentCalls:
+      m_Calls: []
+  onParryWhiff:
     m_PersistentCalls:
       m_Calls: []
 --- !u!1 &2054004658
@@ -13796,3 +13883,4 @@ SceneRoots:
   - {fileID: 2090989304}
   - {fileID: 1586116511}
   - {fileID: 284706239}
+  - {fileID: 324053580}

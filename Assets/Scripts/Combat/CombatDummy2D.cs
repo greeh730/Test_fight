@@ -429,6 +429,14 @@ namespace Combat
             // Манекен не имеет AI для дезориентации
         }
 
+        public void Stun(float duration)
+        {
+            if (IsDead) return;
+            CombatFloatingText.Spawn(transform.position + Vector3.up * 1.5f, $"[ОГЛУШЕН! {duration:F1}с]", new Color(1f, 0.85f, 0.2f), 1.2f);
+            if (_flashRoutine != null) StopCoroutine(_flashRoutine);
+            _flashRoutine = StartCoroutine(FlashColorRoutine(new Color(1f, 0.85f, 0.2f)));
+        }
+
         private void ShowBrokenPopup(Vector3 pos)
         {
             CombatFloatingText.ShowDummyBroken(pos);

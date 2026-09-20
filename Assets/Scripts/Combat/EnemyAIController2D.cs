@@ -512,6 +512,7 @@ namespace Combat
                     );
 
                     Vector2 knockbackDir = new Vector2(FacingDirection, 0.5f).normalized;
+                    enemyAttack.attacker = gameObject;
                     hurtbox.TakeHit(enemyAttack, CombatZone.Mid, center, knockbackDir);
                     break;
                 }
@@ -737,6 +738,31 @@ namespace Combat
             CurrentState = EnemyState.Stunned;
             Debug.Log($"<color=orange><b>[НЕТ СТАМИНЫ!]</b></color> Враг истощен и оглушен на {staminaBreakStunDuration:F1}с!");
             _stateRoutine = StartCoroutine(StunRoutine(staminaBreakStunDuration, replenishStaminaAfter: true));
+        }
+
+        /// <summary>
+        /// Принудительно оглушает врага (вызывается при успешном парировании игрока).
+        /// Срывает любые замахи и действия, останавливает врага и открывает его для комбо.
+        /// </summary>
+        public void Stun(float duration)
+        {
+            if (CurrentState == EnemyState.Dead) return;
+
+            if (_stateRoutine != null) { StopCoroutine(_stateRoutine); _stateRoutine = null; }
+            if (_flashRoutine != null) { StopCoroutine(_flashRoutine); _flashRoutine = null; }
+            if (telegraphVisualizer != null) telegraphVisualizer.HideHitbox();
+
+            if (_rb != null) _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
+
+            CurrentState = EnemyState.Stunned;
+            float effectiveStun = CalculateEffectiveStunDuration(duration);
+            _stateRoutine = StartCoroutine(StunRoutine(effectiveStun, replenishStaminaAfter: false));
+
+            if (telegraphVisualizer != null)
+            {
+                telegraphVisualizer.SpawnCustomPopup(transform.position + Vector3.up * 1.3f, $"[ОГЛУШЕН! {effectiveStun:F1}с]", new Color(1f, 0.85f, 0.2f));
+            }
+            Debug.Log($"<color=gold><b>[PARRY STUN!]</b></color> Враг парирован и оглушен на {effectiveStun:F1}с!");
         }
 
         // ==========================================

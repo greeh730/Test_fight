@@ -167,6 +167,7 @@ namespace Combat.Player
         private float _currentFacing = 1f;
         private Combat.PlayerCombatController2D _combatController;
         private PlayerStamina2D _stamina;
+        private PlayerBlockAndParry2D _blockParry;
 
         public float CurrentFacing => _currentFacing;
 
@@ -214,6 +215,7 @@ namespace Combat.Player
 
             _combatController = GetComponent<Combat.PlayerCombatController2D>();
             _stamina = GetComponent<PlayerStamina2D>();
+            _blockParry = GetComponent<PlayerBlockAndParry2D>();
 
             _groundFilter = new ContactFilter2D();
             _groundFilter.useTriggers = false;
@@ -403,6 +405,7 @@ namespace Combat.Player
             if (_isDashing) return false;
             if (_dashCooldownTimer > 0f) return false;
             if (!IsGrounded && _airDashesLeft <= 0) return false;
+            if (_blockParry != null && (_blockParry.IsBlocking || _blockParry.IsParrying || _blockParry.IsParryStaggered)) return false;
             return true;
         }
 
@@ -571,6 +574,19 @@ namespace Combat.Player
                 speedMult *= _stamina.ActionSpeedMultiplier;
             }
 
+            // Ограничение скорости при блокировании, парировании или стаггере
+            if (_blockParry != null)
+            {
+                if (_blockParry.IsParryStaggered || _blockParry.IsParrying)
+                {
+                    speedMult = 0f;
+                }
+                else if (_blockParry.IsBlocking)
+                {
+                    speedMult *= _blockParry.BlockMoveSpeedMultiplier;
+                }
+            }
+
             // Бонус к скорости и управляемости в пике прыжка (Apex bonus)
             if (enableApexHang && !_isDashing && Mathf.Abs(_rb.linearVelocity.y) < apexVelocityThreshold)
             {
@@ -622,6 +638,11 @@ namespace Combat.Player
 
         private void HandleJumpAndGravity()
         {
+            if (_blockParry != null && (_blockParry.IsBlocking || _blockParry.IsParrying || _blockParry.IsParryStaggered))
+            {
+                _jumpBufferTimer = 0f;
+            }
+
             // 1. Обработка прыжка
             if (_jumpBufferTimer > 0f)
             {

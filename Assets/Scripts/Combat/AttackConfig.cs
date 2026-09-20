@@ -69,6 +69,8 @@ namespace Combat
         [Tooltip("Цвет отображения хитбокса в Scene View и Game View")]
         public Color hitboxColor = new Color(1f, 0.2f, 0.3f, 0.7f);
 
+        [NonSerialized] public GameObject attacker;
+
         public AttackConfig() { }
 
         public AttackConfig(string name, CombatZone zones, Vector2 offset, Vector2 size, float startup, float active, float recovery, float dmg, Vector2 kb, Color col)
