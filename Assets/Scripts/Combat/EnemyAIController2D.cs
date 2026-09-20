@@ -131,6 +131,7 @@ namespace Combat
         // State
         public EnemyState CurrentState { get; private set; } = EnemyState.Idle;
         public float CurrentHealth => currentHealth;
+        public float MaxHealth => maxHealth;
         public float FacingDirection { get; private set; } = -1f;
         public bool CanDie { get => canDie; set => canDie = value; }
         public bool IsDead => CurrentState == EnemyState.Dead;
@@ -896,6 +897,63 @@ namespace Combat
             CurrentState = EnemyState.Idle;
 
             Debug.Log("<color=green><b>[ENEMY RESPAWNED]</b></color> Враг возродился на исходной позиции со 100% HP и стамины!");
+        }
+
+        public void RestoreState(Vector2 position, float health, float stamina, float facing, bool isDeadState)
+        {
+            if (_stateRoutine != null) { StopCoroutine(_stateRoutine); _stateRoutine = null; }
+            if (_flashRoutine != null) { StopCoroutine(_flashRoutine); _flashRoutine = null; }
+            if (_respawnRoutine != null) { StopCoroutine(_respawnRoutine); _respawnRoutine = null; }
+            if (_hitstopRoutine != null) { StopCoroutine(_hitstopRoutine); _hitstopRoutine = null; }
+
+            _isRooted = false;
+            _rootTimer = 0f;
+            _vulnerabilityMultiplier = 1.0f;
+            _vulnerabilityTimer = 0f;
+            _isGravitySuspended = false;
+            _gravitySuspendTimer = 0f;
+            _disorientTimer = 0f;
+
+            transform.position = new Vector3(position.x, position.y, transform.position.z);
+            if (_rb != null)
+            {
+                _rb.linearVelocity = Vector2.zero;
+                _rb.gravityScale = _originalGravityScale;
+            }
+
+            if (isDeadState)
+            {
+                currentHealth = 0f;
+                currentStamina = 0f;
+                Die(Vector2.zero, false);
+            }
+            else
+            {
+                CurrentState = EnemyState.Idle;
+                transform.rotation = _spawnRotation;
+
+                if (_col != null) _col.enabled = true;
+                if (_sr != null)
+                {
+                    _sr.color = normalColor;
+                }
+
+                currentHealth = Mathf.Clamp(health, 1f, maxHealth);
+                currentStamina = Mathf.Clamp(stamina, 0f, maxStamina);
+
+                if (staminaBar != null)
+                {
+                    staminaBar.SetStamina(currentStamina, maxStamina);
+                    staminaBar.SetVisible(true);
+                }
+
+                if (telegraphVisualizer != null)
+                {
+                    telegraphVisualizer.HideHitbox();
+                }
+
+                SetFacing(facing != 0f ? Mathf.Sign(facing) : -1f);
+            }
         }
 
         private IEnumerator RespawnRoutine(float delay)

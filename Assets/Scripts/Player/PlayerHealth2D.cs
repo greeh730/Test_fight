@@ -310,6 +310,44 @@ namespace Combat.Player
             onHealthChanged?.Invoke(currentHealth, maxHealth);
         }
 
+        public void RestoreState(Vector2 position, float health, bool isDeadState)
+        {
+            if (_flashRoutine != null) { StopCoroutine(_flashRoutine); _flashRoutine = null; }
+            if (_iFrameRoutine != null) { StopCoroutine(_iFrameRoutine); _iFrameRoutine = null; }
+            if (_autoRespawnRoutine != null) { StopCoroutine(_autoRespawnRoutine); _autoRespawnRoutine = null; }
+
+            transform.position = new Vector3(position.x, position.y, transform.position.z);
+            if (_rb != null)
+            {
+                _rb.linearVelocity = Vector2.zero;
+            }
+
+            if (isDeadState)
+            {
+                currentHealth = 0f;
+                onHealthChanged?.Invoke(currentHealth, maxHealth);
+                Die();
+            }
+            else
+            {
+                IsDead = false;
+                HideDeathBanner();
+                transform.rotation = _spawnRotation;
+
+                if (_movement != null) _movement.enabled = true;
+                if (_combat != null) _combat.enabled = true;
+
+                currentHealth = Mathf.Clamp(health, 1f, maxHealth);
+                _isInvulnerable = false;
+                if (_sr != null)
+                {
+                    _sr.enabled = true;
+                    _sr.color = _originalColor;
+                }
+                onHealthChanged?.Invoke(currentHealth, maxHealth);
+            }
+        }
+
         private IEnumerator FlashRoutine()
         {
             if (_sr == null) yield break;

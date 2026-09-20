@@ -333,6 +333,24 @@ namespace Combat
             Debug.Log($"<color=cyan>[STANCE TOGGLE]</color> Смена боевой стойки: <b>{currentStance}</b>");
         }
 
+        public void RestoreStance(CombatStance stance, float facing)
+        {
+            currentStance = stance;
+            if (vectorWheel != null)
+            {
+                vectorWheel.SetStance(currentStance);
+            }
+            onStanceChanged?.Invoke(currentStance);
+
+            if (Mathf.Abs(facing) > 0.01f)
+            {
+                FacingDirection = Mathf.Sign(facing);
+                Vector3 s = transform.localScale;
+                s.x = Mathf.Abs(s.x) * FacingDirection;
+                transform.localScale = s;
+            }
+        }
+
         private void SpawnStancePopup(string text, Color color)
         {
             StartCoroutine(SpawnStancePopupRoutine(text, color));

@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using Combat.Save;
 
 namespace Combat.UI
 {
@@ -200,14 +201,40 @@ namespace Combat.UI
 
         private void OnQuickSaveClicked()
         {
-            ShowFeedback("Быстрое сохранение выполнено (в разработке)");
-            Debug.Log("<color=yellow>[QUICK SAVE]</color> Кнопка быстрого сохранения нажата (заглушка).");
+            var saveMgr = CombatSaveManager.Instance ?? FindAnyObjectByType<CombatSaveManager>();
+            if (saveMgr == null)
+            {
+                var go = new GameObject("[CombatSaveManager]");
+                saveMgr = go.AddComponent<CombatSaveManager>();
+            }
+
+            if (saveMgr.SaveGame())
+            {
+                ShowFeedback("Быстрое сохранение записано!");
+            }
+            else
+            {
+                ShowFeedback("Ошибка сохранения!");
+            }
         }
 
         private void OnQuickLoadClicked()
         {
-            ShowFeedback("Быстрая загрузка выполнена (в разработке)");
-            Debug.Log("<color=yellow>[QUICK LOAD]</color> Кнопка быстрой загрузки нажата (заглушка).");
+            var saveMgr = CombatSaveManager.Instance ?? FindAnyObjectByType<CombatSaveManager>();
+            if (saveMgr == null || !saveMgr.HasSave())
+            {
+                ShowFeedback("Нет доступного сохранения!");
+                return;
+            }
+
+            if (saveMgr.LoadGame())
+            {
+                ShowFeedback("Игра успешно загружена!");
+            }
+            else
+            {
+                ShowFeedback("Ошибка загрузки!");
+            }
         }
 
         private void OnSettingsClicked()

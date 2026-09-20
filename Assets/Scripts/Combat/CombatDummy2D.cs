@@ -51,6 +51,7 @@ namespace Combat
         private readonly System.Collections.Generic.List<Collider2D> _hurtboxColliders = new System.Collections.Generic.List<Collider2D>();
 
         public float CurrentHealth => currentHealth;
+        public float MaxHealth => maxHealth;
         public bool CanDie
         {
             get => canDie;
@@ -318,6 +319,37 @@ namespace Combat
             EnableAllColliders(true);
 
             Debug.Log("<color=cyan><b>[DUMMY RESPAWNED]</b></color> Манекен восстановлен и готов к бою!");
+        }
+
+        public void RestoreState(Vector2 position, float health, bool isDeadState)
+        {
+            if (_respawnRoutine != null) { StopCoroutine(_respawnRoutine); _respawnRoutine = null; }
+            if (_statusEffectRoutine != null) { StopCoroutine(_statusEffectRoutine); _statusEffectRoutine = null; }
+            if (_flashRoutine != null) { StopCoroutine(_flashRoutine); _flashRoutine = null; }
+
+            _vulnerabilityMultiplier = 1.0f;
+
+            transform.position = new Vector3(position.x, position.y, transform.position.z);
+            transform.rotation = _spawnRotation;
+
+            if (_rb != null)
+            {
+                _rb.linearVelocity = Vector2.zero;
+                _rb.angularVelocity = 0f;
+                _rb.gravityScale = _originalGravityScale;
+            }
+
+            if (isDeadState)
+            {
+                Die(Vector2.right);
+            }
+            else
+            {
+                IsDead = false;
+                currentHealth = Mathf.Clamp(health, 1f, maxHealth);
+                if (_sr != null) _sr.color = normalColor;
+                EnableAllColliders(true);
+            }
         }
 
         private IEnumerator RespawnRoutine(float delay)
