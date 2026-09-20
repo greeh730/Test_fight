@@ -8376,7 +8376,7 @@ Transform:
   m_GameObject: {fileID: 1369903010}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.5, z: 0}
+  m_LocalPosition: {x: -0.57, y: -2.01, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -9517,7 +9517,7 @@ Transform:
   m_GameObject: {fileID: 1586116505}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 3, y: -0.5, z: 0}
+  m_LocalPosition: {x: 4.84, y: -1.48, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -12652,6 +12652,8 @@ GameObject:
   - component: {fileID: 2046979060}
   - component: {fileID: 2046979062}
   - component: {fileID: 2046979063}
+  - component: {fileID: 2046979065}
+  - component: {fileID: 2046979064}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -12728,7 +12730,7 @@ Transform:
   m_GameObject: {fileID: 2046979054}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 2.5, y: -0.5, z: 0}
+  m_LocalPosition: {x: -5.33, y: -2.01, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -13049,6 +13051,54 @@ MonoBehaviour:
   showAllAbilitiesInGizmos: 0
   selectedGizmoAbility: 1
   gizmoFillAlpha: 0.18
+--- !u!114 &2046979064
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2046979054}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b59be2f16d954404c897c3ffd53b3c87, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Combat.Player.PlayerStaminaBar2D
+  barOffset: {x: 0, y: 1.35, z: 0}
+  barWidth: 1.35
+  barHeight: 0.12
+  normalStaminaColor: {r: 0.2, g: 0.9, b: 1, a: 1}
+  lowStaminaColor: {r: 1, g: 0.65, b: 0.15, a: 1}
+  exhaustedStaminaColor: {r: 0.95, g: 0.2, b: 0.2, a: 1}
+  ghostBarColor: {r: 1, g: 1, b: 1, a: 0.75}
+  backgroundColor: {r: 0.08, g: 0.1, b: 0.14, a: 0.92}
+  borderColor: {r: 0.25, g: 0.35, b: 0.45, a: 0.9}
+--- !u!114 &2046979065
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2046979054}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a68ef54ae21631b428afde9429718e1d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Combat.Player.PlayerStamina2D
+  maxStamina: 100
+  currentStamina: 100
+  regenRate: 25
+  regenDelay: 0.85
+  spamWindow: 1.4
+  spamPenaltyMultiplier: 1.5
+  maxSpamPenalty: 3.5
+  exhaustionSlowdownFactor: 2
+  exhaustionPulseColor: {r: 0.75, g: 0.75, b: 0.85, a: 0.85}
+  onStaminaChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  onExhaustionChanged:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!1 &2054004658
 GameObject:
   m_ObjectHideFlags: 0

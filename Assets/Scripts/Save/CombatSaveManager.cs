@@ -98,9 +98,9 @@ namespace Combat.Save
                     sceneName = SceneManager.GetActiveScene().name
                 };
 
-                // 1. Сохранение Игрока
                 var player = FindAnyObjectByType<PlayerCombatController2D>();
                 var playerHealth = FindAnyObjectByType<PlayerHealth2D>();
+                var playerStamina = FindAnyObjectByType<PlayerStamina2D>();
                 if (player != null)
                 {
                     saveData.player.Position = player.transform.position;
@@ -112,6 +112,12 @@ namespace Combat.Save
                     saveData.player.health = playerHealth.CurrentHealth;
                     saveData.player.maxHealth = playerHealth.MaxHealth;
                     saveData.player.isDead = playerHealth.IsDead;
+                }
+                if (playerStamina != null)
+                {
+                    saveData.player.stamina = playerStamina.CurrentStamina;
+                    saveData.player.maxStamina = playerStamina.MaxStamina;
+                    saveData.player.isExhausted = playerStamina.IsExhausted;
                 }
 
                 // 2. Сохранение Врага
@@ -185,9 +191,14 @@ namespace Combat.Save
                 // 1. Восстановление Игрока
                 var player = FindAnyObjectByType<PlayerCombatController2D>();
                 var playerHealth = FindAnyObjectByType<PlayerHealth2D>();
+                var playerStamina = FindAnyObjectByType<PlayerStamina2D>();
                 if (playerHealth != null)
                 {
                     playerHealth.RestoreState(saveData.player.Position, saveData.player.health, saveData.player.isDead);
+                }
+                if (playerStamina != null)
+                {
+                    playerStamina.RestoreState(saveData.player.stamina, saveData.player.isExhausted);
                 }
                 if (player != null)
                 {

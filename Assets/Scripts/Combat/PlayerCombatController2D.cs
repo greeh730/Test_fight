@@ -6,6 +6,7 @@ using UnityEngine.Events;
 using Combat.UI;
 using Combat.Stances;
 using Combat.Tactician;
+using Combat.Player;
 
 namespace Combat
 {
@@ -205,6 +206,7 @@ namespace Combat
         private AttackIntent? _lastComboIntent;
         private Rigidbody2D _rb;
         private SpriteRenderer _sr;
+        private PlayerStamina2D _stamina;
 
         public AttackConfig AttackHigh => attackHigh;
         public AttackConfig AttackMid => attackMid;
@@ -214,6 +216,7 @@ namespace Combat
         {
             _rb = GetComponent<Rigidbody2D>();
             _sr = GetComponent<SpriteRenderer>();
+            _stamina = GetComponent<PlayerStamina2D>();
 
             _contactFilter = new ContactFilter2D();
             _contactFilter.SetLayerMask(targetLayers);
@@ -517,6 +520,10 @@ namespace Combat
 
             if (currentStance == CombatStance.Tactician)
             {
+                if (_stamina != null)
+                {
+                    _stamina.ConsumeForAction($"Tactician_{dir}", 18f);
+                }
                 if (tacticianController != null)
                 {
                     tacticianController.ExecuteAbility(dir);
@@ -706,6 +713,13 @@ namespace Combat
             AttackConfig attack = GetAttackForHeight(intent.height);
             if (attack == null) return false;
 
+            if (_stamina != null)
+            {
+                string actionId = $"{intent.height}_{intent.strikeDir}_{(intent.isCharged ? "Charged" : "Normal")}";
+                float cost = intent.isCharged ? 20f : 12f;
+                _stamina.ConsumeForAction(actionId, cost);
+            }
+
             // Поворачиваем персонажа и отзеркаливаем лицо в сторону удара (влево / вправо)
             if (Mathf.Abs(intent.horizontalSign) > 0.01f)
             {
@@ -753,14 +767,16 @@ namespace Combat
             }
             onComboStepChanged?.Invoke(thisAttackStep, isFinisher);
 
+            float speedMult = _stamina != null ? _stamina.ActionSpeedMultiplier : 1.0f;
+
             // 1. ФАЗА ЗАМАХА (STARTUP) — удары в комбо ускоряются, заряженный слегка акцентирован
             CurrentState = CombatState.Startup;
-            float startup = isCharged ? attack.startupTime * 1.1f : (thisAttackStep > 1 ? attack.startupTime * comboStartupMultiplier : attack.startupTime);
+            float startup = (isCharged ? attack.startupTime * 1.1f : (thisAttackStep > 1 ? attack.startupTime * comboStartupMultiplier : attack.startupTime)) / speedMult;
             yield return new WaitForSeconds(startup);
 
             // 2. АКТИВНАЯ ФАЗА (ACTIVE)
             CurrentState = CombatState.Active;
-            float activeTimer = attack.activeTime;
+            float activeTimer = attack.activeTime / speedMult;
 
             // Выпад в направлении удара (усиленный выпад при заряженном ударе)
             ApplyComboLunge(intent.horizontalSign, isCharged);
@@ -790,7 +806,7 @@ namespace Combat
 
             // 3. ФАЗА ВОССТАНОВЛЕНИЯ (RECOVERY)
             CurrentState = CombatState.Recovery;
-            float recovery = attack.recoveryTime;
+            float recovery = attack.recoveryTime / speedMult;
             float cancelOpenTime = recovery * recoveryCancelThreshold;
             float recoveryTimer = 0f;
 
@@ -830,14 +846,15 @@ namespace Combat
             if (_rb == null) _rb = GetComponent<Rigidbody2D>();
             if (_rb != null)
             {
+                float speedMult = _stamina != null ? _stamina.ActionSpeedMultiplier : 1.0f;
                 if (isCharged)
                 {
-                    _rb.linearVelocity = new Vector2(horizontalSign * empoweredLungeForce, _rb.linearVelocity.y);
+                    _rb.linearVelocity = new Vector2(horizontalSign * empoweredLungeForce * speedMult, _rb.linearVelocity.y);
                 }
                 else if (comboLungeForce > 0.05f)
                 {
                     float multiplier = IsFinisher ? 1.5f : (CurrentComboStep > 1 ? 1.15f : 0.85f);
-                    _rb.linearVelocity = new Vector2(horizontalSign * comboLungeForce * multiplier, _rb.linearVelocity.y);
+                    _rb.linearVelocity = new Vector2(horizontalSign * comboLungeForce * multiplier * speedMult, _rb.linearVelocity.y);
                 }
             }
         }

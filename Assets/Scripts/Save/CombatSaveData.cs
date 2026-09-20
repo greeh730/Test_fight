@@ -20,6 +20,9 @@ namespace Combat.Save
         public float posY;
         public float health = 100f;
         public float maxHealth = 100f;
+        public float stamina = 100f;
+        public float maxStamina = 100f;
+        public bool isExhausted = false;
         public bool isDead = false;
         public int currentStance = 0; // 0 = Normal, 1 = Tactician
         public float facingDirection = 1f;

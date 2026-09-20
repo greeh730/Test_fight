@@ -166,6 +166,7 @@ namespace Combat.Player
         private Vector3 _faceBaseLocalScale = new Vector3(0.45f, 0.26f, 1f);
         private float _currentFacing = 1f;
         private Combat.PlayerCombatController2D _combatController;
+        private PlayerStamina2D _stamina;
 
         public float CurrentFacing => _currentFacing;
 
@@ -212,6 +213,7 @@ namespace Combat.Player
             }
 
             _combatController = GetComponent<Combat.PlayerCombatController2D>();
+            _stamina = GetComponent<PlayerStamina2D>();
 
             _groundFilter = new ContactFilter2D();
             _groundFilter.useTriggers = false;
@@ -406,10 +408,16 @@ namespace Combat.Player
 
         private void StartDash(float direction)
         {
+            if (_stamina != null)
+            {
+                _stamina.ConsumeForAction("Dash", 18f);
+            }
+
             _isDashing = true;
             _dashDirection = direction;
-            _dashTimer = dashDuration;
-            _dashCooldownTimer = dashCooldown;
+            float speedMult = _stamina != null ? _stamina.ActionSpeedMultiplier : 1.0f;
+            _dashTimer = dashDuration / speedMult;
+            _dashCooldownTimer = dashCooldown / speedMult;
 
             if (!IsGrounded)
             {
@@ -417,7 +425,7 @@ namespace Combat.Player
             }
 
             _rb.gravityScale = 0f;
-            _rb.linearVelocity = new Vector2(_dashDirection * dashSpeed, 0f);
+            _rb.linearVelocity = new Vector2(_dashDirection * dashSpeed * speedMult, 0f);
 
             // Сочный горизонтальный stretch при рывке
             if (enableJuiceSquashStretch)
@@ -428,14 +436,15 @@ namespace Combat.Player
 
         private void HandleDashMovement()
         {
+            float speedMult = _stamina != null ? _stamina.ActionSpeedMultiplier : 1.0f;
             _dashTimer -= Time.fixedDeltaTime;
-            _rb.linearVelocity = new Vector2(_dashDirection * dashSpeed, 0f);
+            _rb.linearVelocity = new Vector2(_dashDirection * dashSpeed * speedMult, 0f);
 
             if (_dashTimer <= 0f)
             {
                 _isDashing = false;
                 // Сохраняем приятную остаточную инерцию (carry-over)
-                _rb.linearVelocity = new Vector2(_dashDirection * moveSpeed * 1.15f, 0f);
+                _rb.linearVelocity = new Vector2(_dashDirection * moveSpeed * 1.15f * speedMult, 0f);
                 _rb.gravityScale = baseGravityScale;
             }
         }
@@ -554,6 +563,12 @@ namespace Combat.Player
             if (IsGrounded && _sprintHeld && Mathf.Abs(_horizontalInput) > 0.01f)
             {
                 speedMult *= sprintMultiplier;
+            }
+
+            // Замедление при истощении (Exhaustion debuff)
+            if (_stamina != null)
+            {
+                speedMult *= _stamina.ActionSpeedMultiplier;
             }
 
             // Бонус к скорости и управляемости в пике прыжка (Apex bonus)
