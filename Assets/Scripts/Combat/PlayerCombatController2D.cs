@@ -286,6 +286,11 @@ namespace Combat
 
         private void Update()
         {
+            if (Time.timeScale <= 0.0001f || Combat.UI.PauseMenuController.IsGamePaused)
+            {
+                return;
+            }
+
             CheckStanceToggle();
             UpdateFacingDirection();
             UpdateChargeCrawl();

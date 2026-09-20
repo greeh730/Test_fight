@@ -160,9 +160,12 @@ namespace Combat.UI
             }
         }
 
+        public static event Action OnSettingsClosed;
+
         public void CloseSettings()
         {
             SetPanelVisible(false);
+            OnSettingsClosed?.Invoke();
         }
 
         private void SetPanelVisible(bool visible)

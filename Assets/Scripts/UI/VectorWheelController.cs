@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using Combat.Settings;
 using Combat.Stances;
 
@@ -257,8 +258,30 @@ namespace Combat.UI
             UpdateVisuals(instant: true);
         }
 
+        public void CancelDrag()
+        {
+            IsDragging = false;
+            CurrentDirection = Direction8.None;
+            CurrentVector = Vector2.zero;
+            _directionHoldTimer = 0f;
+            if (wheelTrailGraphic != null)
+            {
+                wheelTrailGraphic.ClearInstant();
+            }
+            UpdatePlaqueText(Direction8.None);
+        }
+
         private void Update()
         {
+            if (PauseMenuController.IsGamePaused || Time.timeScale <= 0.0001f)
+            {
+                if (IsDragging)
+                {
+                    CancelDrag();
+                }
+                return;
+            }
+
             if (trackingMode == MouseTrackingMode.LMBDragSwipe)
             {
                 HandleLMBGestureTrail();
@@ -274,6 +297,12 @@ namespace Combat.UI
 
         private void HandleLMBGestureTrail()
         {
+            // Если курсор мыши находится над элементом интерфейса, не начинаем жест колеса
+            if (!IsDragging && EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+            {
+                return;
+            }
+
             Vector2 mousePos = GetMousePosition();
             bool isToggle = _currentSettings != null && _currentSettings.activationMode == ActivationMode.Toggle;
 
