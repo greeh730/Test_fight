@@ -186,7 +186,11 @@ namespace LevelGeneration.Editor
                 CreatePlatform(root.transform, "Portal_Col_R", new Vector3(15.2f, 2.6f, 0f), new Vector2(0.4f, 4.6f), wallColor, squareSprite, spriteMat, false, 5);
                 CreatePlatform(root.transform, "Portal_Lintel", new Vector3(13.0f, 5.0f, 0f), new Vector2(5.2f, 0.5f), platformBodyColor, squareSprite, spriteMat, false, 5);
 
-                CreatePlatform(root.transform, "Victory_Crystal", new Vector3(13.0f, 2.0f, 0f), new Vector2(1.2f, 1.6f), victoryCrystalColor, squareSprite, spriteMat, false, 7);
+                var crystalObj = CreatePlatform(root.transform, "Victory_Crystal", new Vector3(13.0f, 2.0f, 0f), new Vector2(1.2f, 1.6f), victoryCrystalColor, squareSprite, spriteMat, false, 7);
+                var triggerCol = crystalObj.AddComponent<BoxCollider2D>();
+                triggerCol.isTrigger = true;
+                triggerCol.size = Vector2.one;
+                crystalObj.AddComponent<VictoryCrystal>();
 
                 SavePrefab(root, $"{Folder}/Chunk_End_Outro.prefab");
             }

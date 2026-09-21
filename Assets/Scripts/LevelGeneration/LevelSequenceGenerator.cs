@@ -65,6 +65,21 @@ namespace LevelGeneration
         private readonly List<LevelChunk> _spawnedChunks = new List<LevelChunk>();
         public IReadOnlyList<LevelChunk> SpawnedChunks => _spawnedChunks;
 
+        public static LevelSequenceGenerator Instance { get; private set; }
+
+        private void Awake()
+        {
+            if (Instance == null)
+            {
+                Instance = this;
+            }
+            else if (Instance != this)
+            {
+                Destroy(this);
+                return;
+            }
+        }
+
         private void Start()
         {
             if (generateOnStart)
