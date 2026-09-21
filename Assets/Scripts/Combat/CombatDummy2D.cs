@@ -274,6 +274,12 @@ namespace Combat
 
             Debug.Log("<color=red><b>[DUMMY BROKEN]</b></color> Манекен разрушен! Восстановление через " + respawnDelay + " сек.");
 
+            // Начисление очков стиля за разрушение тренировочного манекена
+            if (Combat.Style.StyleManager.Instance != null)
+            {
+                Combat.Style.StyleManager.Instance.AddDummyKill(this, transform.position);
+            }
+
             if (_respawnRoutine != null) StopCoroutine(_respawnRoutine);
             _respawnRoutine = StartCoroutine(RespawnRoutine(respawnDelay));
         }

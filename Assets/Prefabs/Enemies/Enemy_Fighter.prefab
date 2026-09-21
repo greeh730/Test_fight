@@ -291,7 +291,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f6ec1ba86e5f0fd43a847c64c2a4f955, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Combat.EnemyAIController2D
-  maxHealth: 1200
+  maxHealth: 120
   currentHealth: 120
   resetHealthDelay: 3.5
   maxStamina: 100
@@ -305,8 +305,8 @@ MonoBehaviour:
   knockbackMultAtZeroStamina: 1
   stunDurationMultAtZeroStamina: 1.5
   staminaBar: {fileID: 0}
-  canDie: 0
-  respawnOnDeath: 1
+  canDie: 1
+  respawnOnDeath: 0
   respawnDelay: 4
   defeatColor: {r: 0.28, g: 0.28, b: 0.28, a: 0.75}
   detectionRange: 2.62

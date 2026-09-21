@@ -892,6 +892,12 @@ namespace Combat
 
             Debug.Log($"<color=red><b>[ENEMY DEFEATED]</b></color> Враг повержен! {(wasCounter ? "(Контратакой!) " : "")}Возрождение через {respawnDelay:F1}с");
 
+            // Начисление очков стиля игроку за убийство врага
+            if (Combat.Style.StyleManager.Instance != null)
+            {
+                Combat.Style.StyleManager.Instance.AddEnemyKill(this, wasCounter, transform.position);
+            }
+
             if (respawnOnDeath)
             {
                 if (_respawnRoutine != null) StopCoroutine(_respawnRoutine);
