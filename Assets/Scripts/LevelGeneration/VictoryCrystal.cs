@@ -118,12 +118,12 @@ namespace LevelGeneration
             var generator = LevelSequenceGenerator.Instance;
             if (generator == null)
             {
-                generator = Object.FindFirstObjectByType<LevelSequenceGenerator>();
+                generator = Object.FindAnyObjectByType<LevelSequenceGenerator>();
             }
 
             if (generator != null)
             {
-                generator.GenerateLevel();
+                generator.AdvanceCycleAndRegenerate();
             }
             else
             {

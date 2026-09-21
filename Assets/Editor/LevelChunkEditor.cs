@@ -11,12 +11,14 @@ namespace LevelGeneration.Editor
         private SerializedProperty _entryPointProp;
         private SerializedProperty _exitPointProp;
         private SerializedProperty _playerSpawnPointProp;
+        private SerializedProperty _enemySpawnPointsProp;
 
         private void OnEnable()
         {
             _entryPointProp = serializedObject.FindProperty("entryPoint");
             _exitPointProp = serializedObject.FindProperty("exitPoint");
             _playerSpawnPointProp = serializedObject.FindProperty("playerSpawnPoint");
+            _enemySpawnPointsProp = serializedObject.FindProperty("enemySpawnPoints");
         }
 
         public override void OnInspectorGUI()
@@ -35,6 +37,7 @@ namespace LevelGeneration.Editor
             EditorGUILayout.PropertyField(_entryPointProp, new GUIContent("🟢 Точка входа (Entry)"));
             EditorGUILayout.PropertyField(_exitPointProp, new GUIContent("🔴 Точка выхода (Exit)"));
             EditorGUILayout.PropertyField(_playerSpawnPointProp, new GUIContent("🔵 Спавн игрока (Spawn)"));
+            EditorGUILayout.PropertyField(_enemySpawnPointsProp, new GUIContent("👾 Точки врагов (Enemies)"), true);
 
             serializedObject.ApplyModifiedProperties();
 
@@ -106,6 +109,14 @@ namespace LevelGeneration.Editor
             if (GUILayout.Button("🧱 Создать базовый пол под размер сокетов"))
             {
                 CreateDefaultFloorUnderSockets(chunk);
+            }
+
+            // Кнопка добавления точки спавна врага
+            if (GUILayout.Button("👾 Добавить точку спавна врага на платформе"))
+            {
+                Undo.RegisterFullObjectHierarchyUndo(chunk.gameObject, "Add Enemy Spawn Point");
+                chunk.AddEnemySpawnPoint();
+                EditorUtility.SetDirty(chunk);
             }
         }
 

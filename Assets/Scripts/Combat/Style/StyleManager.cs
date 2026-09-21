@@ -110,6 +110,16 @@ namespace Combat.Style
             }
         }
 
+        [Header("--- Множитель стиля за циклы кристалла ---")]
+        [Tooltip("Текущий множитель стиля (увеличивается с каждым кругом кристалла)")]
+        [SerializeField] private float cycleScoreMultiplier = 1.0f;
+        public float CycleScoreMultiplier => cycleScoreMultiplier;
+
+        public void SetCycleMultiplier(float mult)
+        {
+            cycleScoreMultiplier = Mathf.Max(1.0f, mult);
+        }
+
         /// <summary>
         /// Главный метод начисления очков стиля
         /// </summary>
@@ -117,14 +127,18 @@ namespace Combat.Style
         {
             if (points <= 0) return;
 
-            TotalScore += points;
-            CurrentRankPoints += points;
+            int scaledPoints = Mathf.RoundToInt(points * cycleScoreMultiplier);
+
+            TotalScore += scaledPoints;
+            CurrentRankPoints += scaledPoints;
             _decayTimer = decayGracePeriod;
 
             StyleRank oldRank = CurrentRank;
             UpdateRank();
 
-            OnStyleAdded?.Invoke(points, reason, CurrentRank);
+            string displayReason = cycleScoreMultiplier > 1.01f ? $"{reason} (x{cycleScoreMultiplier:F2})" : reason;
+
+            OnStyleAdded?.Invoke(scaledPoints, displayReason, CurrentRank);
             OnTotalScoreChanged?.Invoke(TotalScore);
 
             Color rankCol = GetRankColor(CurrentRank);
@@ -134,7 +148,7 @@ namespace Combat.Style
             {
                 CombatFloatingText.Spawn(
                     worldPos.Value + Vector3.up * 1.4f,
-                    $"+{points} {reason}",
+                    $"+{scaledPoints} {displayReason}",
                     rankCol,
                     1.2f,
                     1.3f,
@@ -144,7 +158,7 @@ namespace Combat.Style
                 );
             }
 
-            Debug.Log($"<color=#FFB800><b>[STYLE +{points}]</b></color> <b>{reason}</b>! Ранг: <color=#{ColorUtility.ToHtmlStringRGB(rankCol)}><b>{CurrentRank}</b></color> (Всего: {TotalScore} PTS)");
+            Debug.Log($"<color=#FFB800><b>[STYLE +{scaledPoints}]</b></color> <b>{displayReason}</b>! Ранг: <color=#{ColorUtility.ToHtmlStringRGB(rankCol)}><b>{CurrentRank}</b></color> (Всего: {TotalScore} PTS)");
         }
 
         /// <summary>

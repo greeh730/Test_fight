@@ -83,7 +83,13 @@ namespace LevelGeneration.Editor
             // =========================================================================
             {
                 var root = new GameObject("Chunk_Variant_A_CombatArena");
-                SetupSockets(root, new Vector3(0f, 0f, 0f), new Vector3(24f, 0f, 0f));
+                SetupSockets(root, new Vector3(0f, 0f, 0f), new Vector3(24f, 0f, 0f), null, new Vector3[]
+                {
+                    new Vector3(6.5f, 2.95f, 0f),   // Левая подвесная платформа (Y=2.4)
+                    new Vector3(17.5f, 2.95f, 0f),  // Правая подвесная платформа (Y=2.4)
+                    new Vector3(12.0f, 4.75f, 0f),  // Верхняя снайперская балка (Y=4.2)
+                    new Vector3(3.0f, 0.55f, 0f)    // Нижняя площадка слева (Y=0.0)
+                });
 
                 CreatePlatform(root.transform, "Ground_Base", new Vector3(12f, -1.5f, 0f), new Vector2(24f, 3.0f), groundBaseColor, squareSprite, spriteMat, true, 4);
                 CreatePlatform(root.transform, "Ground_Glow_Top", new Vector3(12f, -0.06f, 0f), new Vector2(24f, 0.12f), groundGlowColor, squareSprite, spriteMat, false, 6);
@@ -112,7 +118,13 @@ namespace LevelGeneration.Editor
             // =========================================================================
             {
                 var root = new GameObject("Chunk_Variant_B_TwoTierElevation");
-                SetupSockets(root, new Vector3(0f, 0f, 0f), new Vector3(26f, 0f, 0f));
+                SetupSockets(root, new Vector3(0f, 0f, 0f), new Vector3(26f, 0f, 0f), null, new Vector3[]
+                {
+                    new Vector3(8.0f, 1.75f, 0f),   // Подъем 1 (высота 1.2м)
+                    new Vector3(13.0f, 2.95f, 0f),  // Центральная терраса (высота 2.4м)
+                    new Vector3(18.0f, 1.75f, 0f),  // Спуск 1 (высота 1.2м)
+                    new Vector3(3.0f, 0.55f, 0f)    // Входной пол (высота 0.0м)
+                });
 
                 // Секция 1: Входной пол (X: 0..6, верх Y=0)
                 CreatePlatform(root.transform, "Ground_Entry", new Vector3(3.0f, -1.5f, 0f), new Vector2(6.0f, 3.0f), groundBaseColor, squareSprite, spriteMat, true, 4);
@@ -142,7 +154,13 @@ namespace LevelGeneration.Editor
             // =========================================================================
             {
                 var root = new GameObject("Chunk_Variant_C_SplitPath");
-                SetupSockets(root, new Vector3(0f, 0f, 0f), new Vector3(28f, 0f, 0f));
+                SetupSockets(root, new Vector3(0f, 0f, 0f), new Vector3(28f, 0f, 0f), null, new Vector3[]
+                {
+                    new Vector3(6.5f, 3.35f, 0f),   // Верхняя эстакада 1 (высота 2.8м)
+                    new Vector3(14.0f, 4.35f, 0f),  // Верхняя эстакада 2 (высота 3.8м)
+                    new Vector3(21.5f, 3.35f, 0f),  // Верхняя эстакада 3 (высота 2.8м)
+                    new Vector3(14.0f, 0.55f, 0f)   // Нижняя скоростная полоса (высота 0.0м)
+                });
 
                 CreatePlatform(root.transform, "Ground_Base", new Vector3(14.0f, -1.5f, 0f), new Vector2(28.0f, 3.0f), groundBaseColor, squareSprite, spriteMat, true, 4);
                 CreatePlatform(root.transform, "Ground_Glow_Top", new Vector3(14.0f, -0.06f, 0f), new Vector2(28.0f, 0.12f), groundGlowColor, squareSprite, spriteMat, false, 6);
@@ -222,7 +240,7 @@ namespace LevelGeneration.Editor
             return go;
         }
 
-        private static void SetupSockets(GameObject root, Vector3 entryPos, Vector3 exitPos, Vector3? spawnPos = null)
+        private static void SetupSockets(GameObject root, Vector3 entryPos, Vector3 exitPos, Vector3? spawnPos = null, Vector3[] enemySpawnPositions = null)
         {
             var chunkComp = root.AddComponent<LevelChunk>();
 
@@ -250,6 +268,21 @@ namespace LevelGeneration.Editor
             {
                 so.FindProperty("playerSpawnPoint").objectReferenceValue = spawnTform;
             }
+
+            if (enemySpawnPositions != null && enemySpawnPositions.Length > 0)
+            {
+                var prop = so.FindProperty("enemySpawnPoints");
+                prop.ClearArray();
+                for (int i = 0; i < enemySpawnPositions.Length; i++)
+                {
+                    var enemyPointObj = new GameObject($"EnemySpawnPoint_{i + 1}");
+                    enemyPointObj.transform.SetParent(root.transform, false);
+                    enemyPointObj.transform.localPosition = enemySpawnPositions[i];
+                    prop.InsertArrayElementAtIndex(i);
+                    prop.GetArrayElementAtIndex(i).objectReferenceValue = enemyPointObj.transform;
+                }
+            }
+
             so.ApplyModifiedProperties();
         }
 

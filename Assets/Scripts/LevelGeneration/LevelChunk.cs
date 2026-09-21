@@ -22,9 +22,14 @@ namespace LevelGeneration
         [Tooltip("Точка появления игрока (актуально для стартового чанка)")]
         [SerializeField] private Transform playerSpawnPoint;
 
+        [Header("--- Точки спавна врагов (Enemy Spawn Points) ---")]
+        [Tooltip("Фиксированные точки на платформах комнаты, где могут появляться враги")]
+        [SerializeField] private System.Collections.Generic.List<Transform> enemySpawnPoints = new System.Collections.Generic.List<Transform>();
+
         public Transform EntryPoint => entryPoint != null ? entryPoint : transform;
         public Transform ExitPoint => exitPoint != null ? exitPoint : transform;
         public Transform PlayerSpawnPoint => playerSpawnPoint != null ? playerSpawnPoint : null;
+        public System.Collections.Generic.IReadOnlyList<Transform> EnemySpawnPoints => enemySpawnPoints;
 
         /// <summary>
         /// Длина чанка между точками входа и выхода
@@ -131,6 +136,33 @@ namespace LevelGeneration
             }
         }
 
+        /// <summary>
+        /// Добавляет точку спавна врага на заданной локальной позиции
+        /// </summary>
+        [ContextMenu("Добавить точку спавна врага (Add Enemy Spawn Point)")]
+        public Transform AddEnemySpawnPoint(Vector3? localPos = null)
+        {
+            Vector3 pos = localPos ?? new Vector3(Length * 0.5f, 0.55f, 0f);
+            int nextIndex = enemySpawnPoints.Count + 1;
+            var go = new GameObject($"EnemySpawnPoint_{nextIndex}");
+            go.transform.SetParent(transform, false);
+            go.transform.localPosition = pos;
+            enemySpawnPoints.Add(go.transform);
+            return go.transform;
+        }
+
+        public void ClearEnemySpawnPoints()
+        {
+            for (int i = enemySpawnPoints.Count - 1; i >= 0; i--)
+            {
+                if (enemySpawnPoints[i] != null)
+                {
+                    DestroyImmediate(enemySpawnPoints[i].gameObject);
+                }
+            }
+            enemySpawnPoints.Clear();
+        }
+
         private void OnDrawGizmos()
         {
             // Визуализация сокетов в окне редактора Unity
@@ -156,6 +188,21 @@ namespace LevelGeneration
             {
                 Gizmos.color = Color.cyan;
                 Gizmos.DrawWireCube(playerSpawnPoint.position + Vector3.up * 0.75f, new Vector3(0.8f, 1.5f, 0.1f));
+            }
+
+            // Багровые маркеры для точек спавна врагов
+            if (enemySpawnPoints != null)
+            {
+                Gizmos.color = new Color(1.0f, 0.25f, 0.25f, 0.9f);
+                for (int i = 0; i < enemySpawnPoints.Count; i++)
+                {
+                    var sp = enemySpawnPoints[i];
+                    if (sp != null)
+                    {
+                        Gizmos.DrawWireSphere(sp.position, 0.35f);
+                        Gizmos.DrawWireCube(sp.position + Vector3.up * 0.5f, new Vector3(0.8f, 1.0f, 0.1f));
+                    }
+                }
             }
         }
     }

@@ -861,6 +861,29 @@ namespace Combat
             Debug.Log($"<color=#E033FF>[HARPOON PULL]</color> Враг притянут к игроку!");
         }
 
+        /// <summary>
+        /// Применяет процедурное масштабирование сложности (от кругов кристалла).
+        /// Увеличивает максимальную выносливость и ускоряет фазу замаха (телеграфа).
+        /// </summary>
+        public void ApplyDifficultyScaling(float staminaMultiplier, float telegraphSpeedMultiplier)
+        {
+            if (staminaMultiplier > 0.01f)
+            {
+                maxStamina = Mathf.Round(maxStamina * staminaMultiplier);
+                currentStamina = maxStamina;
+                if (staminaBar != null)
+                {
+                    staminaBar.Initialize(maxStamina);
+                }
+            }
+
+            if (telegraphSpeedMultiplier > 0.01f)
+            {
+                // Замах ускоряется (длительность делится на множитель скорости, но не меньше 0.35с)
+                telegraphDuration = Mathf.Max(0.35f, telegraphDuration / telegraphSpeedMultiplier);
+            }
+        }
+
         public void Die(Vector2 knockbackDirection, bool wasCounter = false)
         {
             if (CurrentState == EnemyState.Dead) return;

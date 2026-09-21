@@ -58,12 +58,46 @@ namespace LevelGeneration
         [Tooltip("Объекты старой статичной арены (Land, Walls, Platforms), которые отключаются при спавне чанков")]
         [SerializeField] private List<GameObject> staticObjectsToDisable = new List<GameObject>();
 
+        [Header("--- Прогрессия сложности и циклы (Cycles) ---")]
+        [Tooltip("Текущий круг/цикл забега (начинается с 1)")]
+        [SerializeField] private int currentCycle = 1;
+        public int CurrentCycle => currentCycle;
+
+        [Tooltip("Базовое количество врагов на 1-м круге")]
+        [SerializeField] private int baseEnemyCount = 1;
+
+        [Tooltip("Сколько врагов добавляется за каждый новый круг")]
+        [SerializeField] private int enemiesPerCycle = 1;
+
+        [Tooltip("Максимальное количество врагов на уровне")]
+        [SerializeField] private int maxEnemies = 6;
+
+        [Header("--- Настройки усиления врагов и стиля ---")]
+        [Tooltip("Прирост выносливости врагов за каждый круг (+15% по умолчанию)")]
+        [SerializeField] private float staminaGrowthPerCycle = 0.15f;
+
+        [Tooltip("Прирост скорости замаха врагов за каждый круг (+10% быстрее по умолчанию)")]
+        [SerializeField] private float telegraphSpeedGrowthPerCycle = 0.10f;
+
+        [Tooltip("Прирост множителя стиля за каждый круг (+25% к очкам стиля)")]
+        [SerializeField] private float styleGrowthPerCycle = 0.25f;
+
+        [Header("--- Префаб врага и контейнер ---")]
+        [Tooltip("Префаб врага для спавна на точках EnemySpawnPoints")]
+        [SerializeField] private GameObject enemyPrefab;
+
+        [SerializeField] private Transform enemiesContainer;
+
         [Header("--- События ---")]
         public UnityEvent<List<LevelChunk>> onLevelGenerated;
 
         // Список активных заспавненных чанков текущего уровня
         private readonly List<LevelChunk> _spawnedChunks = new List<LevelChunk>();
         public IReadOnlyList<LevelChunk> SpawnedChunks => _spawnedChunks;
+
+        // Список заспавненных врагов текущего цикла
+        private readonly List<GameObject> _spawnedEnemies = new List<GameObject>();
+        public IReadOnlyList<GameObject> SpawnedEnemies => _spawnedEnemies;
 
         public static LevelSequenceGenerator Instance { get; private set; }
 
@@ -185,6 +219,13 @@ namespace LevelGeneration
                 RepositionPlayerTo(firstSpawnPoint.position);
             }
 
+            Physics2D.SyncTransforms();
+
+            // Процедурный спавн врагов по нарастающей сложности на платформах
+            SpawnEnemiesForCurrentCycle(_spawnedChunks);
+
+            Physics2D.SyncTransforms();
+
             Debug.Log($"<color=#00FFAA><b>[LevelGen]</b></color> Уровень успешно сгенерирован! Секций: {_spawnedChunks.Count}. Конечная точка X={currentExitSocket.x:F1}, Y={currentExitSocket.y:F2}");
             onLevelGenerated?.Invoke(_spawnedChunks);
         }
@@ -236,11 +277,141 @@ namespace LevelGeneration
         }
 
         /// <summary>
+        /// Переход на следующий цикл сложности после касания Кристалла Победы
+        /// </summary>
+        [ContextMenu("Следующий круг сложности (Advance Cycle)")]
+        public void AdvanceCycleAndRegenerate()
+        {
+            currentCycle++;
+            Debug.Log($"<color=#FF5555><b>[LevelGen]</b></color> Переход на <b>Круг {currentCycle}</b>! Сложность и стиль повышены.");
+            GenerateLevel();
+        }
+
+        private void SpawnEnemiesForCurrentCycle(List<LevelChunk> spawnedChunks)
+        {
+            ClearEnemies();
+
+            // Если префаб врага не задан в инспекторе, пытаемся загрузить стандартный префаб
+            if (enemyPrefab == null)
+            {
+#if UNITY_EDITOR
+                enemyPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Enemies/Enemy_Fighter.prefab");
+#endif
+            }
+            if (enemyPrefab == null)
+            {
+                Debug.LogWarning("[LevelGen] Не задан enemyPrefab для спавна врагов!");
+                return;
+            }
+
+            if (enemiesContainer == null)
+            {
+                var go = new GameObject("[Spawned_Enemies]");
+                go.transform.SetParent(transform);
+                enemiesContainer = go.transform;
+            }
+
+            // Отключаем старого статичного врага со сцены, если он есть
+            var staticEnemy = GameObject.Find("Enemy_Fighter");
+            if (staticEnemy != null && staticEnemy.transform.parent != enemiesContainer)
+            {
+                staticEnemy.SetActive(false);
+            }
+
+            // Собираем все точки EnemySpawnPoints только из комнат (исключая старт и финал)
+            var candidatePoints = new List<Transform>();
+            for (int i = 0; i < spawnedChunks.Count; i++)
+            {
+                if (i == 0 || i == spawnedChunks.Count - 1) continue;
+                var chunk = spawnedChunks[i];
+                if (chunk == null) continue;
+
+                var points = chunk.EnemySpawnPoints;
+                if (points != null)
+                {
+                    for (int p = 0; p < points.Count; p++)
+                    {
+                        if (points[p] != null) candidatePoints.Add(points[p]);
+                    }
+                }
+            }
+
+            if (candidatePoints.Count == 0)
+            {
+                Debug.LogWarning("[LevelGen] В сгенерированных комнатах нет точек EnemySpawnPoints!");
+                return;
+            }
+
+            // Перемешиваем точки (Фишер-Йетс)
+            for (int i = 0; i < candidatePoints.Count; i++)
+            {
+                int rnd = UnityEngine.Random.Range(i, candidatePoints.Count);
+                var temp = candidatePoints[i];
+                candidatePoints[i] = candidatePoints[rnd];
+                candidatePoints[rnd] = temp;
+            }
+
+            // Расчет количества врагов для текущего круга
+            int targetEnemyCount = Mathf.Clamp(baseEnemyCount + (currentCycle - 1) * enemiesPerCycle, 1, maxEnemies);
+            int spawnCount = Mathf.Min(targetEnemyCount, candidatePoints.Count);
+
+            // Множители сложности
+            float staminaMult = 1.0f + (currentCycle - 1) * staminaGrowthPerCycle;
+            float speedMult = 1.0f + (currentCycle - 1) * telegraphSpeedGrowthPerCycle;
+            float styleMult = 1.0f + (currentCycle - 1) * styleGrowthPerCycle;
+
+            for (int i = 0; i < spawnCount; i++)
+            {
+                var spawnTform = candidatePoints[i];
+                var enemyObj = Instantiate(enemyPrefab, spawnTform.position, Quaternion.identity, enemiesContainer);
+                enemyObj.name = $"Enemy_Fighter_Cycle{currentCycle}_{i + 1}";
+
+                var enemyAI = enemyObj.GetComponent<Combat.EnemyAIController2D>();
+                if (enemyAI != null)
+                {
+                    enemyAI.ApplyDifficultyScaling(staminaMult, speedMult);
+                }
+
+                _spawnedEnemies.Add(enemyObj);
+            }
+
+            // Передаем множитель стиля
+            if (Combat.Style.StyleManager.Instance != null)
+            {
+                Combat.Style.StyleManager.Instance.SetCycleMultiplier(styleMult);
+            }
+
+            Debug.Log($"<color=#FF5555><b>[SPAWN]</b></color> <b>Круг {currentCycle}</b>: Заспавнено {spawnCount} врагов на платформах! (Выносливость: x{staminaMult:F2}, Скорость замаха: x{speedMult:F2}, Стиль: x{styleMult:F2})");
+        }
+
+        private void ClearEnemies()
+        {
+            _spawnedEnemies.Clear();
+
+            if (enemiesContainer != null)
+            {
+                for (int i = enemiesContainer.childCount - 1; i >= 0; i--)
+                {
+                    var child = enemiesContainer.GetChild(i);
+                    if (Application.isPlaying)
+                    {
+                        Destroy(child.gameObject);
+                    }
+                    else
+                    {
+                        DestroyImmediate(child.gameObject);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
         /// Удаляет ранее сгенерированные чанки
         /// </summary>
         [ContextMenu("Очистить уровень (Clear Old Chunks)")]
         public void ClearOldChunks()
         {
+            ClearEnemies();
             _spawnedChunks.Clear();
 
             // Восстанавливаем видимость статичных объектов сцены
