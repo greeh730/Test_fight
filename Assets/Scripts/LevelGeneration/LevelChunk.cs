@@ -42,6 +42,95 @@ namespace LevelGeneration
             transform.position += offset;
         }
 
+        private void Reset()
+        {
+            // Автоматически создаем и настраиваем сокеты при добавлении компонента
+            if (entryPoint == null || exitPoint == null)
+            {
+                CreateDefaultSockets();
+            }
+        }
+
+        /// <summary>
+        /// Автоматически создает сокеты входа и выхода в 1 клик
+        /// </summary>
+        [ContextMenu("Создать сокеты (Create Default Sockets)")]
+        public void CreateDefaultSockets(float defaultLength = 20f)
+        {
+            if (entryPoint == null)
+            {
+                var existingEntry = transform.Find("Socket_Entry");
+                if (existingEntry == null)
+                {
+                    var go = new GameObject("Socket_Entry");
+                    go.transform.SetParent(transform, false);
+                    go.transform.localPosition = Vector3.zero;
+                    entryPoint = go.transform;
+                }
+                else
+                {
+                    entryPoint = existingEntry;
+                }
+            }
+
+            if (exitPoint == null)
+            {
+                var existingExit = transform.Find("Socket_Exit");
+                if (existingExit == null)
+                {
+                    var go = new GameObject("Socket_Exit");
+                    go.transform.SetParent(transform, false);
+                    go.transform.localPosition = new Vector3(defaultLength, 0f, 0f);
+                    exitPoint = go.transform;
+                }
+                else
+                {
+                    exitPoint = existingExit;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Добавляет точку спавна игрока внутри чанка
+        /// </summary>
+        [ContextMenu("Добавить точку спавна игрока (Add Player Spawn Point)")]
+        public void AddPlayerSpawnPoint()
+        {
+            if (playerSpawnPoint == null)
+            {
+                var existingSpawn = transform.Find("PlayerSpawnPoint");
+                if (existingSpawn == null)
+                {
+                    var go = new GameObject("PlayerSpawnPoint");
+                    go.transform.SetParent(transform, false);
+                    go.transform.localPosition = new Vector3(3.5f, 0.55f, 0f);
+                    playerSpawnPoint = go.transform;
+                }
+                else
+                {
+                    playerSpawnPoint = existingSpawn;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Гарантирует, что оба сокета находятся строго на высоте Y = 0
+        /// </summary>
+        [ContextMenu("Выровнять сокеты по Y=0 (Align Sockets to Y=0)")]
+        public void AlignSocketsToZero()
+        {
+            if (entryPoint != null)
+            {
+                var p = entryPoint.localPosition;
+                entryPoint.localPosition = new Vector3(p.x, 0f, p.z);
+            }
+            if (exitPoint != null)
+            {
+                var p = exitPoint.localPosition;
+                exitPoint.localPosition = new Vector3(p.x, 0f, p.z);
+            }
+        }
+
         private void OnDrawGizmos()
         {
             // Визуализация сокетов в окне редактора Unity
