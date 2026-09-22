@@ -3091,7 +3091,8 @@ MonoBehaviour:
   effectiveGravity: 34.34
   maxJumpForce: 15.5
   botRunSpeed: 3.8
-  jumpHeightClearance: 0.65
+  jumpHeightClearance: 0.85
+  landingEdgeInset: 1.1
   showFullGraphInScene: 1
 --- !u!4 &928127886
 Transform:

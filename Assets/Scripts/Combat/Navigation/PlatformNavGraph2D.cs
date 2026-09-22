@@ -112,10 +112,10 @@ namespace Combat.Navigation
         [SerializeField] private float botRunSpeed = 3.8f;
 
         [Tooltip("Запас высоты над посадочной платформой при расчете дуги прыжка (clearing margin)")]
-        [SerializeField] private float jumpHeightClearance = 0.65f;
+        [SerializeField] private float jumpHeightClearance = 0.85f;
 
         [Tooltip("Отступ точки приземления внутрь платформы от края")]
-        [SerializeField] private float landingEdgeInset = 0.85f;
+        [SerializeField] private float landingEdgeInset = 1.10f;
 
         [Header("--- Scene View Gizmos ---")]
         [Tooltip("Показывать ли всю структуру графа навигации в Scene View (зеленые платформы и желтые связи)")]
@@ -220,27 +220,37 @@ namespace Combat.Navigation
                         // А. segB находится справа от segA
                         if (segB.XMin >= segA.XMax - 0.5f)
                         {
-                            Vector2 takeoff = segA.RightLedge;
-                            float landX = Mathf.Clamp(segB.XMin + landingEdgeInset, segB.XMin + 0.35f, segB.XMax - 0.35f);
+                            float setback = Mathf.Clamp(1.25f + (dy * 0.25f), 1.25f, 2.2f);
+                            float takeoffX = dy > 0.35f
+                                ? Mathf.Clamp(segB.XMin - setback, segA.XMin + 0.35f, segA.RightLedge.x)
+                                : segA.RightLedge.x;
+                            float landX = Mathf.Clamp(segB.XMin + landingEdgeInset, segB.XMin + 0.50f, segB.XMax - 0.35f);
+                            Vector2 takeoff = new Vector2(takeoffX, segA.YTop);
                             Vector2 landing = new Vector2(landX, segB.YTop);
                             TryCreateJumpLink(segA, segB, takeoff, landing);
                         }
                         // Б. segB находится слева от segA
                         else if (segB.XMax <= segA.XMin + 0.5f)
                         {
-                            Vector2 takeoff = segA.LeftLedge;
-                            float landX = Mathf.Clamp(segB.XMax - landingEdgeInset, segB.XMin + 0.35f, segB.XMax - 0.35f);
+                            float setback = Mathf.Clamp(1.25f + (dy * 0.25f), 1.25f, 2.2f);
+                            float takeoffX = dy > 0.35f
+                                ? Mathf.Clamp(segB.XMax + setback, segA.LeftLedge.x, segA.XMax - 0.35f)
+                                : segA.LeftLedge.x;
+                            float landX = Mathf.Clamp(segB.XMax - landingEdgeInset, segB.XMin + 0.35f, segB.XMax - 0.50f);
+                            Vector2 takeoff = new Vector2(takeoffX, segA.YTop);
                             Vector2 landing = new Vector2(landX, segB.YTop);
                             TryCreateJumpLink(segA, segB, takeoff, landing);
                         }
                         // В. segA и segB перекрываются по горизонтали (segB выше segA)
                         else if (dy > 0.35f)
                         {
+                            float setback = Mathf.Clamp(1.25f + (dy * 0.25f), 1.35f, 2.2f);
+
                             // Прыжок с левого открытого края segA в обход левого края segB
                             if (segA.XMin <= segB.XMin - 0.35f)
                             {
-                                float takeoffX = Mathf.Clamp(segB.XMin - 1.15f, segA.XMin + 0.25f, segB.XMin - 0.40f);
-                                float landX = Mathf.Clamp(segB.XMin + landingEdgeInset, segB.XMin + 0.35f, segB.XMax - 0.35f);
+                                float takeoffX = Mathf.Clamp(segB.XMin - setback, segA.XMin + 0.25f, segB.XMin - 0.50f);
+                                float landX = Mathf.Clamp(segB.XMin + landingEdgeInset, segB.XMin + 0.50f, segB.XMax - 0.35f);
                                 Vector2 takeoff = new Vector2(takeoffX, segA.YTop);
                                 Vector2 landing = new Vector2(landX, segB.YTop);
                                 TryCreateJumpLink(segA, segB, takeoff, landing);
@@ -249,8 +259,8 @@ namespace Combat.Navigation
                             // Прыжок с правого открытого края segA в обход правого края segB
                             if (segA.XMax >= segB.XMax + 0.35f)
                             {
-                                float takeoffX = Mathf.Clamp(segB.XMax + 1.15f, segB.XMax + 0.40f, segA.XMax - 0.25f);
-                                float landX = Mathf.Clamp(segB.XMax - landingEdgeInset, segB.XMin + 0.35f, segB.XMax - 0.35f);
+                                float takeoffX = Mathf.Clamp(segB.XMax + setback, segB.XMax + 0.50f, segA.XMax - 0.25f);
+                                float landX = Mathf.Clamp(segB.XMax - landingEdgeInset, segB.XMin + 0.35f, segB.XMax - 0.50f);
                                 Vector2 takeoff = new Vector2(takeoffX, segA.YTop);
                                 Vector2 landing = new Vector2(landX, segB.YTop);
                                 TryCreateJumpLink(segA, segB, takeoff, landing);
@@ -354,8 +364,9 @@ namespace Combat.Navigation
 
         private bool IsJumpTrajectoryClear(Vector2 takeoffPivot, Vector2 landingPivot, float vy, float vx, float totalTime, Collider2D fromCol, Collider2D toCol)
         {
-            int steps = 14;
-            float botRadius = 0.30f;
+            int steps = 16;
+            float botRadius = 0.425f; // Половина ширины BoxCollider2D бота (0.85м / 2)
+            float botHalfHeight = 0.49f; // Половина высоты коллайдера бота (0.98м / 2)
             var toBounds = toCol != null ? toCol.bounds : default;
 
             for (int i = 1; i < steps; i++)
@@ -374,20 +385,15 @@ namespace Combat.Navigation
                     // Проверка коллизии с целевой платформой
                     if (hit == toCol)
                     {
-                        // Если бот находится внутри горизонтальных границ платформы (под ней):
-                        // он должен быть выше верхней поверхности (py >= toBounds.max.y - 0.10f).
-                        // Если же его центр ниже верхней кромки — это удар головой в потолок снизу или врезание в стену!
-                        if (px >= toBounds.min.x && px <= toBounds.max.x)
+                        // Если бот касается целевой платформы:
+                        // Его ноги (нижняя грань коллайдера) ОБЯЗАНЫ быть не ниже верхней поверхности платформы!
+                        // Иначе бот врезается в боковую грань или потолок платформы на подъеме.
+                        float feetY = py - botHalfHeight;
+                        if (feetY < toBounds.max.y - 0.08f)
                         {
-                            if (py < toBounds.max.y - 0.10f)
-                            {
-                                return false; // Удар в потолок платформы снизу!
-                            }
-                            continue; // Находится над поверхностью платформы перед приземлением
+                            return false; // Врезался в боковую грань или потолок!
                         }
-
-                        // Если бот снаружи платформы (сбоку), он просто пролетает мимо боковой кромки наверх
-                        continue;
+                        continue; // Ноги выше платформы -> безопасное приземление сверху
                     }
 
                     // Любое другое препятствие (потолок платформы снизу, стена, другая платформа)

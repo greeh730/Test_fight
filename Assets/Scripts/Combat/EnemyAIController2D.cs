@@ -261,6 +261,16 @@ namespace Combat
             _spawnPosition = transform.position;
             _spawnRotation = transform.rotation;
 
+            // Назначаем физический материал без трения, чтобы бот не застревал и не лип к углам платформ
+            if (_col != null && _col.sharedMaterial == null)
+            {
+                _col.sharedMaterial = new PhysicsMaterial2D("EnemyMaterial_ZeroFriction")
+                {
+                    friction = 0f,
+                    bounciness = 0f
+                };
+            }
+
             if (_sr != null) _sr.color = normalColor;
             currentHealth = maxHealth;
             currentStamina = maxStamina;
