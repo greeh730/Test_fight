@@ -73,8 +73,11 @@ namespace LevelGeneration
         [SerializeField] private int maxEnemies = 6;
 
         [Header("--- Настройки усиления врагов и стиля ---")]
-        [Tooltip("Прирост выносливости врагов за каждый круг (+15% по умолчанию)")]
-        [SerializeField] private float staminaGrowthPerCycle = 0.15f;
+        [Tooltip("Прирост здоровья врагов за каждый круг (+40% по умолчанию)")]
+        [SerializeField] private float healthGrowthPerCycle = 0.40f;
+
+        [Tooltip("Прирост выносливости врагов за каждый круг (+10% по умолчанию)")]
+        [SerializeField] private float staminaGrowthPerCycle = 0.10f;
 
         [Tooltip("Прирост скорости замаха врагов за каждый круг (+10% быстрее по умолчанию)")]
         [SerializeField] private float telegraphSpeedGrowthPerCycle = 0.10f;
@@ -356,6 +359,7 @@ namespace LevelGeneration
             int spawnCount = Mathf.Min(targetEnemyCount, candidatePoints.Count);
 
             // Множители сложности
+            float healthMult = 1.0f + (currentCycle - 1) * healthGrowthPerCycle;
             float staminaMult = 1.0f + (currentCycle - 1) * staminaGrowthPerCycle;
             float speedMult = 1.0f + (currentCycle - 1) * telegraphSpeedGrowthPerCycle;
             float styleMult = 1.0f + (currentCycle - 1) * styleGrowthPerCycle;
@@ -369,7 +373,7 @@ namespace LevelGeneration
                 var enemyAI = enemyObj.GetComponent<Combat.EnemyAIController2D>();
                 if (enemyAI != null)
                 {
-                    enemyAI.ApplyDifficultyScaling(staminaMult, speedMult);
+                    enemyAI.ApplyDifficultyScaling(healthMult, staminaMult, speedMult);
                 }
 
                 _spawnedEnemies.Add(enemyObj);
@@ -381,7 +385,7 @@ namespace LevelGeneration
                 Combat.Style.StyleManager.Instance.SetCycleMultiplier(styleMult);
             }
 
-            Debug.Log($"<color=#FF5555><b>[SPAWN]</b></color> <b>Круг {currentCycle}</b>: Заспавнено {spawnCount} врагов на платформах! (Выносливость: x{staminaMult:F2}, Скорость замаха: x{speedMult:F2}, Стиль: x{styleMult:F2})");
+            Debug.Log($"<color=#FF5555><b>[SPAWN]</b></color> <b>Круг {currentCycle}</b>: Заспавнено {spawnCount} врагов на платформах! (HP: x{healthMult:F2}, Выносливость: x{staminaMult:F2}, Скорость замаха: x{speedMult:F2}, Стиль: x{styleMult:F2})");
         }
 
         private void ClearEnemies()

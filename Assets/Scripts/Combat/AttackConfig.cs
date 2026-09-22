@@ -69,11 +69,21 @@ namespace Combat
         [Tooltip("Цвет отображения хитбокса в Scene View и Game View")]
         public Color hitboxColor = new Color(1f, 0.2f, 0.3f, 0.7f);
 
+        [Header("--- Особые свойства приема ---")]
+        [Tooltip("Подбрасывает ли прием противника вверх при истощенной выносливости (Launcher)")]
+        public bool isLauncher = false;
+
+        [Tooltip("Является ли удар заспамленным (штраф за повторение одного и того же приема подряд)")]
+        public bool isStale = false;
+
+        [Tooltip("Сила импульса выпада вперед при проведении атаки")]
+        public float lungeForce = 4.0f;
+
         [NonSerialized] public GameObject attacker;
 
         public AttackConfig() { }
 
-        public AttackConfig(string name, CombatZone zones, Vector2 offset, Vector2 size, float startup, float active, float recovery, float dmg, Vector2 kb, Color col)
+        public AttackConfig(string name, CombatZone zones, Vector2 offset, Vector2 size, float startup, float active, float recovery, float dmg, Vector2 kb, Color col, bool launcher = false, bool stale = false, float lunge = 4f)
         {
             attackName = name;
             targetedZones = zones;
@@ -85,6 +95,31 @@ namespace Combat
             damage = dmg;
             knockbackForce = kb;
             hitboxColor = col;
+            isLauncher = launcher;
+            isStale = stale;
+            lungeForce = lunge;
+        }
+
+        public AttackConfig CloneWithModifiers(string nameSuffix, float dmgMult, float kbMult, Vector2 size, Color col, bool launcher, bool stale)
+        {
+            return new AttackConfig(
+                attackName + nameSuffix,
+                targetedZones,
+                hitboxOffset,
+                size,
+                startupTime,
+                activeTime,
+                recoveryTime,
+                damage * dmgMult,
+                knockbackForce * kbMult,
+                col,
+                launcher,
+                stale,
+                lungeForce
+            )
+            {
+                attacker = this.attacker
+            };
         }
     }
 }

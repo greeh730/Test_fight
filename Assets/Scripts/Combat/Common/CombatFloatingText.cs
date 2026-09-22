@@ -63,6 +63,16 @@ namespace Combat.Common
             Spawn(pos, "[АНТИ-ЭЙР КРИТ!]", color, 1.0f, 1.0f, 0.082f, 42, 72);
         }
 
+        public static void ShowAdaptation(Vector3 pos)
+        {
+            Spawn(pos + new Vector3(0f, 1.3f, 0f), "АДАПТАЦИЯ! ⚡\n(+75% СТАМИНА)", new Color(0.35f, 0.9f, 1f, 1f), 1.25f, 1.2f, 0.082f, 40, 75);
+        }
+
+        public static void ShowLauncher(Vector3 pos)
+        {
+            Spawn(pos + new Vector3(0f, 1.4f, 0f), "В ВОЗДУХ! ⚡", new Color(0.95f, 0.3f, 0.95f, 1f), 1.2f, 1.3f, 0.088f, 44, 76);
+        }
+
         private class FloatingTextRunner : MonoBehaviour
         {
             private TextMesh _tm;

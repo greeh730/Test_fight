@@ -88,8 +88,8 @@ namespace Combat
         [Tooltip("Максимальное количество ударов в одной цепочке комбо")]
         [SerializeField] private int maxComboSteps = 3;
 
-        [Tooltip("Время бездействия (в секундах), после которого комбо сбрасывается")]
-        [SerializeField] private float comboResetTime = 1.2f;
+        [Tooltip("Время бездействия (в секундах), после которого комбо сбрасывается (> 10 сек)")]
+        [SerializeField] private float comboResetTime = 10.5f;
 
         [Tooltip("Множитель времени замаха со 2-го шага комбо (меньше 1 = быстрее)")]
         [Range(0.3f, 1f)]
@@ -152,6 +152,7 @@ namespace Combat
 
         [Header("--- Input & Wheel Binding ---")]
         [SerializeField] private VectorWheelController vectorWheel;
+        [SerializeField] private DirectionSequenceRecognizer sequenceRecognizer;
         [Tooltip("Режим интерпретации направлений колеса")]
         [SerializeField] private WheelControlMode wheelControlMode = WheelControlMode.ScreenAbsolute;
 
@@ -196,6 +197,8 @@ namespace Combat
         private readonly List<Collider2D> _overlapResults = new List<Collider2D>(16);
         private ContactFilter2D _contactFilter;
 
+        private ComboSequenceDefinition _bufferedSequence;
+        private bool _bufferedIsStale;
         private AttackIntent? _bufferedIntent;
         private float _bufferedAttackTime = -10f;
         private float _lastAttackStartTime = -10f;
@@ -235,6 +238,15 @@ namespace Combat
                 vectorWheel = FindAnyObjectByType<VectorWheelController>();
             }
 
+            if (sequenceRecognizer == null && vectorWheel != null)
+            {
+                sequenceRecognizer = vectorWheel.SequenceRecognizer;
+            }
+            if (sequenceRecognizer == null)
+            {
+                sequenceRecognizer = FindAnyObjectByType<DirectionSequenceRecognizer>();
+            }
+
             if (faceTransform == null)
             {
                 faceTransform = transform.Find("Face");
@@ -254,6 +266,12 @@ namespace Combat
 
         private void Start()
         {
+            if (sequenceRecognizer == null)
+            {
+                if (vectorWheel != null) sequenceRecognizer = vectorWheel.SequenceRecognizer;
+                if (sequenceRecognizer == null) sequenceRecognizer = FindAnyObjectByType<DirectionSequenceRecognizer>();
+            }
+
             if (vectorWheel != null)
             {
                 vectorWheel.SetStance(currentStance);
@@ -262,9 +280,16 @@ namespace Combat
 
         private void OnEnable()
         {
-            if (vectorWheel != null)
+            if (sequenceRecognizer == null)
             {
-                vectorWheel.onSwipeCompleted.AddListener(OnWheelSwipeCompleted);
+                if (vectorWheel != null) sequenceRecognizer = vectorWheel.SequenceRecognizer;
+                if (sequenceRecognizer == null) sequenceRecognizer = FindAnyObjectByType<DirectionSequenceRecognizer>();
+            }
+
+            if (sequenceRecognizer != null)
+            {
+                sequenceRecognizer.OnSequenceMatched -= OnSequenceMatched;
+                sequenceRecognizer.OnSequenceMatched += OnSequenceMatched;
             }
         }
 
@@ -282,9 +307,9 @@ namespace Combat
         private void OnDisable()
         {
             CancelAttack();
-            if (vectorWheel != null)
+            if (sequenceRecognizer != null)
             {
-                vectorWheel.onSwipeCompleted.RemoveListener(OnWheelSwipeCompleted);
+                sequenceRecognizer.OnSequenceMatched -= OnSequenceMatched;
             }
             Time.timeScale = 1f;
         }
@@ -298,7 +323,6 @@ namespace Combat
 
             CheckStanceToggle();
             UpdateFacingDirection();
-            UpdateChargeCrawl();
             UpdateComboTimers();
             CheckInputBuffer();
         }
@@ -468,8 +492,24 @@ namespace Combat
             }
         }
 
+        private float _hitstunTimer = 0f;
+        public bool IsHitstunned => _hitstunTimer > 0f;
+
+        public void ApplyHitstun(float duration)
+        {
+            _hitstunTimer = Mathf.Max(_hitstunTimer, duration);
+            CancelAttack();
+            ClearBuffer();
+            ClearSequenceBuffer();
+        }
+
         private void UpdateComboTimers()
         {
+            if (_hitstunTimer > 0f)
+            {
+                _hitstunTimer -= Time.deltaTime;
+            }
+
             // Сброс комбо при долгом бездействии в Idle
             float idleTimeReference = _lastAttackFinishTime > 0f ? _lastAttackFinishTime : _lastAttackStartTime;
             if (CurrentComboStep > 1 && CurrentState == CombatState.Idle && Time.time - idleTimeReference > comboResetTime)
@@ -478,6 +518,10 @@ namespace Combat
             }
 
             // Устаревание буфера ввода
+            if (_bufferedSequence != null && Time.time - _bufferedAttackTime > inputBufferDuration)
+            {
+                ClearSequenceBuffer();
+            }
             if (_bufferedIntent.HasValue && Time.time - _bufferedAttackTime > inputBufferDuration)
             {
                 _bufferedIntent = null;
@@ -486,9 +530,16 @@ namespace Combat
 
         private void CheckInputBuffer()
         {
-            if (!_bufferedIntent.HasValue) return;
+            if (_bufferedSequence != null && CanExecuteAttackNow())
+            {
+                var seq = _bufferedSequence;
+                bool stale = _bufferedIsStale;
+                ClearSequenceBuffer();
+                ExecuteSequenceAttack(seq, stale);
+                return;
+            }
 
-            if (CanExecuteAttackNow())
+            if (_bufferedIntent.HasValue && CanExecuteAttackNow())
             {
                 var intent = _bufferedIntent.Value;
                 ClearBuffer();
@@ -498,6 +549,7 @@ namespace Combat
 
         public bool CanExecuteAttackNow()
         {
+            if (IsHitstunned) return false;
             if (_blockParry == null) _blockParry = GetComponent<PlayerBlockAndParry2D>();
             if (_blockParry != null && (_blockParry.IsBlocking || _blockParry.IsParrying || _blockParry.IsParryStaggered)) return false;
             if (CurrentState == CombatState.Idle) return true;
@@ -511,12 +563,64 @@ namespace Combat
             _bufferedAttackTime = -10f;
         }
 
+        private void ClearSequenceBuffer()
+        {
+            _bufferedSequence = null;
+            _bufferedIsStale = false;
+            _bufferedAttackTime = -10f;
+        }
+
         public void ResetCombo()
         {
             CurrentComboStep = 1;
             _lastWasFinisher = false;
             _lastComboIntent = null;
             onComboStepChanged?.Invoke(CurrentComboStep, false);
+            if (sequenceRecognizer != null)
+            {
+                sequenceRecognizer.ResetHistory();
+            }
+        }
+
+        private void OnSequenceMatched(ComboSequenceDefinition seq, bool isStale)
+        {
+            if (seq == null) return;
+
+            if (currentStance == CombatStance.Tactician)
+            {
+                if (_stamina != null)
+                {
+                    _stamina.ConsumeForAction($"Tactician_{seq.SequenceId}", 18f);
+                }
+                if (tacticianController != null && seq.RequiredDirections.Count > 0)
+                {
+                    tacticianController.ExecuteAbility(seq.RequiredDirections[seq.RequiredDirections.Count - 1]);
+                }
+                return;
+            }
+
+            // Проверка стамины игрока: при истощении связки продолжать нельзя!
+            if (_stamina != null && (_stamina.IsExhausted || _stamina.CurrentStamina <= 0f))
+            {
+                Debug.LogWarning($"<color=orange>[СТАМИНА НА НУЛЕ]</color> Недостаточно выносливости для проведения связки: <b>{seq.SequenceName}</b>!");
+                return;
+            }
+
+            TryExecuteSequenceOrBuffer(seq, isStale);
+        }
+
+        public bool TryExecuteSequenceOrBuffer(ComboSequenceDefinition seq, bool isStale)
+        {
+            if (CanExecuteAttackNow())
+            {
+                ClearSequenceBuffer();
+                return ExecuteSequenceAttack(seq, isStale);
+            }
+
+            _bufferedSequence = seq;
+            _bufferedIsStale = isStale;
+            _bufferedAttackTime = Time.time;
+            return false;
         }
 
         private void OnWheelSwipeCompleted(Direction8 dir, Vector2 vector, float distance)
@@ -844,6 +948,234 @@ namespace Combat
             CurrentState = CombatState.Idle;
             CurrentAttack = null;
             _attackRoutine = null;
+        }
+
+        public bool ExecuteSequenceAttack(ComboSequenceDefinition seq, bool isStale, bool isComboChain = false)
+        {
+            if (!CanExecuteAttackNow() || seq == null) return false;
+
+            if (_stamina != null)
+            {
+                _stamina.ConsumeForAction(seq.SequenceId, seq.StaminaCost);
+            }
+
+            // Направление удара
+            float strikeSign = FacingDirection;
+            if (seq.SequenceId == "strike_turnaround")
+            {
+                strikeSign = -FacingDirection;
+            }
+
+            if (Mathf.Abs(strikeSign) > 0.01f)
+            {
+                SetFacingDirection(strikeSign);
+            }
+
+            bool isChaining = isComboChain || (_attackRoutine != null) || (CurrentState != CombatState.Idle);
+
+            if (_attackRoutine != null)
+            {
+                StopCoroutine(_attackRoutine);
+                _attackRoutine = null;
+                if (visualizer != null) visualizer.HideHitbox();
+            }
+
+            if (isChaining)
+            {
+                CurrentComboStep = (CurrentComboStep >= maxComboSteps) ? 1 : CurrentComboStep + 1;
+            }
+            else
+            {
+                float idleTimeRef = _lastAttackFinishTime > 0f ? _lastAttackFinishTime : _lastAttackStartTime;
+                bool withinTime = (Time.time - idleTimeRef <= comboResetTime) && !_lastWasFinisher && (idleTimeRef > 0f);
+                CurrentComboStep = withinTime ? ((CurrentComboStep >= maxComboSteps) ? 1 : CurrentComboStep + 1) : 1;
+            }
+
+            _lastAttackStartTime = Time.time;
+            _attackRoutine = StartCoroutine(SequenceAttackRoutine(seq, isStale, strikeSign));
+            return true;
+        }
+
+        private IEnumerator SequenceAttackRoutine(ComboSequenceDefinition seq, bool isStale, float horizontalSign)
+        {
+            var baseAttack = seq.AttackData;
+            CurrentAttack = baseAttack;
+            _hitTargetsInCurrentSwing.Clear();
+            _hitReceiversInCurrentSwing.Clear();
+            _canCancelIntoCombo = false;
+            _hasHitTargetInCurrentAttack = false;
+
+            int thisAttackStep = CurrentComboStep;
+            bool isFinisher = thisAttackStep >= maxComboSteps;
+
+            if (vectorWheel != null)
+            {
+                vectorWheel.SetAttackPlaqueWithSequence(seq.SequenceName, seq.GlyphPattern, thisAttackStep, isStale);
+            }
+            onComboStepChanged?.Invoke(thisAttackStep, isFinisher);
+
+            float speedMult = _stamina != null ? _stamina.ActionSpeedMultiplier : 1.0f;
+
+            // 1. ФАЗА ЗАМАХА (STARTUP) — удары в комбо ускоряются
+            CurrentState = CombatState.Startup;
+            float startup = (thisAttackStep > 1 ? baseAttack.startupTime * comboStartupMultiplier : baseAttack.startupTime) / speedMult;
+            yield return new WaitForSeconds(startup);
+
+            // 2. АКТИВНАЯ ФАЗА (ACTIVE)
+            CurrentState = CombatState.Active;
+            float activeTimer = baseAttack.activeTime / speedMult;
+
+            // Выпад в направлении удара
+            ApplySequenceLunge(horizontalSign, seq.LungeForce);
+
+            float dmgMult = isFinisher ? finisherDamageMultiplier : (isStale ? 0.7f : 1.0f);
+            float kbMult = isFinisher ? finisherKnockbackMultiplier : 1.0f;
+            Vector2 boxSize = baseAttack.hitboxSize;
+            Color boxColor = isStale ? new Color(0.85f, 0.45f, 0.45f, 0.85f) : (isFinisher ? new Color(1f, 0.2f, 0.2f, 0.95f) : baseAttack.hitboxColor);
+
+            var effectiveAttack = new AttackConfig(
+                seq.SequenceName + (isStale ? " [ПРИВЫКАНИЕ]" : (isFinisher ? " [ФИНИШЕР!]" : "")),
+                baseAttack.targetedZones,
+                baseAttack.hitboxOffset,
+                boxSize,
+                baseAttack.startupTime,
+                baseAttack.activeTime,
+                baseAttack.recoveryTime,
+                baseAttack.damage * dmgMult,
+                baseAttack.knockbackForce * kbMult,
+                boxColor,
+                launcher: seq.IsLauncher,
+                stale: isStale,
+                lunge: seq.LungeForce
+            )
+            {
+                attacker = gameObject
+            };
+
+            while (activeTimer > 0f)
+            {
+                Vector2 boxCenter = GetHitboxCenter(effectiveAttack, horizontalSign);
+
+                if (visualizer != null)
+                {
+                    visualizer.ShowHitbox(boxCenter, boxSize, boxColor, isFinisher, false);
+                }
+
+                CheckHitboxOverlapSequence(effectiveAttack, horizontalSign, boxCenter, boxSize, isFinisher, seq.IsLauncher, isStale);
+
+                activeTimer -= Time.deltaTime;
+                yield return null;
+            }
+
+            if (visualizer != null)
+            {
+                visualizer.HideHitbox();
+            }
+
+            // 3. ФАЗА ВОССТАНОВЛЕНИЯ (RECOVERY)
+            CurrentState = CombatState.Recovery;
+            float recovery = baseAttack.recoveryTime / speedMult;
+            float cancelOpenTime = recovery * recoveryCancelThreshold;
+            float recoveryTimer = 0f;
+
+            while (recoveryTimer < recovery)
+            {
+                recoveryTimer += Time.deltaTime;
+
+                if (recoveryTimer >= cancelOpenTime || _hasHitTargetInCurrentAttack)
+                {
+                    _canCancelIntoCombo = true;
+
+                    if (_bufferedSequence != null)
+                    {
+                        _lastAttackFinishTime = Time.time;
+                        _lastWasFinisher = isFinisher;
+                        var nextSeq = _bufferedSequence;
+                        bool nextStale = _bufferedIsStale;
+                        ClearSequenceBuffer();
+                        _attackRoutine = null;
+                        ExecuteSequenceAttack(nextSeq, nextStale, isComboChain: true);
+                        yield break;
+                    }
+                    else if (_bufferedIntent.HasValue)
+                    {
+                        _lastAttackFinishTime = Time.time;
+                        _lastWasFinisher = isFinisher;
+                        var nextIntent = _bufferedIntent.Value;
+                        ClearBuffer();
+                        _attackRoutine = null;
+                        ExecuteAttack(nextIntent, isComboChain: true);
+                        yield break;
+                    }
+                }
+
+                yield return null;
+            }
+
+            _lastAttackFinishTime = Time.time;
+            _lastWasFinisher = isFinisher;
+            _canCancelIntoCombo = false;
+            CurrentState = CombatState.Idle;
+            CurrentAttack = null;
+            _attackRoutine = null;
+        }
+
+        private void ApplySequenceLunge(float horizontalSign, float force)
+        {
+            if (_rb == null) _rb = GetComponent<Rigidbody2D>();
+            if (_rb != null && Mathf.Abs(force) > 0.05f)
+            {
+                float speedMult = _stamina != null ? _stamina.ActionSpeedMultiplier : 1.0f;
+                float multiplier = IsFinisher ? 1.4f : (CurrentComboStep > 1 ? 1.15f : 1.0f);
+                _rb.linearVelocity = new Vector2(horizontalSign * force * multiplier * speedMult, _rb.linearVelocity.y);
+            }
+        }
+
+        private void CheckHitboxOverlapSequence(AttackConfig effectiveAttack, float horizontalSign, Vector2 center, Vector2 size, bool isFinisher, bool isLauncher, bool isStale)
+        {
+            _overlapResults.Clear();
+            int count = Physics2D.OverlapBox(center, size, 0f, _contactFilter, _overlapResults);
+
+            for (int i = 0; i < count; i++)
+            {
+                var col = _overlapResults[i];
+                if (col == null || col.gameObject == gameObject) continue;
+                if (_hitTargetsInCurrentSwing.Contains(col)) continue;
+
+                var hurtbox = col.GetComponent<CombatHurtbox2D>();
+                if (hurtbox != null)
+                {
+                    if (effectiveAttack.targetedZones.Overlaps(hurtbox.BodyZone))
+                    {
+                        var receiver = hurtbox.GetTargetReceiver();
+                        if (receiver != null && _hitReceiversInCurrentSwing.Contains(receiver)) continue;
+
+                        _hitTargetsInCurrentSwing.Add(col);
+                        if (receiver != null) _hitReceiversInCurrentSwing.Add(receiver);
+
+                        OnTargetHitSuccess(isFinisher, false);
+
+                        Vector2 knockbackDir = new Vector2(horizontalSign, isLauncher ? 3.5f : 1f).normalized;
+                        hurtbox.ReceiveHit(effectiveAttack, center, knockbackDir);
+                    }
+                }
+                else
+                {
+                    var target = col.GetComponent<IHurtboxTarget2D>() ?? col.GetComponentInParent<IHurtboxTarget2D>();
+                    if (target != null)
+                    {
+                        if (_hitReceiversInCurrentSwing.Contains(target)) continue;
+
+                        _hitTargetsInCurrentSwing.Add(col);
+                        _hitReceiversInCurrentSwing.Add(target);
+
+                        OnTargetHitSuccess(isFinisher, false);
+
+                        Vector2 knockbackDir = new Vector2(horizontalSign, isLauncher ? 3.5f : 1f).normalized;
+                        target.TakeHit(effectiveAttack, effectiveAttack.targetedZones, center, knockbackDir);
+                    }
+                }
+            }
         }
 
         private void ApplyComboLunge(float horizontalSign, bool isCharged = false)

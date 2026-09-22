@@ -246,6 +246,9 @@ MonoBehaviour:
     damage: 25
     knockbackForce: {x: 4, y: 7}
     hitboxColor: {r: 1, g: 0.4, b: 0.1, a: 0.8}
+    isLauncher: 0
+    isStale: 0
+    lungeForce: 4
   attackMid:
     attackName: "\u0421\u0440\u0435\u0434\u043D\u0438\u0439 \u0432\u044B\u043F\u0430\u0434"
     targetedZones: 2
@@ -257,6 +260,9 @@ MonoBehaviour:
     damage: 20
     knockbackForce: {x: 6.5, y: 1.5}
     hitboxColor: {r: 1, g: 0.85, b: 0.15, a: 0.8}
+    isLauncher: 0
+    isStale: 0
+    lungeForce: 4
   attackLow:
     attackName: "\u041D\u0438\u0436\u043D\u044F\u044F \u043F\u043E\u0434\u0441\u0435\u0447\u043A\u0430"
     targetedZones: 1
@@ -268,8 +274,11 @@ MonoBehaviour:
     damage: 18
     knockbackForce: {x: 5.5, y: 0.5}
     hitboxColor: {r: 0.15, g: 0.85, b: 1, a: 0.8}
+    isLauncher: 0
+    isStale: 0
+    lungeForce: 4
   maxComboSteps: 3
-  comboResetTime: 1.2
+  comboResetTime: 10.5
   comboStartupMultiplier: 0.65
   finisherDamageMultiplier: 1.85
   finisherKnockbackMultiplier: 2.2
@@ -289,6 +298,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   vectorWheel: {fileID: 0}
+  sequenceRecognizer: {fileID: 0}
   wheelControlMode: 0
   visualizer: {fileID: 0}
   showAllHitboxesInEditorGizmos: 1
@@ -334,6 +344,7 @@ MonoBehaviour:
   maxHealth: 100
   currentHealth: 100
   invulnerabilityDuration: 0.4
+  hitstunDuration: 0.28
   canDie: 1
   autoRespawnDelay: 3
   respawnKey: 114

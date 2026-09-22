@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using Combat;
 using Combat.Settings;
 using Combat.Stances;
 
@@ -74,21 +75,15 @@ namespace Combat.UI
         [SerializeField] private Image centerCoreImage;
         [SerializeField] private WheelTrailGraphic wheelTrailGraphic;
 
+        [Header("--- 8-Way Motion Sequence Recognition ---")]
+        [SerializeField] private DirectionSequenceRecognizer sequenceRecognizer;
+        [SerializeField] private PlayerCombatController2D playerCombat;
+        [SerializeField] private WheelDirectionArrowsOverlay arrowsOverlay;
+
         [Header("--- Plaque HUD (Под колесом) ---")]
         [SerializeField] private CanvasGroup plaqueCanvasGroup;
         [SerializeField] private RectTransform plaqueRect;
         [SerializeField] private Text attackNameText;
-        [SerializeField] private string[] attackNames = new string[8]
-        {
-            "СРЕДНИЙ ВПЕРЕД ▶",    // Right (0)
-            "ВЕРХНИЙ ВПЕРЕД ↗",    // UpRight (1)
-            "ВЕРХНИЙ УДАР ▲",      // Up (2)
-            "ВЕРХНИЙ НАЗАД ↖",     // UpLeft (3)
-            "СРЕДНИЙ НАЗАД ◀",     // Left (4)
-            "НИЖНИЙ НАЗАД ↙",      // DownLeft (5)
-            "НИЖНИЙ УДАР ▼",       // Down (6)
-            "НИЖНИЙ ВПЕРЕД ↘"      // DownRight (7)
-        };
         [SerializeField] private string neutralStanceName = "— БОЕВАЯ СТОЙКА —";
 
         [Header("--- Visual Palette ---")]
@@ -102,16 +97,6 @@ namespace Combat.UI
         [SerializeField] private float activeScaleMultiplier = 1.025f; // Плавное увеличение на 2.5%
         [SerializeField] private float scaleSmoothSpeed = 8f;         // Мягкая интерполяция без резких скачков
         [SerializeField] private float sectorPulseSpeed = 6f;
-
-        [Header("--- Charge / Empowered Attack Settings ---")]
-        [Tooltip("Время удержания направления для превращения удара в Усиленную Атаку (в секундах)")]
-        [SerializeField] private float chargeThresholdTime = 1.0f;
-
-        [Tooltip("Максимальное время удержания направления, после которого удар выполняется автоматически")]
-        [SerializeField] private float maxHoldAutoReleaseTime = 2.0f;
-
-        [Tooltip("Цвет подсветки колеса при готовности усиленной атаки")]
-        [SerializeField] private Color chargedGlowColor = new Color(1f, 0.7f, 0.1f, 1f);
 
         [Header("--- Events ---")]
         public UnityEvent<Direction8> onDirectionChanged;
@@ -138,18 +123,18 @@ namespace Combat.UI
         public float CurrentRawAngle { get; private set; } = 0f;
         public bool IsDragging { get; private set; } = false;
 
-        public float DirectionHoldTimer => _directionHoldTimer;
-        public bool IsChargeReady => _directionHoldTimer >= chargeThresholdTime && CurrentDirection != Direction8.None;
-        public float ChargeProgress => Mathf.Clamp01(_directionHoldTimer / chargeThresholdTime);
+        public DirectionSequenceRecognizer SequenceRecognizer => sequenceRecognizer;
+        public WheelDirectionArrowsOverlay ArrowsOverlay => arrowsOverlay;
+        public float FadeAlpha => _fadeAlpha;
+        public float WheelRadius => wheelRadius;
+        public Color HighlightColor => highlightColor;
+        public WheelSettingsData CurrentSettings => _currentSettings;
 
-        private float _directionHoldTimer = 0f;
-
-        public bool ConsumeCharge()
-        {
-            bool ready = IsChargeReady;
-            _directionHoldTimer = 0f;
-            return ready;
-        }
+        // Legacy Charge stubs
+        public float DirectionHoldTimer => 0f;
+        public bool IsChargeReady => false;
+        public float ChargeProgress => 0f;
+        public bool ConsumeCharge() => false;
 
         private Vector2 _penPosition = Vector2.zero;
         private Vector2 _lastMousePos = Vector2.zero;
@@ -176,6 +161,25 @@ namespace Combat.UI
                 wheelTrailGraphic = GetComponentInChildren<WheelTrailGraphic>();
             }
 
+            if (sequenceRecognizer == null)
+            {
+                sequenceRecognizer = GetComponent<DirectionSequenceRecognizer>() ?? FindAnyObjectByType<DirectionSequenceRecognizer>();
+                if (sequenceRecognizer == null)
+                {
+                    sequenceRecognizer = gameObject.AddComponent<DirectionSequenceRecognizer>();
+                }
+            }
+
+            if (playerCombat == null)
+            {
+                playerCombat = FindAnyObjectByType<PlayerCombatController2D>();
+            }
+
+            if (arrowsOverlay == null)
+            {
+                arrowsOverlay = GetComponentInChildren<WheelDirectionArrowsOverlay>();
+            }
+
             _parentCanvas = GetComponentInParent<Canvas>();
             if (_parentCanvas != null && _parentCanvas.renderMode != RenderMode.ScreenSpaceOverlay)
             {
@@ -193,11 +197,25 @@ namespace Combat.UI
             {
                 ApplySettings(CombatSettingsManager.Instance.CurrentSettings);
             }
+
+            if (sequenceRecognizer != null)
+            {
+                sequenceRecognizer.OnBufferChanged -= HandleRecognizerBufferChanged;
+                sequenceRecognizer.OnBufferChanged += HandleRecognizerBufferChanged;
+                sequenceRecognizer.OnSequenceMatched -= HandleRecognizerSequenceMatched;
+                sequenceRecognizer.OnSequenceMatched += HandleRecognizerSequenceMatched;
+            }
         }
 
         private void OnDisable()
         {
             CombatSettingsManager.OnSettingsChanged -= ApplySettings;
+
+            if (sequenceRecognizer != null)
+            {
+                sequenceRecognizer.OnBufferChanged -= HandleRecognizerBufferChanged;
+                sequenceRecognizer.OnSequenceMatched -= HandleRecognizerSequenceMatched;
+            }
         }
 
         public void ApplySettings(WheelSettingsData data)
@@ -282,10 +300,13 @@ namespace Combat.UI
             ActiveGestureButton = WheelGestureButton.None;
             CurrentDirection = Direction8.None;
             CurrentVector = Vector2.zero;
-            _directionHoldTimer = 0f;
             if (wheelTrailGraphic != null)
             {
                 wheelTrailGraphic.ClearInstant();
+            }
+            if (sequenceRecognizer != null)
+            {
+                sequenceRecognizer.ClearBuffer();
             }
             UpdatePlaqueText(Direction8.None);
         }
@@ -397,30 +418,21 @@ namespace Combat.UI
                     {
                         CurrentDirection = newDir;
                         _flashIntensity = 1f;
-                        _directionHoldTimer = 0f;
-                        UpdatePlaqueText(CurrentDirection);
+
+                        if (ActiveGestureButton == WheelGestureButton.LMB)
+                        {
+                            if (sequenceRecognizer != null)
+                            {
+                                float facing = playerCombat != null ? playerCombat.FacingDirection : 1f;
+                                sequenceRecognizer.AddToken(CurrentDirection, facing);
+                            }
+                        }
+                        else if (ActiveGestureButton == WheelGestureButton.RMB)
+                        {
+                            UpdatePlaqueText(CurrentDirection);
+                        }
+
                         onDirectionChanged?.Invoke(CurrentDirection);
-                    }
-                    else if (ActiveGestureButton == WheelGestureButton.LMB)
-                    {
-                        _directionHoldTimer += Time.deltaTime;
-
-                        if (_directionHoldTimer >= chargeThresholdTime)
-                        {
-                            UpdateChargedPlaqueText(CurrentDirection);
-                            _flashIntensity = Mathf.Max(_flashIntensity, 0.6f);
-                        }
-                        else if (_directionHoldTimer >= 0.35f)
-                        {
-                            UpdateChargingPlaqueText(CurrentDirection, ChargeProgress);
-                        }
-
-                        // Автоматический выпуск при максимальном удержании (только для LMB)
-                        if (_directionHoldTimer >= maxHoldAutoReleaseTime)
-                        {
-                            ExecuteSwipeComplete();
-                            return;
-                        }
                     }
 
                     onVectorChanged?.Invoke(_penPosition.normalized);
@@ -430,17 +442,12 @@ namespace Combat.UI
                     if (CurrentDirection != Direction8.None)
                     {
                         CurrentDirection = Direction8.None;
-                        UpdatePlaqueText(Direction8.None);
+                        if (ActiveGestureButton == WheelGestureButton.RMB)
+                        {
+                            UpdatePlaqueText(Direction8.None);
+                        }
                         onDirectionChanged?.Invoke(Direction8.None);
                     }
-                    _directionHoldTimer = 0f;
-                }
-
-                // Быстрый удар при касании края колеса (Quick-Cast on Edge, только для LMB)
-                if (ActiveGestureButton == WheelGestureButton.LMB && _currentSettings != null && _currentSettings.quickCastOnEdge && dist >= wheelRadius * 0.95f)
-                {
-                    ExecuteSwipeComplete();
-                    return;
                 }
             }
 
@@ -479,7 +486,6 @@ namespace Combat.UI
             _penPosition = Vector2.zero;
             _lastMousePos = mousePos;
             _fadeAlpha = 1f;
-            _directionHoldTimer = 0f;
 
             if (wheelTrailGraphic != null)
             {
@@ -500,9 +506,10 @@ namespace Combat.UI
                     onGesturePathCompleted?.Invoke(wheelTrailGraphic.Points, CurrentDirection);
                 }
             }
-            else
+
+            if (sequenceRecognizer != null)
             {
-                _directionHoldTimer = 0f;
+                sequenceRecognizer.ClearBuffer();
             }
 
             if (wheelTrailGraphic != null)
@@ -513,6 +520,7 @@ namespace Combat.UI
             IsDragging = false;
             ActiveGestureButton = WheelGestureButton.None;
             CurrentVector = Vector2.zero;
+            UpdatePlaqueText(Direction8.None);
         }
 
         private void ExecuteRMBComplete()
@@ -540,7 +548,6 @@ namespace Combat.UI
             IsDragging = false;
             ActiveGestureButton = WheelGestureButton.None;
             CurrentVector = Vector2.zero;
-            _directionHoldTimer = 0f;
             UpdatePlaqueText(Direction8.None);
         }
 
@@ -600,7 +607,15 @@ namespace Combat.UI
                 {
                     CurrentDirection = newDir;
                     _flashIntensity = 1f;
-                    UpdatePlaqueText(CurrentDirection);
+                    if (ActiveGestureButton == WheelGestureButton.LMB && sequenceRecognizer != null)
+                    {
+                        float facing = playerCombat != null ? playerCombat.FacingDirection : 1f;
+                        sequenceRecognizer.AddToken(CurrentDirection, facing);
+                    }
+                    else if (ActiveGestureButton == WheelGestureButton.RMB)
+                    {
+                        UpdatePlaqueText(CurrentDirection);
+                    }
                     onDirectionChanged?.Invoke(CurrentDirection);
                 }
 
@@ -704,6 +719,40 @@ namespace Combat.UI
             }
         }
 
+        private void HandleRecognizerBufferChanged(IReadOnlyList<Direction8> buffer)
+        {
+            if (ActiveGestureButton != WheelGestureButton.LMB) return;
+
+            if (buffer == null || buffer.Count == 0)
+            {
+                if (attackNameText != null)
+                {
+                    attackNameText.text = neutralStanceName;
+                    attackNameText.color = textIdleColor;
+                }
+            }
+            else
+            {
+                _textPunchScale = 1.15f;
+                if (attackNameText != null)
+                {
+                    attackNameText.text = $"[ {buffer.ToGlyphString(" ")} ]";
+                    attackNameText.color = textActiveColor;
+                }
+            }
+        }
+
+        private void HandleRecognizerSequenceMatched(ComboSequenceDefinition seq, bool isStale)
+        {
+            _textPunchScale = 1.35f;
+            if (attackNameText != null)
+            {
+                string staleNotice = isStale ? " <color=#FF4444>[ПРИВЫКАНИЕ!]</color>" : "";
+                attackNameText.text = $"<color=#FFD700>{seq.SequenceName}</color> [{seq.GlyphPattern}]{staleNotice}";
+                attackNameText.color = isStale ? new Color(1f, 0.45f, 0.45f, 1f) : new Color(1f, 0.9f, 0.2f, 1f);
+            }
+        }
+
         private void UpdatePlaqueText(Direction8 dir)
         {
             if (attackNameText == null) return;
@@ -729,43 +778,15 @@ namespace Combat.UI
                 return;
             }
 
-            if (dir == Direction8.None)
+            if (sequenceRecognizer != null && sequenceRecognizer.CurrentBuffer.Count > 0)
             {
-                attackNameText.text = neutralStanceName;
-                attackNameText.color = textIdleColor;
+                attackNameText.text = $"[ {sequenceRecognizer.GetBufferGlyphString()} ]";
+                attackNameText.color = textActiveColor;
             }
             else
             {
-                int idx = (int)dir;
-                if (idx >= 0 && idx < attackNames.Length)
-                {
-                    attackNameText.text = attackNames[idx];
-                    attackNameText.color = textActiveColor;
-                }
-            }
-        }
-
-        private void UpdateChargingPlaqueText(Direction8 dir, float progress)
-        {
-            if (attackNameText == null || dir == Direction8.None) return;
-            int idx = (int)dir;
-            if (idx >= 0 && idx < attackNames.Length)
-            {
-                int pct = Mathf.RoundToInt(progress * 100f);
-                attackNameText.text = $"{attackNames[idx]} <color=#FFD700>[ЗАРЯДКА {pct}%]</color>";
-                attackNameText.color = Color.Lerp(textActiveColor, chargedGlowColor, progress);
-            }
-        }
-
-        private void UpdateChargedPlaqueText(Direction8 dir)
-        {
-            if (attackNameText == null || dir == Direction8.None) return;
-            int idx = (int)dir;
-            if (idx >= 0 && idx < attackNames.Length)
-            {
-                _textPunchScale = 1.28f;
-                attackNameText.text = $"{attackNames[idx]} <color=#FFAA00>⚡ ЗАРЯЖЕНО! ⚡</color>";
-                attackNameText.color = chargedGlowColor;
+                attackNameText.text = neutralStanceName;
+                attackNameText.color = textIdleColor;
             }
         }
 
@@ -773,25 +794,29 @@ namespace Combat.UI
         {
             if (attackNameText == null) return;
 
-            _textPunchScale = isCharged ? 1.4f : (isFinisher ? 1.35f : (comboStep > 1 ? 1.18f : 1.05f));
+            _textPunchScale = isFinisher ? 1.35f : (comboStep > 1 ? 1.18f : 1.05f);
 
-            string badge;
-            if (isCharged)
+            string badge = comboStep switch
             {
-                badge = "<color=#FFAA00>★ УСИЛЕННАЯ АТАКА ★</color>";
-            }
-            else
-            {
-                badge = comboStep switch
-                {
-                    1 => "[УДАР 1]",
-                    2 => "<color=#FFD700>[КОМБО 2]</color>",
-                    _ => isFinisher ? "<color=#FF2222>★ ФИНИШЕР x3 ★</color>" : $"<color=#FF7722>[КОМБО {comboStep}]</color>"
-                };
-            }
+                1 => "[УДАР 1]",
+                2 => "<color=#FFD700>[КОМБО 2]</color>",
+                _ => isFinisher ? "<color=#FF2222>★ ФИНИШЕР x3 ★</color>" : $"<color=#FF7722>[КОМБО {comboStep}]</color>"
+            };
 
             attackNameText.text = $"{attackName} {badge}";
-            attackNameText.color = isCharged ? chargedGlowColor : (isFinisher ? new Color(1f, 0.25f, 0.25f, 1f) : textActiveColor);
+            attackNameText.color = isFinisher ? new Color(1f, 0.25f, 0.25f, 1f) : textActiveColor;
+        }
+
+        public void SetAttackPlaqueWithSequence(string attackName, string glyphs, int comboStep, bool isStale)
+        {
+            if (attackNameText == null) return;
+
+            _textPunchScale = isStale ? 1.15f : (comboStep > 1 ? 1.28f : 1.12f);
+            string staleBadge = isStale ? " <color=#FF4444>[ПРИВЫКАНИЕ! +75% СТАМИНА ВРАГА]</color>" : "";
+            string stepBadge = comboStep > 1 ? $" <color=#FFD700>[СВЯЗКА x{comboStep}]</color>" : "";
+
+            attackNameText.text = $"{attackName} [{glyphs}]{stepBadge}{staleBadge}";
+            attackNameText.color = isStale ? new Color(1f, 0.45f, 0.45f, 1f) : textActiveColor;
         }
 
         public void ApplyVisualColors()
@@ -813,30 +838,6 @@ namespace Combat.UI
             "ВНИЗ-ВПЕРЕД ↘"    // DownRight (7)
         };
 
-        private static readonly string[] DefaultNormalAttackNames = new string[8]
-        {
-            "СРЕДНИЙ ВПЕРЕД ▶",    // Right (0)
-            "ВЕРХНИЙ ВПЕРЕД ↗",    // UpRight (1)
-            "ВЕРХНИЙ УДАР ▲",      // Up (2)
-            "ВЕРХНИЙ НАЗАД ↖",     // UpLeft (3)
-            "СРЕДНИЙ НАЗАД ◀",     // Left (4)
-            "НИЖНИЙ НАЗАД ↙",      // DownLeft (5)
-            "НИЖНИЙ УДАР ▼",       // Down (6)
-            "НИЖНИЙ ВПЕРЕД ↘"      // DownRight (7)
-        };
-
-        private static readonly string[] TacticianAttackNames = new string[8]
-        {
-            "ПРОЩУПЫВАЮЩИЙ ВЫПАД ➡️", // Right (0)
-            "КИНЕТИЧЕСКИЙ ПОДБРОС ↗️", // UpRight (1)
-            "ГРАВИТАЦИОННЫЙ ЯКОРЬ ⬆️", // Up (2)
-            "ВЕЕРНАЯ ЗАЩИТА ↖️",     // UpLeft (3)
-            "ТАКТИЧЕСКИЙ ОТХОД ⬅️",   // Left (4)
-            "МАГИЧЕСКИЙ ГАРПУН ↙️",   // DownLeft (5)
-            "ГЛУБИННАЯ ПЕЧАТЬ ⬇️",    // Down (6)
-            "НАПРАВЛЕННЫЕ ШИПЫ ↘️"    // DownRight (7)
-        };
-
         /// <summary>
         /// Переключает отображение колеса и плашки под выбранную боевую стойку
         /// </summary>
@@ -844,14 +845,12 @@ namespace Combat.UI
         {
             if (stance == CombatStance.Tactician)
             {
-                attackNames = (string[])TacticianAttackNames.Clone();
                 neutralStanceName = "— СТОЙКА ТАКТИКА —";
                 highlightColor = new Color(0f, 0.85f, 1f, 0.75f); // Runic Cyan
                 outlineColor = new Color(0.6f, 0.95f, 1f, 1f);
             }
             else
             {
-                attackNames = (string[])DefaultNormalAttackNames.Clone();
                 neutralStanceName = "— БОЕВАЯ СТОЙКА —";
                 highlightColor = new Color(1f, 0.12f, 0.25f, 0.65f); // Crimson Neon
                 outlineColor = Color.white;

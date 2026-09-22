@@ -26,23 +26,21 @@ namespace Combat
     public class EnemyAIController2D : MonoBehaviour, ICombatEntity2D
     {
         [Header("--- Health & Defense ---")]
-        [SerializeField] private float maxHealth = 120f;
-        [SerializeField] private float currentHealth = 120f;
+        [SerializeField] private float maxHealth = 250f;
+        [SerializeField] private float currentHealth = 250f;
         [SerializeField] private float resetHealthDelay = 3.5f;
 
         [Header("--- Stamina & Poise System ---")]
-        [SerializeField] private float maxStamina = 100f;
-        [SerializeField] private float currentStamina = 100f;
+        [SerializeField] private float maxStamina = 135f;
+        [SerializeField] private float currentStamina = 135f;
         [Tooltip("Множитель урона по стамине при обычных ударах")]
         [SerializeField] private float staminaDrainMultiplier = 1.0f;
-        [Tooltip("Урон по стамине при успешной контратаке игрока")]
-        [SerializeField] private float staminaCounterDrain = 55f;
         [Tooltip("Длительность оглушения при полном истощении стамины (сек)")]
-        [SerializeField] private float staminaBreakStunDuration = 2.5f;
-        [Tooltip("Задержка без получения урона до начала регенерации стамины (сек)")]
-        [SerializeField] private float staminaRegenIdleDelay = 7.0f;
+        [SerializeField] private float staminaBreakStunDuration = 3.0f;
+        [Tooltip("Задержка без получения урона до начала регенерации стамины (> 10 сек для джаггл-комбо)")]
+        [SerializeField] private float staminaRegenIdleDelay = 11.0f;
         [Tooltip("Скорость восстановления стамины в секунду")]
-        [SerializeField] private float staminaRegenRate = 35f;
+        [SerializeField] private float staminaRegenRate = 30f;
 
         [Header("--- Poise / Knockback Curve Settings ---")]
         [Tooltip("Множитель отталкивания при полной (100%) стамине (например 0.2 = высокая устойчивость)")]
@@ -51,7 +49,7 @@ namespace Combat
         [Tooltip("Множитель отталкивания при пустой (0%) стамине (например 1.0 = нормальное, 1.5+ = усиленное)")]
         [SerializeField] private float knockbackMultAtZeroStamina = 1.0f;
 
-        [Tooltip("Множитель длительности стана от контратак при пустой стамине (1.0 = базовый, 1.8 = увеличенный)")]
+        [Tooltip("Множитель длительности стана при пустой стамине (1.0 = базовый, 1.8 = увеличенный)")]
         [SerializeField] private float stunDurationMultAtZeroStamina = 1.5f;
 
         [Header("--- UI & Visuals ---")]
@@ -78,15 +76,21 @@ namespace Combat
         [Tooltip("Слои препятствий для проверки прямой видимости")]
         [SerializeField] private LayerMask visionObstacleLayers = 0;
 
-        [Header("--- Movement ---")]
+        [Header("--- Movement & Jumping ---")]
         [SerializeField] private float moveSpeed = 3.6f;
+        [Tooltip("Сила прыжка врага на платформы и к игроку")]
+        [SerializeField] private float jumpForce = 12.0f;
+        [Tooltip("Кулдаун между прыжками врага (сек)")]
+        [SerializeField] private float jumpCooldown = 0.85f;
+        [Tooltip("Слои земли и платформ для прыжков")]
+        [SerializeField] private LayerMask groundLayer = ~0;
 
         [Header("--- Attack Parameters (Straight Mid Strike) ---")]
         [Tooltip("Дистанция до игрока для начала замаха")]
         [SerializeField] private float attackRange = 2.05f;
 
-        [Tooltip("Длительность фазы замаха (телеграфа), во время которой открыто окно КОНТРАТАКИ")]
-        [SerializeField] private float telegraphDuration = 0.75f;
+        [Tooltip("Длительность фазы замаха (телеграфа)")]
+        [SerializeField] private float telegraphDuration = 0.70f;
 
         [Tooltip("Длительность активной фазы удара")]
         [SerializeField] private float activeStrikeDuration = 0.15f;
@@ -95,7 +99,7 @@ namespace Combat
         [SerializeField] private float recoveryDuration = 0.55f;
 
         [Tooltip("Урон прямого удара врага")]
-        [SerializeField] private float attackDamage = 18f;
+        [SerializeField] private float attackDamage = 28f;
 
         [Tooltip("Импульс отталкивания игрока при попадании врага")]
         [SerializeField] private Vector2 knockbackToPlayer = new Vector2(7f, 3.5f);
@@ -109,15 +113,21 @@ namespace Combat
         [Tooltip("Размер хитбокса прямого среднего удара")]
         [SerializeField] private Vector2 hitboxSize = new Vector2(1.5f, 0.85f);
 
-        [Header("--- Counter-Attack Mechanics ---")]
-        [Tooltip("Множитель урона по врагу при успешной контратаке игрока")]
-        [SerializeField] private float counterDamageMultiplier = 1.75f;
+        [Header("--- Attack Variants (Anti-Air & Mix-Up) ---")]
+        [Tooltip("Вероятность провести подсечку по ногам (Low Sweep) вместо прямого среднего удара")]
+        [SerializeField] [Range(0f, 1f)] private float lowSweepChance = 0.35f;
 
-        [Tooltip("Длительность оглушения врага после контратаки")]
-        [SerializeField] private float counterStunDuration = 1.0f;
+        [Tooltip("Смещение хитбокса удара вверх над собой (Anti-Air)")]
+        [SerializeField] private Vector2 upHitboxOffset = new Vector2(0.0f, 1.35f);
 
-        [Tooltip("Длительность тактильного хитстопа (паузы) при контратаке")]
-        [SerializeField] private float counterHitstopDuration = 0.08f;
+        [Tooltip("Размер хитбокса удара вверх над собой (Anti-Air)")]
+        [SerializeField] private Vector2 upHitboxSize = new Vector2(1.6f, 1.35f);
+
+        [Tooltip("Смещение хитбокса нижней подсечки по ногам (Low Sweep)")]
+        [SerializeField] private Vector2 lowHitboxOffset = new Vector2(1.15f, -0.45f);
+
+        [Tooltip("Размер хитбокса нижней подсечки по ногам (Low Sweep)")]
+        [SerializeField] private Vector2 lowHitboxSize = new Vector2(1.5f, 0.6f);
 
         [Header("--- Visuals & Face ---")]
         [SerializeField] private Color normalColor = new Color(0.72f, 0.15f, 0.15f, 1f); // Темно-красный кубик
@@ -166,6 +176,9 @@ namespace Combat
         private Vector3 _faceBaseLocalScale = new Vector3(0.45f, 0.26f, 1f);
         private float _lastHitTime;
         private float _hitstunTimer;
+        private float _jumpCooldownTimer;
+        public bool IsGrounded { get; private set; }
+        private float _stunRemaining;
         private readonly List<Collider2D> _overlapResults = new List<Collider2D>(8);
         private ContactFilter2D _playerFilter;
 
@@ -179,6 +192,7 @@ namespace Combat
         private Vector2 _gravityAnchorPos;
         private float _originalGravityScale = 1.0f;
         private float _disorientTimer = 0f;
+        private float _staminaBoostTimer = 0f;
 
         private void Awake()
         {
@@ -263,10 +277,18 @@ namespace Combat
                 if (_sr != null) _sr.color = normalColor;
             }
 
-            // Регенерация стамины, если врага не трогали 7 секунд (и он не в стане)
-            if (currentStamina < maxStamina && CurrentState != EnemyState.Stunned && Time.time - _lastHitTime >= staminaRegenIdleDelay)
+            // Регенерация стамины (при Stale Move boost восстанавливается на +75% быстрее)
+            if (_staminaBoostTimer > 0f)
             {
-                currentStamina = Mathf.MoveTowards(currentStamina, maxStamina, staminaRegenRate * Time.deltaTime);
+                _staminaBoostTimer -= Time.deltaTime;
+            }
+
+            float effectiveRegenRate = (_staminaBoostTimer > 0f) ? (staminaRegenRate * 1.75f) : staminaRegenRate;
+            float effectiveDelay = (_staminaBoostTimer > 0f) ? 0.35f : staminaRegenIdleDelay;
+
+            if (currentStamina < maxStamina && CurrentState != EnemyState.Stunned && Time.time - _lastHitTime >= effectiveDelay)
+            {
+                currentStamina = Mathf.MoveTowards(currentStamina, maxStamina, effectiveRegenRate * Time.deltaTime);
                 if (staminaBar != null)
                 {
                     staminaBar.SetStamina(currentStamina, maxStamina);
@@ -377,7 +399,13 @@ namespace Combat
                 return;
             }
 
+            CheckGrounded();
+            if (_jumpCooldownTimer > 0f) _jumpCooldownTimer -= Time.deltaTime;
+
             float dist = Vector2.Distance(transform.position, _playerTransform.position);
+            float dy = _playerTransform.position.y - transform.position.y;
+            float dx = _playerTransform.position.x - transform.position.x;
+            float absDx = Mathf.Abs(dx);
 
             // Игрок убежал слишком далеко
             if (dist > loseTargetRange)
@@ -387,8 +415,45 @@ namespace Combat
                 return;
             }
 
-            // Дистанция атаки достигнута — начинаем замах
-            if (dist <= attackRange)
+            // Прыжковый интеллект врага:
+            if (IsGrounded && _jumpCooldownTimer <= 0f)
+            {
+                bool shouldJump = false;
+                // 1. Игрок находится выше на платформе (dy > 1.1f) в радиусе до 6.5м
+                if (dy > 1.1f && absDx < 6.5f)
+                {
+                    shouldJump = true;
+                }
+                // 2. Препятствие / стена перед врагом на уровне пояса
+                else if (absDx > 0.5f)
+                {
+                    Vector2 checkOrigin = (Vector2)transform.position + new Vector2(0f, 0.2f);
+                    RaycastHit2D wallHit = Physics2D.Raycast(checkOrigin, new Vector2(FacingDirection, 0f), 0.75f, groundLayer);
+                    if (wallHit.collider != null && wallHit.collider.gameObject != gameObject && !wallHit.collider.transform.IsChildOf(transform))
+                    {
+                        shouldJump = true;
+                    }
+                    else
+                    {
+                        // 3. Проверка ямы / обрыва перед ногами (если игрок дальше по горизонтали)
+                        Vector2 edgeOrigin = (Vector2)transform.position + new Vector2(FacingDirection * 0.65f, -0.2f);
+                        RaycastHit2D groundAhead = Physics2D.Raycast(edgeOrigin, Vector2.down, 1.4f, groundLayer);
+                        if (groundAhead.collider == null)
+                        {
+                            shouldJump = true;
+                        }
+                    }
+                }
+
+                if (shouldJump)
+                {
+                    Jump();
+                }
+            }
+
+            // Дистанция атаки достигнута:
+            // Либо обычная дистанция attackRange, либо игрок находится прямо над врагом (Anti-Air окно)
+            if (dist <= attackRange || (dy > 1.0f && dy < 3.2f && absDx < 1.8f))
             {
                 StartTelegraphAttack();
                 return;
@@ -399,6 +464,24 @@ namespace Combat
             SetFacing(dirX);
 
             _rb.linearVelocity = new Vector2(dirX * moveSpeed, _rb.linearVelocity.y);
+        }
+
+        public void CheckGrounded()
+        {
+            if (_col == null) return;
+            Bounds b = _col.bounds;
+            Vector2 origin = new Vector2(b.center.x, b.min.y + 0.05f);
+            Vector2 boxSize = new Vector2(b.size.x * 0.85f, 0.1f);
+            RaycastHit2D hit = Physics2D.BoxCast(origin, boxSize, 0f, Vector2.down, 0.15f, groundLayer);
+            IsGrounded = hit.collider != null && hit.collider.gameObject != gameObject && !hit.collider.transform.IsChildOf(transform);
+        }
+
+        public void Jump()
+        {
+            if (!IsGrounded || _rb == null) return;
+            _jumpCooldownTimer = jumpCooldown;
+            _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, jumpForce);
+            Debug.Log("[ENEMY AI] Враг совершает прыжок к цели/через препятствие!");
         }
 
         public void SetFacing(float dir)
@@ -421,8 +504,13 @@ namespace Combat
 
         public Vector2 GetHitboxCenter()
         {
+            return GetHitboxCenter(hitboxOffset);
+        }
+
+        public Vector2 GetHitboxCenter(Vector2 offset)
+        {
             Vector2 pos = transform.position;
-            return new Vector2(pos.x + hitboxOffset.x * FacingDirection, pos.y + hitboxOffset.y);
+            return new Vector2(pos.x + offset.x * FacingDirection, pos.y + offset.y);
         }
 
         private void StartTelegraphAttack()
@@ -442,7 +530,37 @@ namespace Combat
                 SetFacing(Mathf.Sign(_playerTransform.position.x - transform.position.x));
             }
 
-            // 1. ФАЗА ТЕЛЕГРАФА (WINDUP) — ОТКРЫТО ОКНО КОНТРАТАКИ!
+            // Выбор типа атаки:
+            // 1. Если игрок сверху — бьем вверх (Anti-Air)
+            // 2. Иначе с вероятностью lowSweepChance бьем по ногам (Low Sweep)
+            // 3. Иначе обычный прямой удар по центру (Mid)
+            CombatZone chosenZone = CombatZone.Mid;
+            Vector2 chosenOffset = hitboxOffset;
+            Vector2 chosenSize = hitboxSize;
+            string attackName = "Прямой средний удар врага";
+            Vector2 strikeLunge = new Vector2(FacingDirection * strikeLungeForce, 0f);
+
+            float dy = (_playerTransform != null) ? (_playerTransform.position.y - transform.position.y) : 0f;
+            float absDx = (_playerTransform != null) ? Mathf.Abs(_playerTransform.position.x - transform.position.x) : 0f;
+
+            if (dy > 1.0f && absDx < 1.9f)
+            {
+                chosenZone = CombatZone.High;
+                chosenOffset = upHitboxOffset;
+                chosenSize = upHitboxSize;
+                attackName = "Вертикальный удар врага вверх (Anti-Air)";
+                strikeLunge = new Vector2(0f, 2.4f);
+            }
+            else if (UnityEngine.Random.value < lowSweepChance)
+            {
+                chosenZone = CombatZone.Low;
+                chosenOffset = lowHitboxOffset;
+                chosenSize = lowHitboxSize;
+                attackName = "Нижняя подсечка врага по ногам";
+                strikeLunge = new Vector2(FacingDirection * (strikeLungeForce * 1.15f), 0f);
+            }
+
+            // 1. ФАЗА ТЕЛЕГРАФА (WINDUP)
             CurrentState = EnemyState.TelegraphWindup;
             float timer = 0f;
 
@@ -453,29 +571,35 @@ namespace Combat
 
                 // Пульсация и показ полупрозрачного предупреждающего хитбокса
                 float pulse = 0.5f + 0.5f * Mathf.Sin(timer * 18f);
-                Vector2 center = GetHitboxCenter();
-                telegraphVisualizer.ShowTelegraph(center, hitboxSize, pulse);
+                Vector2 center = GetHitboxCenter(chosenOffset);
+                telegraphVisualizer.ShowTelegraph(center, chosenSize, pulse);
 
                 yield return null;
             }
 
             // 2. АКТИВНАЯ ФАЗА УДАРА (ACTIVE STRIKE)
             CurrentState = EnemyState.ActiveStrike;
-            Vector2 strikeCenter = GetHitboxCenter();
-            telegraphVisualizer.ShowActiveStrike(strikeCenter, hitboxSize);
+            Vector2 strikeCenter = GetHitboxCenter(chosenOffset);
+            telegraphVisualizer.ShowActiveStrike(strikeCenter, chosenSize);
 
-            // Микро-рывок вперед при ударе
-            _rb.linearVelocity = new Vector2(FacingDirection * strikeLungeForce, _rb.linearVelocity.y);
+            // Микро-рывок вперед или подскок при ударе
+            if (_rb != null)
+            {
+                _rb.linearVelocity = new Vector2(strikeLunge.x, _rb.linearVelocity.y + strikeLunge.y);
+            }
 
             // Проверка нанесения урона игроку
-            CheckHitPlayer(strikeCenter, hitboxSize);
+            CheckHitPlayer(strikeCenter, chosenSize, chosenZone, chosenOffset, attackName);
 
             yield return new WaitForSeconds(activeStrikeDuration);
 
             // 3. ФАЗА ВОССТАНОВЛЕНИЯ (RECOVERY)
             CurrentState = EnemyState.Recovery;
             telegraphVisualizer.HideHitbox();
-            _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
+            if (_rb != null)
+            {
+                _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
+            }
 
             yield return new WaitForSeconds(recoveryDuration);
 
@@ -483,7 +607,7 @@ namespace Combat
             _stateRoutine = null;
         }
 
-        private void CheckHitPlayer(Vector2 center, Vector2 size)
+        private void CheckHitPlayer(Vector2 center, Vector2 size, CombatZone zone, Vector2 offset, string attackName)
         {
             _overlapResults.Clear();
             int count = Physics2D.OverlapBox(center, size, 0f, _playerFilter, _overlapResults);
@@ -497,23 +621,32 @@ namespace Combat
                 var hurtbox = col.GetComponent<IHurtboxTarget2D>() ?? col.GetComponentInParent<IHurtboxTarget2D>();
                 if (hurtbox != null)
                 {
-                    // Создаем AttackConfig удара врага
+                    Vector2 kbToPlayer = knockbackToPlayer;
+                    if (zone == CombatZone.High)
+                    {
+                        kbToPlayer = new Vector2(knockbackToPlayer.x * 0.5f, 7.0f);
+                    }
+                    else if (zone == CombatZone.Low)
+                    {
+                        kbToPlayer = new Vector2(knockbackToPlayer.x * 1.3f, 2.0f);
+                    }
+
                     var enemyAttack = new AttackConfig(
-                        "Прямой средний удар врага",
-                        CombatZone.Mid,
-                        hitboxOffset,
-                        hitboxSize,
+                        attackName,
+                        zone,
+                        offset,
+                        size,
                         telegraphDuration,
                         activeStrikeDuration,
                         recoveryDuration,
                         attackDamage,
-                        knockbackToPlayer,
+                        kbToPlayer,
                         new Color(1f, 0.2f, 0.2f, 1f)
                     );
 
-                    Vector2 knockbackDir = new Vector2(FacingDirection, 0.5f).normalized;
+                    Vector2 knockbackDir = new Vector2(FacingDirection, zone == CombatZone.High ? 0.9f : 0.4f).normalized;
                     enemyAttack.attacker = gameObject;
-                    hurtbox.TakeHit(enemyAttack, CombatZone.Mid, center, knockbackDir);
+                    hurtbox.TakeHit(enemyAttack, zone, center, knockbackDir);
                     break;
                 }
             }
@@ -521,7 +654,7 @@ namespace Combat
 
         /// <summary>
         /// Реализация получения урона от атак игрока.
-        /// Если враг находится в фазе замаха (TelegraphWindup) — СРАБАТЫВАЕТ КОНТРАТАКА!
+        /// Контратака отключена: враг получает честный урон, а его текущий замах прерывается.
         /// </summary>
         public void TakeHit(AttackConfig attack, CombatZone hitZone, Vector2 hitPoint, Vector2 knockbackDirection)
         {
@@ -529,18 +662,8 @@ namespace Combat
 
             _lastHitTime = Time.time;
 
-            if (CurrentState == EnemyState.TelegraphWindup)
-            {
-                // ==========================================
-                // УСПЕШНАЯ КОНТРАТАКА (COUNTER-ATTACK)!
-                // ==========================================
-                TriggerCounterAttackSuccess(attack, knockbackDirection);
-            }
-            else
-            {
-                // Обычное получение урона
-                TakeNormalHit(attack, knockbackDirection);
-            }
+            // Обычное получение урона без крит-контратаки
+            TakeNormalHit(attack, knockbackDirection);
         }
 
         public Vector2 CalculateEffectiveKnockback(Vector2 baseKnockback)
@@ -568,92 +691,22 @@ namespace Combat
             }
         }
 
-        private void TriggerCounterAttackSuccess(AttackConfig attack, Vector2 knockbackDirection)
-        {
-            if (_stateRoutine != null) StopCoroutine(_stateRoutine);
-            telegraphVisualizer.HideHitbox();
-
-            float awayDir;
-            if (_playerTransform != null && Mathf.Abs(transform.position.x - _playerTransform.position.x) > 0.05f)
-            {
-                awayDir = Mathf.Sign(transform.position.x - _playerTransform.position.x);
-            }
-            else if (Mathf.Abs(knockbackDirection.x) > 0.01f)
-            {
-                awayDir = Mathf.Sign(knockbackDirection.x);
-            }
-            else
-            {
-                awayDir = -FacingDirection;
-            }
-
-            if (_playerTransform != null)
-            {
-                SetFacing(Mathf.Sign(_playerTransform.position.x - transform.position.x));
-            }
-
-            // 1. Бонусный урон контратаки (с учетом метки уязвимости)
-            float baseDmg = (attack != null ? attack.damage : 20f) * _vulnerabilityMultiplier;
-            float counterDmg = baseDmg * counterDamageMultiplier;
-
-            if (!canDie)
-            {
-                currentHealth = Mathf.Max(1f, currentHealth - counterDmg);
-            }
-            else
-            {
-                currentHealth = Mathf.Max(0f, currentHealth - counterDmg);
-            }
-
-            // 2. Мощный импульс отталкивания с учетом кривой стойкости (стамина)
-            Vector2 baseKb = (attack != null ? attack.knockbackForce : new Vector2(8f, 4f)) * 1.5f;
-            baseKb.x = awayDir * Mathf.Abs(baseKb.x);
-            Vector2 effectiveKb = CalculateEffectiveKnockback(baseKb);
-            _rb.linearVelocity = effectiveKb;
-            _hitstunTimer = 0.3f;
-
-            // 3. Списание стамины от контратаки
-            bool wasAboveZero = currentStamina > 0f;
-            DrainStamina(staminaCounterDrain);
-
-            // 4. Всплывающий текст "КОНТРАТАКА!"
-            telegraphVisualizer.ShowCounterAttackPopup(transform.position);
-
-            // 5. Запускаем хитстоп через централизованный контроллер игрока
-            var pCombat = _playerTransform != null ? _playerTransform.GetComponent<PlayerCombatController2D>() : null;
-            if (pCombat != null)
-            {
-                pCombat.TriggerHitstop(counterHitstopDuration);
-            }
-            else
-            {
-                Time.timeScale = 1.0f;
-            }
-
-            Debug.Log($"<color=yellow>[КОНТРАТАКА!]</color> Удар врага ПРЕРВАН! Нанесен критический урон: {counterDmg:F1} (x{counterDamageMultiplier:F2}). HP: {currentHealth:F0}/{maxHealth:F0} | Стамина: {currentStamina:F0}/{maxStamina:F0}");
-
-            // Проверка гибели от контратаки
-            if (canDie && currentHealth <= 0f)
-            {
-                Die(new Vector2(awayDir, 0f), true);
-                return;
-            }
-
-            // Если стамина только что опустилась до 0 — наступает Stamina Break!
-            if (wasAboveZero && currentStamina <= 0f)
-            {
-                TriggerStaminaBreak();
-                return;
-            }
-
-            // 6. Обычный стан от контратаки (длительность масштабируется при низкой стамине)
-            float effectiveStun = CalculateEffectiveStunDuration(counterStunDuration);
-            CurrentState = EnemyState.Stunned;
-            _stateRoutine = StartCoroutine(StunRoutine(effectiveStun, replenishStaminaAfter: false));
-        }
-
         private void TakeNormalHit(AttackConfig attack, Vector2 knockbackDirection)
         {
+            // 1. Срыв текущего замаха/атаки при получении удара
+            if (CurrentState == EnemyState.TelegraphWindup || CurrentState == EnemyState.ActiveStrike)
+            {
+                if (_stateRoutine != null) { StopCoroutine(_stateRoutine); _stateRoutine = null; }
+                if (telegraphVisualizer != null) telegraphVisualizer.HideHitbox();
+                CurrentState = EnemyState.Chasing;
+            }
+
+            // 2. Продлеваем стан/окно джаггла, если враг уже оглушен (>10 сек комбо)
+            if (CurrentState == EnemyState.Stunned)
+            {
+                _stunRemaining = Mathf.Max(_stunRemaining, 1.8f);
+            }
+
             float baseDmg = attack != null ? attack.damage : 20f;
             float dmg = baseDmg * _vulnerabilityMultiplier;
 
@@ -685,7 +738,18 @@ namespace Combat
                 SetFacing(Mathf.Sign(_playerTransform.position.x - transform.position.x));
             }
 
-            if (attack != null)
+            if (_rb == null) _rb = GetComponent<Rigidbody2D>();
+
+            bool isStale = attack != null && attack.isStale;
+            bool isLauncher = attack != null && attack.isLauncher;
+
+            if (isStale)
+            {
+                _staminaBoostTimer = 3.5f;
+                Combat.Common.CombatFloatingText.ShowAdaptation(transform.position);
+            }
+
+            if (attack != null && _rb != null)
             {
                 Vector2 rawKb = new Vector2(awayDir * attack.knockbackForce.x, attack.knockbackForce.y);
                 Vector2 effectiveKb = CalculateEffectiveKnockback(rawKb);
@@ -693,19 +757,32 @@ namespace Combat
                 _hitstunTimer = 0.25f;
             }
 
-            // Списание стамины от обычного удара
+            // Списание стамины от обычного удара (при Stale Move на 60% меньше урона по стойкости)
             bool wasAboveZero = currentStamina > 0f;
-            DrainStamina(dmg * staminaDrainMultiplier);
+            float staminaDrain = isStale ? (dmg * staminaDrainMultiplier * 0.4f) : (dmg * staminaDrainMultiplier);
+            DrainStamina(staminaDrain);
 
             if (_flashRoutine != null) StopCoroutine(_flashRoutine);
             _flashRoutine = StartCoroutine(FlashRoutine(normalColor, flashColor, 0.12f));
 
-            Debug.Log($"[ENEMY HIT] Получен обычный удар: {dmg:F1} HP. Текущее HP: {currentHealth:F0}/{maxHealth:F0} | Стамина: {currentStamina:F0}/{maxStamina:F0}");
+            Debug.Log($"[ENEMY HIT] Получен удар: {dmg:F1} HP | Stale: {isStale} | HP: {currentHealth:F0}/{maxHealth:F0} | Стамина: {currentStamina:F0}/{maxStamina:F0}");
 
-            // Проверка гибели от обычного удара
+            // Проверка гибели от удара
             if (canDie && currentHealth <= 0f)
             {
                 Die(new Vector2(awayDir, 0f), false);
+                return;
+            }
+
+            // Лаунчер: если стамина на нуле (0), враг подлетает высоко в воздух для джаггл-комбо!
+            if (isLauncher && currentStamina <= 0f)
+            {
+                if (_rb != null) _rb.linearVelocity = new Vector2(awayDir * 2.8f, 13.5f);
+                _hitstunTimer = 0.7f;
+                Combat.Common.CombatFloatingText.ShowLauncher(transform.position);
+                CurrentState = EnemyState.Stunned;
+                if (_stateRoutine != null) StopCoroutine(_stateRoutine);
+                _stateRoutine = StartCoroutine(StunRoutine(2.5f, replenishStaminaAfter: false));
                 return;
             }
 
@@ -863,10 +940,16 @@ namespace Combat
 
         /// <summary>
         /// Применяет процедурное масштабирование сложности (от кругов кристалла).
-        /// Увеличивает максимальную выносливость и ускоряет фазу замаха (телеграфа).
+        /// Увеличивает максимальное здоровье, выносливость и ускоряет фазу замаха (телеграфа).
         /// </summary>
-        public void ApplyDifficultyScaling(float staminaMultiplier, float telegraphSpeedMultiplier)
+        public void ApplyDifficultyScaling(float healthMultiplier, float staminaMultiplier, float telegraphSpeedMultiplier)
         {
+            if (healthMultiplier > 0.01f)
+            {
+                maxHealth = Mathf.Round(maxHealth * healthMultiplier);
+                currentHealth = maxHealth;
+            }
+
             if (staminaMultiplier > 0.01f)
             {
                 maxStamina = Mathf.Round(maxStamina * staminaMultiplier);
@@ -882,6 +965,11 @@ namespace Combat
                 // Замах ускоряется (длительность делится на множитель скорости, но не меньше 0.35с)
                 telegraphDuration = Mathf.Max(0.35f, telegraphDuration / telegraphSpeedMultiplier);
             }
+        }
+
+        public void ApplyDifficultyScaling(float staminaMultiplier, float telegraphSpeedMultiplier)
+        {
+            ApplyDifficultyScaling(1.0f, staminaMultiplier, telegraphSpeedMultiplier);
         }
 
         public void Die(Vector2 knockbackDirection, bool wasCounter = false)
@@ -1022,14 +1110,14 @@ namespace Combat
         {
             if (_sr != null) _sr.color = stunColor;
 
-            float elapsed = 0f;
-            while (elapsed < duration)
+            _stunRemaining = duration;
+            while (_stunRemaining > 0f)
             {
-                elapsed += Time.deltaTime;
+                _stunRemaining -= Time.deltaTime;
                 // Мерцание оглушения
                 if (_sr != null)
                 {
-                    float flash = Mathf.PingPong(elapsed * 8f, 1f);
+                    float flash = Mathf.PingPong(Time.time * 8f, 1f);
                     _sr.color = Color.Lerp(stunColor, Color.white, flash);
                 }
                 yield return null;
@@ -1037,8 +1125,8 @@ namespace Combat
 
             if (_sr != null) _sr.color = normalColor;
 
-            // Восстановление стамины после стана
-            if (replenishStaminaAfter || currentStamina <= 0f)
+            // Восстановление стамины после стана (только если прошло время без ударов)
+            if ((replenishStaminaAfter || currentStamina <= 0f) && Time.time - _lastHitTime >= 2.0f)
             {
                 currentStamina = maxStamina;
                 if (staminaBar != null)

@@ -15,6 +15,8 @@ namespace Combat.Player
         [SerializeField] private float maxHealth = 100f;
         [SerializeField] private float currentHealth = 100f;
         [SerializeField] private float invulnerabilityDuration = 0.4f;
+        [Tooltip("Длительность оглушения игрока при получении любого удара (стан)")]
+        [SerializeField] private float hitstunDuration = 0.28f;
 
         [Header("--- Death & Respawn Settings ---")]
         [Tooltip("Если включено (галочка), игрок погибает при HP <= 0. Если выключено — игрок бессмертен (HP не падает ниже 1).")]
@@ -66,11 +68,20 @@ namespace Combat.Player
             _movement = GetComponent<PlayerController2D>();
             _combat = GetComponent<PlayerCombatController2D>();
 
-            if (_sr != null) _originalColor = _sr.color;
+            if (_sr != null)
+            {
+                _sr.enabled = true;
+                _originalColor = _sr.color;
+            }
             _spawnPosition = transform.position;
             _spawnRotation = transform.rotation;
 
             currentHealth = maxHealth;
+        }
+
+        private void OnEnable()
+        {
+            if (_sr != null) _sr.enabled = true;
         }
 
         private void Update()
@@ -149,6 +160,12 @@ namespace Combat.Player
                 Vector2 kb = new Vector2(effectiveKnockbackDir.x * attack.knockbackForce.x, attack.knockbackForce.y);
                 _rb.linearVelocity = kb;
             }
+
+            // Оглушение (стан) игрока от любого удара
+            if (_movement == null) _movement = GetComponent<PlayerController2D>();
+            if (_combat == null) _combat = GetComponent<PlayerCombatController2D>();
+            if (_movement != null) _movement.ApplyHitstun(hitstunDuration);
+            if (_combat != null) _combat.ApplyHitstun(hitstunDuration);
 
             onHealthChanged?.Invoke(currentHealth, maxHealth);
             onDamaged?.Invoke();
@@ -326,7 +343,11 @@ namespace Combat.Player
         {
             currentHealth = maxHealth;
             _isInvulnerable = false;
-            if (_sr != null) _sr.color = _originalColor;
+            if (_sr != null)
+            {
+                _sr.enabled = true;
+                _sr.color = _originalColor;
+            }
             onHealthChanged?.Invoke(currentHealth, maxHealth);
         }
 

@@ -291,16 +291,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f6ec1ba86e5f0fd43a847c64c2a4f955, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Combat.EnemyAIController2D
-  maxHealth: 120
-  currentHealth: 120
+  maxHealth: 250
+  currentHealth: 250
   resetHealthDelay: 3.5
-  maxStamina: 100
-  currentStamina: 100
+  maxStamina: 135
+  currentStamina: 135
   staminaDrainMultiplier: 1
-  staminaCounterDrain: 55
-  staminaBreakStunDuration: 2.5
-  staminaRegenIdleDelay: 7
-  staminaRegenRate: 35
+  staminaBreakStunDuration: 3
+  staminaRegenIdleDelay: 11
+  staminaRegenRate: 30
   knockbackMultAtFullStamina: 0.2
   knockbackMultAtZeroStamina: 1
   stunDurationMultAtZeroStamina: 1.5
@@ -315,18 +314,25 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 0
   moveSpeed: 3.6
+  jumpForce: 12
+  jumpCooldown: 0.85
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 4294967295
   attackRange: 2.11
   telegraphDuration: 0.75
   activeStrikeDuration: 0.15
   recoveryDuration: 0.55
-  attackDamage: 18
+  attackDamage: 28
   knockbackToPlayer: {x: 7, y: 3.5}
   strikeLungeForce: 2.8
   hitboxOffset: {x: 1.15, y: 0}
   hitboxSize: {x: 1.5, y: 0.85}
-  counterDamageMultiplier: 1.75
-  counterStunDuration: 1
-  counterHitstopDuration: 0.08
+  lowSweepChance: 0.35
+  upHitboxOffset: {x: 0, y: 1.35}
+  upHitboxSize: {x: 1.6, y: 1.35}
+  lowHitboxOffset: {x: 1.15, y: -0.45}
+  lowHitboxSize: {x: 1.5, y: 0.6}
   normalColor: {r: 0.72, g: 0.15, b: 0.15, a: 1}
   stunColor: {r: 1, g: 0.88, b: 0.25, a: 1}
   flashColor: {r: 1, g: 1, b: 1, a: 1}

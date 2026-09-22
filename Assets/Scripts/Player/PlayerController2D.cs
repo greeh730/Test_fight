@@ -138,11 +138,24 @@ namespace Combat.Player
         private bool _isSkidding;
         private float _currentSurfaceFriction = 1.0f;
 
-        // Timers
+        // Timers & Stun
         private float _coyoteTimer;
         private float _jumpBufferTimer;
+        private float _hitstunTimer;
         private bool _isJumping;
         private int _airJumpsLeft;
+
+        public bool IsHitstunned => _hitstunTimer > 0f;
+
+        public void ApplyHitstun(float duration)
+        {
+            _hitstunTimer = Mathf.Max(_hitstunTimer, duration);
+            if (_isDashing)
+            {
+                _isDashing = false;
+                if (_rb != null) _rb.gravityScale = baseGravityScale;
+            }
+        }
 
         // Dash State
         private bool _isDashing;
@@ -276,6 +289,16 @@ namespace Combat.Player
 
         private void GatherInput()
         {
+            if (IsHitstunned)
+            {
+                _horizontalInput = 0f;
+                _jumpHeld = false;
+                _downHeld = false;
+                _sprintHeld = false;
+                _isSprinting = false;
+                return;
+            }
+
             float h = 0f;
             bool jumpDown = false;
             bool jumpHold = false;
@@ -454,6 +477,12 @@ namespace Combat.Player
 
         private void UpdateTimers()
         {
+            // Hitstun Timer
+            if (_hitstunTimer > 0f)
+            {
+                _hitstunTimer -= Time.deltaTime;
+            }
+
             // Coyote Timer
             if (IsGrounded)
             {

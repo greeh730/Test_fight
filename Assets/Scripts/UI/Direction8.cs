@@ -86,5 +86,103 @@ namespace Combat.UI
             float angle = Mathf.Atan2(vector.y, vector.x) * Mathf.Rad2Deg;
             return FromAngle(angle);
         }
+
+        /// <summary>
+        /// Возвращает юникод-символ стрелки для данного направления.
+        /// </summary>
+        public static string ToGlyph(this Direction8 dir)
+        {
+            return dir switch
+            {
+                Direction8.Right => "⮕",
+                Direction8.UpRight => "⬈",
+                Direction8.Up => "⬆",
+                Direction8.UpLeft => "⬉",
+                Direction8.Left => "⬅",
+                Direction8.DownLeft => "⬋",
+                Direction8.Down => "⬇",
+                Direction8.DownRight => "⬊",
+                _ => "•"
+            };
+        }
+
+        /// <summary>
+        /// Преобразует символ стрелки в Direction8.
+        /// </summary>
+        public static Direction8 FromGlyph(char c)
+        {
+            return c switch
+            {
+                '⮕' or '→' or 'R' or 'r' => Direction8.Right,
+                '⬈' or '↗' => Direction8.UpRight,
+                '⬆' or '↑' or 'U' or 'u' => Direction8.Up,
+                '⬉' or '↖' => Direction8.UpLeft,
+                '⬅' or '←' or 'L' or 'l' => Direction8.Left,
+                '⬋' or '↙' => Direction8.DownLeft,
+                '⬇' or '↓' or 'D' or 'd' => Direction8.Down,
+                '⬊' or '↘' => Direction8.DownRight,
+                _ => Direction8.None
+            };
+        }
+
+        /// <summary>
+        /// Парсит строку символов (например: "⬅⮕" или "⬋⬇⬊⮕⬈") в список направлений.
+        /// Пропускает пробелы, запятые и неизвестные знаки.
+        /// </summary>
+        public static System.Collections.Generic.List<Direction8> ParseSequence(string sequenceString)
+        {
+            var list = new System.Collections.Generic.List<Direction8>();
+            if (string.IsNullOrEmpty(sequenceString)) return list;
+
+            for (int i = 0; i < sequenceString.Length; i++)
+            {
+                char c = sequenceString[i];
+                if (char.IsWhiteSpace(c) || c == ',' || c == '-' || c == '>') continue;
+                Direction8 d = FromGlyph(c);
+                if (d != Direction8.None)
+                {
+                    list.Add(d);
+                }
+            }
+            return list;
+        }
+
+        /// <summary>
+        /// Форматирует последовательность направлений в строку символов со стрелками.
+        /// </summary>
+        public static string ToGlyphString(this System.Collections.Generic.IEnumerable<Direction8> dirs, string separator = "")
+        {
+            if (dirs == null) return "";
+            var sb = new System.Text.StringBuilder();
+            bool first = true;
+            foreach (var d in dirs)
+            {
+                if (!first && !string.IsNullOrEmpty(separator)) sb.Append(separator);
+                sb.Append(d.ToGlyph());
+                first = false;
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Отражает направление по горизонтали, если персонаж смотрит влево (Facing-Relative).
+        /// </summary>
+        public static Direction8 ToFacingRelative(this Direction8 dir, float facingSign)
+        {
+            if (facingSign >= 0f || dir == Direction8.None) return dir;
+
+            return dir switch
+            {
+                Direction8.Right => Direction8.Left,
+                Direction8.UpRight => Direction8.UpLeft,
+                Direction8.Up => Direction8.Up,
+                Direction8.UpLeft => Direction8.UpRight,
+                Direction8.Left => Direction8.Right,
+                Direction8.DownLeft => Direction8.DownRight,
+                Direction8.Down => Direction8.Down,
+                Direction8.DownRight => Direction8.DownLeft,
+                _ => dir
+            };
+        }
     }
 }
