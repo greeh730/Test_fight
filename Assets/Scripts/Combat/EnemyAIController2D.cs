@@ -605,7 +605,7 @@ namespace Combat
                 if (step.Action == NavActionType.Walk)
                 {
                     dirX = Mathf.Sign(stepDx);
-                    if (absStepDx < 0.35f)
+                    if (absStepDx < 0.45f)
                     {
                         _currentPathIndex++;
                     }
@@ -621,19 +621,24 @@ namespace Combat
                     if (!_isJumpingToNextPlatform)
                     {
                         // Если бот еще не дошел до точки отталкивания — бежим к ней
-                        if (absStepDx > 0.35f && IsGrounded)
+                        if (absStepDx > 0.45f && IsGrounded)
                         {
                             dirX = Mathf.Sign(stepDx);
                         }
-                        else if (IsGrounded && _jumpCooldownTimer <= 0f)
+                        else if (IsGrounded)
                         {
-                            _isJumpingToNextPlatform = true;
-                            _jumpAirborneGraceTimer = 0.22f; // Первые 220мс игнорируем землю, чтобы дать боту взлететь
-                            _jumpMaxDurationTimer = step.FlightDuration + 0.75f;
-                            _activeJumpForwardSpeed = step.ForwardSpeed;
-                            _activeJumpTargetY = step.LandingTarget.y;
-                            _jumpCooldownTimer = jumpCooldown * 1.15f;
-                            Jump(step.JumpForce, step.ForwardSpeed);
+                            // Находимся у точки отрыва. При активном кд останавливаемся и ждем взлета
+                            dirX = 0f;
+                            if (_jumpCooldownTimer <= 0f)
+                            {
+                                _isJumpingToNextPlatform = true;
+                                _jumpAirborneGraceTimer = 0.22f; // Первые 220мс игнорируем землю, чтобы дать боту взлететь
+                                _jumpMaxDurationTimer = step.FlightDuration + 0.75f;
+                                _activeJumpForwardSpeed = step.ForwardSpeed;
+                                _activeJumpTargetY = step.LandingTarget.y;
+                                _jumpCooldownTimer = jumpCooldown * 1.15f;
+                                Jump(step.JumpForce, step.ForwardSpeed);
+                            }
                         }
                     }
                     else
@@ -689,73 +694,92 @@ namespace Combat
             // Если активен путь платформенной навигации, реактивные прыжки в стену отключены!
             if (!pathHandledMovement && IsGrounded && _jumpCooldownTimer <= 0f)
             {
-                bool shouldJump = false;
-                float customJumpForce = jumpForce;
-                float customForwardVel = 0f;
-
-                // Б. Фланговый прыжок через игрока (когда бот обходит вплотную)
-                if (isFlankingThrough && absDx < 2.0f)
+                // Проверка потолка: если прямо над головой сплошное перекрытие — категорически не прыгаем!
+                bool hasCeilingAbove = false;
+                var ceilingHits = Physics2D.RaycastAll(transform.position, Vector2.up, 1.9f, groundLayer);
+                for (int c = 0; c < ceilingHits.Length; c++)
                 {
-                    shouldJump = true;
-                    customJumpForce = jumpForce * 1.05f;
-                    float flankDir = Mathf.Sign(targetX - transform.position.x);
-                    customForwardVel = flankDir * (moveSpeed * 1.35f);
-                    _jumpCooldownTimer = jumpCooldown * 1.3f;
-                }
-                // В. Боевой прыжок сближения (Combat Leap / Pounce) при отсутствии ступеней
-                else if (_combatLeapTimer <= 0f && distToPlayer >= 2.6f && distToPlayer <= 6.0f)
-                {
-                    shouldJump = true;
-                    customJumpForce = jumpForce * 0.95f;
-                    float leapDir = Mathf.Sign(targetX - transform.position.x);
-                    customForwardVel = leapDir * (moveSpeed * 1.35f);
-                    _combatLeapTimer = UnityEngine.Random.Range(combatLeapIntervalMin, combatLeapIntervalMax);
-                }
-                // Г. Препятствие / стена перед врагом на уровне пояса
-                else if (absDx > 0.5f)
-                {
-                    Vector2 checkOrigin = (Vector2)transform.position + new Vector2(0f, 0.25f);
-                    var wallHits = Physics2D.RaycastAll(checkOrigin, new Vector2(FacingDirection, 0f), 0.85f, groundLayer);
-                    bool wallAhead = false;
-                    for (int i = 0; i < wallHits.Length; i++)
+                    var col = ceilingHits[c].collider;
+                    if (col != null && !col.isTrigger && col != _col && col.gameObject != gameObject && !col.transform.IsChildOf(transform))
                     {
-                        var col = wallHits[i].collider;
-                        if (col != null && !col.isTrigger && col != _col && col.gameObject != gameObject && !col.transform.IsChildOf(transform))
-                        {
-                            wallAhead = true;
-                            break;
-                        }
+                        hasCeilingAbove = true;
+                        break;
                     }
+                }
 
-                    if (wallAhead)
+                if (!hasCeilingAbove)
+                {
+                    bool shouldJump = false;
+                    float customJumpForce = jumpForce;
+                    float customForwardVel = 0f;
+                    float dyToPlayer = _playerTransform.position.y - transform.position.y;
+
+                    // Б. Фланговый прыжок через игрока (когда бот обходит вплотную на том же уровне)
+                    if (isFlankingThrough && absDx < 2.0f && Mathf.Abs(dyToPlayer) < 1.3f)
                     {
                         shouldJump = true;
+                        customJumpForce = jumpForce * 1.05f;
+                        float flankDir = Mathf.Sign(targetX - transform.position.x);
+                        customForwardVel = flankDir * (moveSpeed * 1.35f);
+                        _jumpCooldownTimer = jumpCooldown * 1.3f;
                     }
-                    else
+                    // В. Боевой прыжок сближения (Combat Leap / Pounce) ТОЛЬКО при нахождении на одной высоте!
+                    else if (_combatLeapTimer <= 0f && distToPlayer >= 2.6f && distToPlayer <= 6.0f && Mathf.Abs(dyToPlayer) < 1.3f)
                     {
-                        // Д. Проверка ямы / обрыва перед ногами
-                        Vector2 edgeOrigin = (Vector2)transform.position + new Vector2(FacingDirection * 0.65f, -0.2f);
-                        var edgeHits = Physics2D.RaycastAll(edgeOrigin, Vector2.down, 1.4f, groundLayer);
-                        bool groundAhead = false;
-                        for (int i = 0; i < edgeHits.Length; i++)
+                        shouldJump = true;
+                        customJumpForce = jumpForce * 0.95f;
+                        float leapDir = Mathf.Sign(targetX - transform.position.x);
+                        customForwardVel = leapDir * (moveSpeed * 1.35f);
+                        _combatLeapTimer = UnityEngine.Random.Range(combatLeapIntervalMin, combatLeapIntervalMax);
+                    }
+                    // Г. Препятствие / стена перед врагом на уровне пояса
+                    else if (absDx > 0.5f)
+                    {
+                        Vector2 checkOrigin = (Vector2)transform.position + new Vector2(0f, 0.25f);
+                        var wallHits = Physics2D.RaycastAll(checkOrigin, new Vector2(FacingDirection, 0f), 0.85f, groundLayer);
+                        bool wallAhead = false;
+                        for (int i = 0; i < wallHits.Length; i++)
                         {
-                            var col = edgeHits[i].collider;
+                            var col = wallHits[i].collider;
                             if (col != null && !col.isTrigger && col != _col && col.gameObject != gameObject && !col.transform.IsChildOf(transform))
                             {
-                                groundAhead = true;
+                                wallAhead = true;
                                 break;
                             }
                         }
-                        if (!groundAhead)
+
+                        if (wallAhead)
                         {
                             shouldJump = true;
+                            customForwardVel = FacingDirection * (moveSpeed * 1.05f);
+                        }
+                        else
+                        {
+                            // Д. Проверка ямы / обрыва перед ногами
+                            Vector2 edgeOrigin = (Vector2)transform.position + new Vector2(FacingDirection * 0.65f, -0.2f);
+                            var edgeHits = Physics2D.RaycastAll(edgeOrigin, Vector2.down, 1.4f, groundLayer);
+                            bool groundAhead = false;
+                            for (int i = 0; i < edgeHits.Length; i++)
+                            {
+                                var col = edgeHits[i].collider;
+                                if (col != null && !col.isTrigger && col != _col && col.gameObject != gameObject && !col.transform.IsChildOf(transform))
+                                {
+                                    groundAhead = true;
+                                    break;
+                                }
+                            }
+                            if (!groundAhead)
+                            {
+                                shouldJump = true;
+                                customForwardVel = FacingDirection * (moveSpeed * 1.05f);
+                            }
                         }
                     }
-                }
 
-                if (shouldJump)
-                {
-                    Jump(customJumpForce, customForwardVel);
+                    if (shouldJump)
+                    {
+                        Jump(customJumpForce, customForwardVel);
+                    }
                 }
             }
 

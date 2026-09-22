@@ -239,7 +239,7 @@ namespace Combat.Navigation
                             // Прыжок с левого открытого края segA в обход левого края segB
                             if (segA.XMin <= segB.XMin - 0.35f)
                             {
-                                float takeoffX = Mathf.Clamp(segB.XMin - 0.85f, segA.XMin + 0.25f, segB.XMin - 0.40f);
+                                float takeoffX = Mathf.Clamp(segB.XMin - 1.15f, segA.XMin + 0.25f, segB.XMin - 0.40f);
                                 float landX = Mathf.Clamp(segB.XMin + landingEdgeInset, segB.XMin + 0.35f, segB.XMax - 0.35f);
                                 Vector2 takeoff = new Vector2(takeoffX, segA.YTop);
                                 Vector2 landing = new Vector2(landX, segB.YTop);
@@ -249,7 +249,7 @@ namespace Combat.Navigation
                             // Прыжок с правого открытого края segA в обход правого края segB
                             if (segA.XMax >= segB.XMax + 0.35f)
                             {
-                                float takeoffX = Mathf.Clamp(segB.XMax + 0.85f, segB.XMax + 0.40f, segA.XMax - 0.25f);
+                                float takeoffX = Mathf.Clamp(segB.XMax + 1.15f, segB.XMax + 0.40f, segA.XMax - 0.25f);
                                 float landX = Mathf.Clamp(segB.XMax - landingEdgeInset, segB.XMin + 0.35f, segB.XMax - 0.35f);
                                 Vector2 takeoff = new Vector2(takeoffX, segA.YTop);
                                 Vector2 landing = new Vector2(landX, segB.YTop);
@@ -356,6 +356,7 @@ namespace Combat.Navigation
         {
             int steps = 14;
             float botRadius = 0.30f;
+            var toBounds = toCol != null ? toCol.bounds : default;
 
             for (int i = 1; i < steps; i++)
             {
@@ -370,19 +371,26 @@ namespace Combat.Navigation
                     // Стартовый коллайдер игнорируем только в самом начале отрыва
                     if (hit == fromCol && i <= 2) continue;
 
-                    // Целевой коллайдер разрешен только в финальной фазе снижения
-                    float currVy = vy - effectiveGravity * t;
+                    // Проверка коллизии с целевой платформой
                     if (hit == toCol)
                     {
-                        if (i >= steps - 3 && currVy < 0.15f)
+                        // Если бот находится внутри горизонтальных границ платформы (под ней):
+                        // он должен быть выше верхней поверхности (py >= toBounds.max.y - 0.10f).
+                        // Если же его центр ниже верхней кромки — это удар головой в потолок снизу или врезание в стену!
+                        if (px >= toBounds.min.x && px <= toBounds.max.x)
                         {
-                            continue;
+                            if (py < toBounds.max.y - 0.10f)
+                            {
+                                return false; // Удар в потолок платформы снизу!
+                            }
+                            continue; // Находится над поверхностью платформы перед приземлением
                         }
-                        // Врезались в целевой коллайдер снизу или сбоку во время подъема
-                        return false;
+
+                        // Если бот снаружи платформы (сбоку), он просто пролетает мимо боковой кромки наверх
+                        continue;
                     }
 
-                    // Любое другое препятствие (потолок платформы снизу, стена)
+                    // Любое другое препятствие (потолок платформы снизу, стена, другая платформа)
                     return false;
                 }
             }
@@ -458,12 +466,18 @@ namespace Combat.Navigation
             var startSeg = GetSegmentAt(startPos);
             var goalSeg = GetSegmentAt(goalPos);
 
-            // Если не удалось определить платформы — прямой шаг к цели
+            // Если не удалось определить платформы
             if (startSeg == null || goalSeg == null)
             {
+                Vector2 targetPos = goalPos;
+                if (startSeg != null)
+                {
+                    targetPos = new Vector2(Mathf.Clamp(goalPos.x, startSeg.XMin, startSeg.XMax), startSeg.YTop);
+                }
+
                 outPath.Add(new NavPathStep
                 {
-                    Position = goalPos,
+                    Position = targetPos,
                     Action = NavActionType.Walk,
                     Description = "Direct Walk (No NavSegment)"
                 });
@@ -522,7 +536,13 @@ namespace Combat.Navigation
                 {
                     var link = current.Links[l];
                     var neighbor = link.To;
-                    float tentativeG = gScore[current] + link.Cost;
+
+                    // Учитываем расстояние от текущей позиции до точки отрыва (TakeoffPoint)
+                    float distToTakeoff = (current == startSeg)
+                        ? Vector2.Distance(startPos, link.TakeoffPoint)
+                        : (cameFrom.ContainsKey(current) ? Vector2.Distance(cameFrom[current].LandingPoint, link.TakeoffPoint) : 0f);
+
+                    float tentativeG = gScore[current] + link.Cost + distToTakeoff * 1.05f;
 
                     if (!gScore.ContainsKey(neighbor) || tentativeG < gScore[neighbor])
                     {
@@ -540,12 +560,14 @@ namespace Combat.Navigation
 
             if (!found)
             {
-                // Если пути нет — приближаемся насколько возможно по прямой
+                // Если пути нет — направляем бота к точке на стартовой платформе, ближайшей к цели,
+                // чтобы он не шел прямо под потолок и не пытался запрыгнуть сквозь препятствие!
+                float bestX = Mathf.Clamp(goalPos.x, startSeg.XMin, startSeg.XMax);
                 outPath.Add(new NavPathStep
                 {
-                    Position = goalPos,
+                    Position = new Vector2(bestX, startSeg.YTop),
                     Action = NavActionType.Walk,
-                    Description = "Unreachable Direct Step"
+                    Description = "Stand Near Target Ledge"
                 });
                 return false;
             }
