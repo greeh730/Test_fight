@@ -71,6 +71,15 @@ namespace Combat.Player
         public float ExhaustionSlowdownFactor => exhaustionSlowdownFactor;
         public bool IsRegenPaused { get; set; } = false;
 
+        /// <summary>
+        /// Проверяет, хватает ли выносливости для совершения действия и не находится ли игрок в истощении.
+        /// </summary>
+        public bool CanAfford(float cost)
+        {
+            if (IsExhausted) return false;
+            return currentStamina >= cost;
+        }
+
         private void Awake()
         {
             _sr = GetComponent<SpriteRenderer>();
