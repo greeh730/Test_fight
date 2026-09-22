@@ -20,6 +20,7 @@ namespace Combat.Navigation
         public float JumpForce = 13.5f;
         public float ForwardSpeed = 3.6f;
         public float FlightDuration = 0.5f;
+        public PlatformSegment ToSegment;
         public string Description = "";
     }
 
@@ -486,6 +487,17 @@ namespace Combat.Navigation
         }
 
         /// <summary>
+        /// Проверяет, находится ли точка на поверхности указанного сегмента платформы
+        /// </summary>
+        public bool IsPositionOnSegment(PlatformSegment seg, Vector2 pos, float marginX = 0.45f, float marginY = 0.65f)
+        {
+            if (seg == null) return false;
+            bool xMatch = pos.x >= (seg.XMin - marginX) && pos.x <= (seg.XMax + marginX);
+            bool yMatch = pos.y >= (seg.YTop - marginY) && pos.y <= (seg.YTop + 1.25f);
+            return xMatch && yMatch;
+        }
+
+        /// <summary>
         /// Поиск оптимального пути от startPos до goalPos по графу платформ (A*)
         /// </summary>
         public bool FindPath(Vector2 startPos, Vector2 goalPos, List<NavPathStep> outPath)
@@ -643,6 +655,7 @@ namespace Combat.Navigation
                     JumpForce = link.RequiredJumpForce,
                     ForwardSpeed = link.RequiredForwardSpeed,
                     FlightDuration = link.FlightDuration,
+                    ToSegment = link.To,
                     Description = $"{link.Action} from {link.From.Name} to {link.To.Name}"
                 });
             }

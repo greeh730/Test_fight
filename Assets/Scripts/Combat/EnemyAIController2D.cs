@@ -28,6 +28,16 @@ namespace Combat
         Support
     }
 
+    public enum NavTransitionState
+    {
+        None,
+        Approach,
+        Launch,
+        Airborne,
+        Landed,
+        Failed
+    }
+
     [DisallowMultipleComponent]
     [RequireComponent(typeof(Rigidbody2D))]
     [RequireComponent(typeof(Collider2D))]
@@ -231,8 +241,8 @@ namespace Combat
         private int _currentPathIndex = 0;
         private float _pathRecalculateTimer = 0f;
         private Vector2 _lastPathGoal = Vector2.zero;
-        private bool _isJumpingToNextPlatform = false;
-        private bool _isDroppingToNextPlatform = false;
+        private NavTransitionState _navTransition = NavTransitionState.None;
+        public NavTransitionState NavTransition => _navTransition;
         private float _jumpAirborneGraceTimer = 0f;
         private float _dropAirborneGraceTimer = 0f;
         private float _jumpMaxDurationTimer = 0f;
@@ -240,6 +250,18 @@ namespace Combat
         private float _activeJumpTargetY = 0f;
         public IReadOnlyList<NavPathStep> CurrentNavPath => _currentNavPath;
         public int CurrentPathIndex => _currentPathIndex;
+
+        // Anti-Stuck & Anti-Stall
+        private Vector2 _lastStuckCheckPos;
+        private float _stuckTimer = 0f;
+        private float _unstickTimer = 0f;
+        private float _unstickDir = 0f;
+
+        // Physics Execution in FixedUpdate
+        private float _desiredVelocityX = 0f;
+        private bool _hasJumpCommand = false;
+        private float _jumpCommandForce = 0f;
+        private float? _jumpCommandForwardSpeed = null;
 
         // Tactician Status Effects
         private float _vulnerabilityMultiplier = 1.0f;
@@ -389,6 +411,53 @@ namespace Combat
             }
         }
 
+        private void FixedUpdate()
+        {
+            if (CurrentState == EnemyState.Dead) return;
+
+            CheckGrounded();
+
+            if (_hasJumpCommand)
+            {
+                _hasJumpCommand = false;
+                ExecuteJumpPhysics(_jumpCommandForce, _jumpCommandForwardSpeed);
+            }
+
+            if (_isGravitySuspended)
+            {
+                if (_rb != null) _rb.linearVelocity = Vector2.zero;
+                return;
+            }
+
+            if (CurrentState == EnemyState.Stunned || _isRooted)
+            {
+                if (_rb != null) _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
+                return;
+            }
+
+            if (_navTransition == NavTransitionState.Airborne)
+            {
+                // В воздухе во время прыжка или спуска: строго удерживаем расчетную горизонтальную скорость полета
+                if (_rb != null)
+                {
+                    _rb.linearVelocity = new Vector2(_activeJumpForwardSpeed, _rb.linearVelocity.y);
+                }
+                return;
+            }
+
+            // Во время замаха, удара или восстановления скорость управляется корутиной атаки
+            if (CurrentState == EnemyState.TelegraphWindup || CurrentState == EnemyState.ActiveStrike || CurrentState == EnemyState.Recovery)
+            {
+                return;
+            }
+
+            // На земле при обычном беге / преследовании / разблокировке
+            if (_rb != null)
+            {
+                _rb.linearVelocity = new Vector2(_desiredVelocityX, _rb.linearVelocity.y);
+            }
+        }
+
         private void UpdateTacticianStatusEffects()
         {
             // 1. Метка уязвимости
@@ -441,6 +510,7 @@ namespace Combat
 
         private void UpdateIdle()
         {
+            _desiredVelocityX = 0f;
             if (_disorientTimer > 0f) return; // Ослеплен, не может обнаружить игрока
 
             float dist = Vector2.Distance(transform.position, _playerTransform.position);
@@ -467,17 +537,16 @@ namespace Combat
 
             if (_isRooted)
             {
-                _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
+                _desiredVelocityX = 0f;
                 return;
             }
 
             if (_disorientTimer > 0f)
             {
-                _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
+                _desiredVelocityX = 0f;
                 return;
             }
 
-            CheckGrounded();
             if (_jumpCooldownTimer > 0f) _jumpCooldownTimer -= Time.deltaTime;
             if (_combatLeapTimer > 0f) _combatLeapTimer -= Time.deltaTime;
 
@@ -486,12 +555,51 @@ namespace Combat
             float dx = _playerTransform.position.x - transform.position.x;
             float absDx = Mathf.Abs(dx);
 
+            bool isNavTransitionActive = _navTransition != NavTransitionState.None;
+
             // Игрок убежал слишком далеко (не прерываем активный прыжок или спуск в воздухе)
-            if (distToPlayer > loseTargetRange && !_isJumpingToNextPlatform && !_isDroppingToNextPlatform && IsGrounded)
+            if (distToPlayer > loseTargetRange && !isNavTransitionActive && IsGrounded)
             {
                 CurrentState = EnemyState.Idle;
-                _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
+                _desiredVelocityX = 0f;
                 return;
+            }
+
+            // -------------------------------------------------------------
+            // 0. АНТИ-ЗАСТРЕВАНИЕ И РАЗБЛОКИРОВКА (ANTI-STUCK / UNSTICK)
+            // -------------------------------------------------------------
+            if (_unstickTimer > 0f)
+            {
+                _unstickTimer -= Time.deltaTime;
+                _desiredVelocityX = _unstickDir * (moveSpeed * 0.75f);
+                SetFacing(_unstickDir);
+                return;
+            }
+
+            if (IsGrounded && !isNavTransitionActive)
+            {
+                if (Vector2.Distance(transform.position, _lastStuckCheckPos) < 0.15f)
+                {
+                    _stuckTimer += Time.deltaTime;
+                    if (_stuckTimer > 1.35f)
+                    {
+                        // Обнаружено застревание: отходим назад от препятствия, сбрасываем маршрут
+                        _unstickDir = -FacingDirection;
+                        _unstickTimer = 0.35f;
+                        _stuckTimer = 0f;
+                        _currentNavPath.Clear();
+                        _pathRecalculateTimer = 0f;
+                        _jumpCooldownTimer = 0.25f;
+                        _navTransition = NavTransitionState.None;
+                        Debug.Log($"<color=yellow>[AI UNSTICK]</color> {name} застрял на месте! Запущен откат назад и перерасчет пути.");
+                        return;
+                    }
+                }
+                else
+                {
+                    _lastStuckCheckPos = transform.position;
+                    _stuckTimer = 0f;
+                }
             }
 
             // -------------------------------------------------------------
@@ -502,7 +610,7 @@ namespace Combat
             float currentMoveSpeed = moveSpeed;
             bool isFlankingThrough = false;
 
-            if (enableFlanking)
+            if (enableFlanking && !isNavTransitionActive)
             {
                 // Находим всех живых преследователей в зоне видимости игрока
                 List<EnemyAIController2D> chasers = new List<EnemyAIController2D>(4);
@@ -521,9 +629,6 @@ namespace Combat
 
                 if (chasers.Count > 1)
                 {
-                    // Сортируем:
-                    // 1. Активно атакующий держит Front
-                    // 2. Ближайший к игроку — Front, второй — Flanker
                     chasers.Sort((a, b) =>
                     {
                         int aAttacking = (a.CurrentState == EnemyState.TelegraphWindup || a.CurrentState == EnemyState.ActiveStrike) ? 0 : 1;
@@ -550,7 +655,6 @@ namespace Combat
                     else if (chasers.Count >= 2 && this == chasers[1])
                     {
                         role = EnemyTacticalRole.Flanker;
-                        // Фланкер заходит с противоположной стороны!
                         float desiredFlankSide = -frontSide;
                         targetX = _playerTransform.position.x + desiredFlankSide * (attackRange * 0.85f);
                         currentMoveSpeed = moveSpeed * flankSpeedMultiplier;
@@ -573,9 +677,8 @@ namespace Combat
             // -------------------------------------------------------------
             // 2. ДИСТАНЦИЯ АТАКИ И ПРОВЕРКА УДАРА
             // -------------------------------------------------------------
-            // Если бот выполняет сквозной обход, он не начинает атаку спереди, а бежит за спину.
             // Атаку разрешено начинать ТОЛЬКО с устойчивой опоры (не в полете, не в прыжке, не во время спуска!)
-            if (!isFlankingThrough && IsGrounded && !_isJumpingToNextPlatform && !_isDroppingToNextPlatform && Mathf.Abs(_rb.linearVelocity.y) <= 0.2f)
+            if (!isFlankingThrough && IsGrounded && !isNavTransitionActive && Mathf.Abs(_rb.linearVelocity.y) <= 0.2f)
             {
                 if (distToPlayer <= attackRange || (dy > 0.8f && dy < 3.2f && absDx < 1.8f))
                 {
@@ -589,10 +692,8 @@ namespace Combat
             // -------------------------------------------------------------
             Vector2 goalDestination = new Vector2(targetX, _playerTransform.position.y);
 
-            bool isMidJump = _isJumpingToNextPlatform || _isDroppingToNextPlatform || (!IsGrounded && (_jumpAirborneGraceTimer > 0f || _dropAirborneGraceTimer > 0f));
-
-            // Не сбрасываем и не пересчитываем путь во время полета/прыжка/спуска на платформу!
-            if (usePlatformPathfinding && PlatformNavGraph2D.Instance != null && !isMidJump)
+            // Не сбрасываем и не пересчитываем путь во время активного перехода между платформами!
+            if (usePlatformPathfinding && PlatformNavGraph2D.Instance != null && !isNavTransitionActive)
             {
                 _pathRecalculateTimer -= Time.deltaTime;
                 if (_pathRecalculateTimer <= 0f || Vector2.Distance(_lastPathGoal, goalDestination) > 1.35f || _currentNavPath.Count == 0)
@@ -616,6 +717,7 @@ namespace Combat
 
                 if (step.Action == NavActionType.Walk)
                 {
+                    _navTransition = NavTransitionState.None;
                     dirX = Mathf.Sign(stepDx);
                     if (absStepDx < 0.35f)
                     {
@@ -630,22 +732,31 @@ namespace Combat
                     if (_jumpAirborneGraceTimer > 0f) _jumpAirborneGraceTimer -= Time.deltaTime;
                     if (_jumpMaxDurationTimer > 0f) _jumpMaxDurationTimer -= Time.deltaTime;
 
-                    if (!_isJumpingToNextPlatform)
+                    switch (_navTransition)
                     {
-                        // Если бот еще не дошел до точки отталкивания — бежим к ней с плавным торможением перед краем
-                        if (absStepDx > 0.22f && IsGrounded)
-                        {
-                            float approachFactor = absStepDx < 0.75f ? Mathf.Clamp(absStepDx / 0.75f, 0.45f, 1.0f) : 1.0f;
-                            dirX = Mathf.Sign(stepDx) * approachFactor;
-                        }
-                        else if (IsGrounded)
-                        {
-                            // Точно на точке отрыва! Останавливаемся и ждем завершения кд
-                            dirX = 0f;
-                            _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
-                            if (_jumpCooldownTimer <= 0f)
+                        case NavTransitionState.None:
+                        case NavTransitionState.Approach:
+                            _navTransition = NavTransitionState.Approach;
+                            if (absStepDx > 0.22f && IsGrounded)
                             {
-                                _isJumpingToNextPlatform = true;
+                                float approachFactor = absStepDx < 0.75f ? Mathf.Clamp(absStepDx / 0.75f, 0.45f, 1.0f) : 1.0f;
+                                dirX = Mathf.Sign(stepDx) * approachFactor;
+                            }
+                            else if (IsGrounded)
+                            {
+                                // Точно на точке отрыва!
+                                dirX = 0f;
+                                _desiredVelocityX = 0f;
+                                _navTransition = NavTransitionState.Launch;
+                            }
+                            break;
+
+                        case NavTransitionState.Launch:
+                            dirX = 0f;
+                            _desiredVelocityX = 0f;
+                            if (_jumpCooldownTimer <= 0f && IsGrounded)
+                            {
+                                _navTransition = NavTransitionState.Airborne;
                                 _jumpAirborneGraceTimer = 0.22f; // Первые 220мс игнорируем землю, чтобы дать боту взлететь
                                 _jumpMaxDurationTimer = step.FlightDuration + 0.75f;
                                 _activeJumpForwardSpeed = step.ForwardSpeed;
@@ -653,26 +764,51 @@ namespace Combat
                                 _jumpCooldownTimer = jumpCooldown * 1.15f;
                                 Jump(step.JumpForce, step.ForwardSpeed);
                             }
-                        }
-                    }
-                    else
-                    {
-                        // Во время прыжка: строго удерживаем расчетную горизонтальную скорость полета
-                        _rb.linearVelocity = new Vector2(_activeJumpForwardSpeed, _rb.linearVelocity.y);
+                            break;
 
-                        // Проверка приземления (только после отрыва от стартовой платформы)
-                        if (_jumpAirborneGraceTimer <= 0f && IsGrounded)
-                        {
-                            _isJumpingToNextPlatform = false;
-                            _currentPathIndex++;
-                        }
-                        else if (_jumpMaxDurationTimer <= 0f)
-                        {
-                            // Таймаут прыжка (если застрял или сорвался) — перезапускаем поиск пути
-                            _isJumpingToNextPlatform = false;
-                            _pathRecalculateTimer = 0f;
-                            _currentNavPath.Clear();
-                        }
+                        case NavTransitionState.Airborne:
+                            dirX = 0f;
+                            _desiredVelocityX = _activeJumpForwardSpeed;
+
+                            // Проверка приземления (только после отрыва от стартовой платформы)
+                            if (_jumpAirborneGraceTimer <= 0f && IsGrounded)
+                            {
+                                bool landedOnTarget = false;
+                                if (step.ToSegment != null && PlatformNavGraph2D.Instance != null)
+                                {
+                                    landedOnTarget = PlatformNavGraph2D.Instance.IsPositionOnSegment(step.ToSegment, transform.position);
+                                }
+                                else
+                                {
+                                    landedOnTarget = Mathf.Abs(transform.position.y - step.LandingTarget.y) < 0.75f &&
+                                                     Mathf.Abs(transform.position.x - step.LandingTarget.x) < 2.2f;
+                                }
+
+                                if (landedOnTarget)
+                                {
+                                    // Успешная посадка на нужную платформу!
+                                    _navTransition = NavTransitionState.Landed;
+                                    _currentPathIndex++;
+                                    _navTransition = NavTransitionState.None;
+                                }
+                                else
+                                {
+                                    // Недолет / срыв / упал обратно — переход провален, пересчитываем путь!
+                                    _navTransition = NavTransitionState.Failed;
+                                    _currentNavPath.Clear();
+                                    _pathRecalculateTimer = 0f;
+                                    _navTransition = NavTransitionState.None;
+                                }
+                            }
+                            else if (_jumpMaxDurationTimer <= 0f)
+                            {
+                                // Таймаут прыжка
+                                _navTransition = NavTransitionState.Failed;
+                                _currentNavPath.Clear();
+                                _pathRecalculateTimer = 0f;
+                                _navTransition = NavTransitionState.None;
+                            }
+                            break;
                     }
                 }
                 else if (step.Action == NavActionType.Drop)
@@ -680,27 +816,57 @@ namespace Combat
                     pathHandledMovement = true;
                     if (_dropAirborneGraceTimer > 0f) _dropAirborneGraceTimer -= Time.deltaTime;
 
-                    if (IsGrounded && !_isDroppingToNextPlatform)
+                    switch (_navTransition)
                     {
-                        if (absStepDx > 0.25f)
-                        {
-                            dirX = Mathf.Sign(stepDx);
-                        }
-                        else
-                        {
-                            _isDroppingToNextPlatform = true;
+                        case NavTransitionState.None:
+                        case NavTransitionState.Approach:
+                            _navTransition = NavTransitionState.Approach;
+                            if (absStepDx > 0.22f && IsGrounded)
+                            {
+                                dirX = Mathf.Sign(stepDx);
+                            }
+                            else if (IsGrounded)
+                            {
+                                _navTransition = NavTransitionState.Launch;
+                            }
+                            break;
+
+                        case NavTransitionState.Launch:
+                            _navTransition = NavTransitionState.Airborne;
                             _dropAirborneGraceTimer = 0.22f; // Первые 220мс игнорируем землю исходной платформы
-                            _rb.linearVelocity = new Vector2(step.ForwardSpeed, _rb.linearVelocity.y);
-                        }
-                    }
-                    else if (!IsGrounded)
-                    {
-                        _rb.linearVelocity = new Vector2(step.ForwardSpeed, _rb.linearVelocity.y);
-                    }
-                    else if (_isDroppingToNextPlatform && _dropAirborneGraceTimer <= 0f && IsGrounded)
-                    {
-                        _isDroppingToNextPlatform = false;
-                        _currentPathIndex++;
+                            _activeJumpForwardSpeed = step.ForwardSpeed;
+                            _desiredVelocityX = step.ForwardSpeed;
+                            break;
+
+                        case NavTransitionState.Airborne:
+                            _desiredVelocityX = _activeJumpForwardSpeed;
+                            if (_dropAirborneGraceTimer <= 0f && IsGrounded)
+                            {
+                                bool landedOnTarget = false;
+                                if (step.ToSegment != null && PlatformNavGraph2D.Instance != null)
+                                {
+                                    landedOnTarget = PlatformNavGraph2D.Instance.IsPositionOnSegment(step.ToSegment, transform.position);
+                                }
+                                else
+                                {
+                                    landedOnTarget = Mathf.Abs(transform.position.y - step.LandingTarget.y) < 0.75f;
+                                }
+
+                                if (landedOnTarget)
+                                {
+                                    _navTransition = NavTransitionState.Landed;
+                                    _currentPathIndex++;
+                                    _navTransition = NavTransitionState.None;
+                                }
+                                else
+                                {
+                                    _navTransition = NavTransitionState.Failed;
+                                    _currentNavPath.Clear();
+                                    _pathRecalculateTimer = 0f;
+                                    _navTransition = NavTransitionState.None;
+                                }
+                            }
+                            break;
                     }
                 }
             }
@@ -708,10 +874,9 @@ namespace Combat
             // -------------------------------------------------------------
             // 4. ДОПОЛНИТЕЛЬНЫЙ РЕАКТИВНЫЙ ПРЫЖКОВЫЙ ИНТЕЛЛЕКТ (FALLBACK & COMBAT)
             // -------------------------------------------------------------
-            // Если активен путь платформенной навигации, реактивные прыжки в стену отключены!
-            if (!pathHandledMovement && IsGrounded && _jumpCooldownTimer <= 0f)
+            // Если активен путь платформенной навигации или переход, реактивные прыжки отключены!
+            if (!pathHandledMovement && IsGrounded && _jumpCooldownTimer <= 0f && !isNavTransitionActive)
             {
-                // Проверка потолка: если прямо над головой сплошное перекрытие — категорически не прыгаем!
                 bool hasCeilingAbove = false;
                 var ceilingHits = Physics2D.RaycastAll(transform.position, Vector2.up, 1.9f, groundLayer);
                 for (int c = 0; c < ceilingHits.Length; c++)
@@ -770,9 +935,9 @@ namespace Combat
                             shouldJump = true;
                             customForwardVel = FacingDirection * (moveSpeed * 1.05f);
                         }
-                        else
+                        else if (!usePlatformPathfinding)
                         {
-                            // Д. Проверка ямы / обрыва перед ногами
+                            // Д. Проверка обрыва — ТОЛЬКО если умный A* отключен пользователем!
                             Vector2 edgeOrigin = (Vector2)transform.position + new Vector2(FacingDirection * 0.65f, -0.2f);
                             var edgeHits = Physics2D.RaycastAll(edgeOrigin, Vector2.down, 1.4f, groundLayer);
                             bool groundAhead = false;
@@ -808,8 +973,8 @@ namespace Combat
                 dirX = 0f;
             }
 
-            // Поворот: в прыжке смотрим в сторону полета, при обходе — по направлению бега, иначе на игрока
-            if (_isJumpingToNextPlatform && Mathf.Abs(_activeJumpForwardSpeed) > 0.1f)
+            // Поворот: в полете смотрим в сторону полета, при обходе — по направлению бега, иначе на игрока
+            if (_navTransition == NavTransitionState.Airborne && Mathf.Abs(_activeJumpForwardSpeed) > 0.1f)
             {
                 SetFacing(_activeJumpForwardSpeed);
             }
@@ -822,33 +987,40 @@ namespace Combat
                 SetFacing(Mathf.Sign(_playerTransform.position.x - transform.position.x));
             }
 
-            // На земле применяем ходьбу и мягкое расталкивание между врагами (в воздухе/прыжке/спуске не перебиваем скорость!)
-            if (!_isJumpingToNextPlatform && !_isDroppingToNextPlatform && IsGrounded)
+            // На земле при обычном беге применяем расталкивание между врагами
+            // Во время активных переходов по платформам расталкивание полностью отключено
+            if (!isNavTransitionActive && IsGrounded)
             {
-                bool isPreparingJump = usePlatformPathfinding && _currentNavPath != null && _currentPathIndex < _currentNavPath.Count && _currentNavPath[_currentPathIndex].Action == NavActionType.Jump && Mathf.Abs(_currentNavPath[_currentPathIndex].Position.x - transform.position.x) < 0.6f;
-
                 float separationVelocityX = 0f;
-                if (!isPreparingJump)
+                for (int i = 0; i < _activeEnemies.Count; i++)
                 {
-                    for (int i = 0; i < _activeEnemies.Count; i++)
+                    var other = _activeEnemies[i];
+                    if (other != null && other != this && !other.IsDead && other.gameObject.activeInHierarchy)
                     {
-                        var other = _activeEnemies[i];
-                        if (other != null && other != this && !other.IsDead && other.gameObject.activeInHierarchy)
+                        float diffX = transform.position.x - other.transform.position.x;
+                        float diffY = Mathf.Abs(transform.position.y - other.transform.position.y);
+                        if (Mathf.Abs(diffX) < separationDistance && diffY < 1.1f)
                         {
-                            float diffX = transform.position.x - other.transform.position.x;
-                            float diffY = Mathf.Abs(transform.position.y - other.transform.position.y);
-                            if (Mathf.Abs(diffX) < separationDistance && diffY < 1.1f)
-                            {
-                                float pushSign = diffX > 0.001f ? 1f : (diffX < -0.001f ? -1f : (string.CompareOrdinal(name, other.name) >= 0 ? 1f : -1f));
-                                float overlap = separationDistance - Mathf.Abs(diffX);
-                                separationVelocityX += pushSign * (overlap / separationDistance) * 2.4f;
-                            }
+                            float pushSign = diffX > 0.001f ? 1f : (diffX < -0.001f ? -1f : (string.CompareOrdinal(name, other.name) >= 0 ? 1f : -1f));
+                            float overlap = separationDistance - Mathf.Abs(diffX);
+                            separationVelocityX += pushSign * (overlap / separationDistance) * 2.4f;
                         }
                     }
                 }
 
-                float finalVelX = (dirX * currentMoveSpeed) + separationVelocityX;
-                _rb.linearVelocity = new Vector2(finalVelX, _rb.linearVelocity.y);
+                _desiredVelocityX = (dirX * currentMoveSpeed) + separationVelocityX;
+            }
+            else if (_navTransition == NavTransitionState.Approach)
+            {
+                _desiredVelocityX = dirX * currentMoveSpeed;
+            }
+            else if (_navTransition == NavTransitionState.Launch)
+            {
+                _desiredVelocityX = 0f;
+            }
+            else if (_navTransition == NavTransitionState.Airborne)
+            {
+                _desiredVelocityX = _activeJumpForwardSpeed;
             }
         }
 
@@ -910,9 +1082,16 @@ namespace Combat
 
         public void Jump(float customForce = -1f, float? customForwardSpeed = null)
         {
-            if (!IsGrounded || _rb == null) return;
+            if (!IsGrounded && _navTransition != NavTransitionState.Launch && _navTransition != NavTransitionState.Airborne) return;
             _jumpCooldownTimer = jumpCooldown;
-            float forceY = customForce > 0f ? customForce : jumpForce;
+            _hasJumpCommand = true;
+            _jumpCommandForce = customForce > 0f ? customForce : jumpForce;
+            _jumpCommandForwardSpeed = customForwardSpeed;
+        }
+
+        private void ExecuteJumpPhysics(float forceY, float? customForwardSpeed)
+        {
+            if (_rb == null) return;
             float velX = customForwardSpeed.HasValue ? customForwardSpeed.Value : _rb.linearVelocity.x;
             _rb.linearVelocity = new Vector2(velX, forceY);
             Debug.Log($"[ENEMY AI] {name} совершает прыжок! (ForceY: {forceY:F1}, VelX: {velX:F1})");
