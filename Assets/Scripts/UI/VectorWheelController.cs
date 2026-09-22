@@ -816,16 +816,14 @@ namespace Combat.UI
                 return;
             }
 
-            if (dir != Direction8.None && (int)dir >= 0 && (int)dir < _currentAttackNames.Length)
+            if (sequenceRecognizer != null && sequenceRecognizer.CurrentBuffer.Count > 0)
             {
-                if (sequenceRecognizer != null && sequenceRecognizer.CurrentBuffer.Count > 1)
-                {
-                    attackNameText.text = $"{_currentAttackNames[(int)dir]}  [ {sequenceRecognizer.GetBufferGlyphString()} ]";
-                }
-                else
-                {
-                    attackNameText.text = _currentAttackNames[(int)dir];
-                }
+                attackNameText.text = $"[ {sequenceRecognizer.GetBufferGlyphString()} ]";
+                attackNameText.color = textActiveColor;
+            }
+            else if (dir != Direction8.None && (int)dir >= 0 && (int)dir < _currentAttackNames.Length)
+            {
+                attackNameText.text = _currentAttackNames[(int)dir];
                 attackNameText.color = highlightColor;
             }
             else
@@ -873,14 +871,14 @@ namespace Combat.UI
 
         private static readonly string[] DefaultNormalAttackNames = new string[8]
         {
-            "СРЕДНИЙ ВПРАВО ▶",    // Right (0)
-            "ВЕРХНИЙ ВПРАВО ↗",    // UpRight (1)
-            "ВЕРХНИЙ УДАР ▲",      // Up (2)
-            "ВЕРХНИЙ ВЛЕВО ↖",     // UpLeft (3)
-            "СРЕДНИЙ ВЛЕВО ◀",     // Left (4)
-            "НИЖНИЙ ВЛЕВО ↙",      // DownLeft (5)
-            "НИЖНИЙ УДАР ▼",       // Down (6)
-            "НИЖНИЙ ВПРАВО ↘"      // DownRight (7)
+            "ВПРАВО ▶",       // Right (0)
+            "ВВЕРХ-ВПРАВО ↗", // UpRight (1)
+            "ВВЕРХ ▲",         // Up (2)
+            "ВВЕРХ-ВЛЕВО ↖",   // UpLeft (3)
+            "ВЛЕВО ◀",        // Left (4)
+            "ВНИЗ-ВЛЕВО ↙",    // DownLeft (5)
+            "ВНИЗ ▼",          // Down (6)
+            "ВНИЗ-ВПРАВО ↘"    // DownRight (7)
         };
 
         private static readonly string[] TacticianAttackNames = new string[8]

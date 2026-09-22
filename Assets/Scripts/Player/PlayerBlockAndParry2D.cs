@@ -383,7 +383,7 @@ namespace Combat.Player
             }
 
             onBlockStateChanged?.Invoke(true);
-            Debug.Log("<color=#22C3FF><b>[BLOCK]</b></color> Вход в стойку блокирования (защита со всех сторон).");
+            Debug.Log("<color=#22C3FF><b>[BLOCK]</b></color> Вход в стойку блокирования (защита спереди).");
         }
 
         private void StopBlocking()

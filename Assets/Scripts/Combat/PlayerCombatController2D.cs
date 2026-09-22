@@ -18,72 +18,12 @@ namespace Combat
         Recovery
     }
 
-    public enum WheelControlMode
-    {
-        ScreenAbsolute, // Правая полусфера колеса бьет вправо на экране, левая — влево (рекомендуется)
-        FacingRelative   // Правая полусфера колеса бьет в сторону взгляда (вперед), левая — за спину (назад)
-    }
-
-    [Serializable]
-    public struct AttackIntent
-    {
-        public AttackHeight height;
-        public StrikeDirection strikeDir; // Forward vs Backward
-        public float horizontalSign;       // +1f (Right) or -1f (Left) in world X
-        public bool isCharged;             // Заряженная усиленная атака
-
-        public AttackIntent(AttackHeight h, StrikeDirection dir, float sign, bool charged = false)
-        {
-            height = h;
-            strikeDir = dir;
-            horizontalSign = sign;
-            isCharged = charged;
-        }
-    }
-
     [Serializable]
     public class ComboStepEvent : UnityEvent<int, bool> { }
 
     [DisallowMultipleComponent]
     public class PlayerCombatController2D : MonoBehaviour
     {
-        [Header("--- 3 Базовых удара по высоте (High, Mid, Low) ---")]
-        [Tooltip("Верхний удар: рубящий / апперкот в голову и воздух (High + Mid)")]
-        [SerializeField] private AttackConfig attackHigh = new AttackConfig(
-            "Верхний рубящий",
-            CombatZone.Mid | CombatZone.High,
-            new Vector2(0.9f, 0.45f),
-            new Vector2(1.3f, 1.4f),
-            0.08f, 0.18f, 0.22f,
-            25f,
-            new Vector2(4.0f, 7.0f), // Подбрасывание вверх
-            new Color(1f, 0.4f, 0.1f, 0.8f) // Оранжево-красный (Mid+High)
-        );
-
-        [Tooltip("Средний удар: прямой выпад / колющий тычок в корпус (Mid)")]
-        [SerializeField] private AttackConfig attackMid = new AttackConfig(
-            "Средний выпад",
-            CombatZone.Mid,
-            new Vector2(1.2f, 0.0f),
-            new Vector2(1.4f, 0.8f),
-            0.06f, 0.15f, 0.18f,
-            20f,
-            new Vector2(6.5f, 1.5f),
-            new Color(1f, 0.85f, 0.15f, 0.8f) // Желтый (Mid)
-        );
-
-        [Tooltip("Нижний удар: подсечка по ногам / нижняя атака (Low)")]
-        [SerializeField] private AttackConfig attackLow = new AttackConfig(
-            "Нижняя подсечка",
-            CombatZone.Low,
-            new Vector2(1.0f, -0.45f),
-            new Vector2(1.5f, 0.6f),
-            0.07f, 0.16f, 0.20f,
-            18f,
-            new Vector2(5.5f, 0.5f),
-            new Color(0.15f, 0.85f, 1f, 0.8f) // Голубой (Low)
-        );
-
         [Header("--- Combo System Settings ---")]
         [Tooltip("Максимальное количество ударов в одной цепочке комбо")]
         [SerializeField] private int maxComboSteps = 3;
@@ -102,37 +42,6 @@ namespace Combat
         [Tooltip("Множитель силы отталкивания для завершающего удара комбо")]
         [Range(1f, 4f)]
         [SerializeField] private float finisherKnockbackMultiplier = 2.2f;
-
-        [Tooltip("Сила импульса выпада вперед/в сторону удара при комбо")]
-        [SerializeField] private float comboLungeForce = 3.5f;
-
-        [Tooltip("Комбо засчитывается только при повторе одинакового удара (любое совмещение сбрасывает серию)")]
-        [SerializeField] private bool requireSameAttackForCombo = true;
-
-        [Tooltip("Ограничивать серию комбо только средними ударами (Вперед и Назад)")]
-        [SerializeField] private bool limitCombosToMidStrikesOnly = false;
-
-        [Header("--- Empowered / Charged Strike Settings ---")]
-        [Tooltip("Множитель урона для заряженной усиленной атаки")]
-        [Range(1.5f, 4f)]
-        [SerializeField] private float empoweredDamageMultiplier = 2.0f;
-
-        [Tooltip("Множитель силы отталкивания для заряженной усиленной атаки")]
-        [Range(1.5f, 5f)]
-        [SerializeField] private float empoweredKnockbackMultiplier = 2.8f;
-
-        [Tooltip("Множитель размера хитбокса заряженной атаки")]
-        [Range(1f, 2f)]
-        [SerializeField] private float empoweredHitboxScale = 1.25f;
-
-        [Tooltip("Сила выпада вперед при заряженной атаке")]
-        [SerializeField] private float empoweredLungeForce = 6.0f;
-
-        [Tooltip("Скорость плавного подшага вперед во время удержания заряда (1-2 сек)")]
-        [SerializeField] private float chargeCrawlSpeed = 1.2f;
-
-        [Tooltip("Цвет хитбокса заряженной атаки")]
-        [SerializeField] private Color empoweredHitboxColor = new Color(1f, 0.65f, 0.05f, 0.9f);
 
         [Header("--- Input Buffer & Cancel Windows ---")]
         [Tooltip("Длительность окна буферизации ввода (в секундах)")]
@@ -153,14 +62,9 @@ namespace Combat
         [Header("--- Input & Wheel Binding ---")]
         [SerializeField] private VectorWheelController vectorWheel;
         [SerializeField] private DirectionSequenceRecognizer sequenceRecognizer;
-        [Tooltip("Режим интерпретации направлений колеса")]
-        [SerializeField] private WheelControlMode wheelControlMode = WheelControlMode.ScreenAbsolute;
 
         [Header("--- Visualizer & Gizmos ---")]
         [SerializeField] private HitboxVisualizer2D visualizer;
-        [SerializeField] private bool showAllHitboxesInEditorGizmos = true;
-        [Tooltip("Отображать зеркальные хитбоксы ударов Назад в Scene Gizmos")]
-        [SerializeField] private bool showBackwardHitboxesInGizmos = true;
 
         [Header("--- Face / Visual Orientation ---")]
         [Tooltip("Ссылка на дочерний объект Face (если null, ищется автоматически)")]
@@ -184,7 +88,6 @@ namespace Combat
         // Runtime State
         public CombatState CurrentState { get; private set; } = CombatState.Idle;
         public AttackConfig CurrentAttack { get; private set; }
-        public AttackIntent CurrentIntent { get; private set; }
         public float FacingDirection { get; private set; } = 1f;
         public int CurrentComboStep { get; private set; } = 1;
         public bool IsFinisher => CurrentComboStep >= maxComboSteps;
@@ -199,23 +102,16 @@ namespace Combat
 
         private ComboSequenceDefinition _bufferedSequence;
         private bool _bufferedIsStale;
-        private AttackIntent? _bufferedIntent;
         private float _bufferedAttackTime = -10f;
         private float _lastAttackStartTime = -10f;
         private float _lastAttackFinishTime = -10f;
         private bool _canCancelIntoCombo;
         private bool _hasHitTargetInCurrentAttack;
         private bool _lastWasFinisher;
-        private AttackIntent? _lastComboIntent;
-        private bool _sequenceMatchedThisSwipe;
         private Rigidbody2D _rb;
         private SpriteRenderer _sr;
         private PlayerStamina2D _stamina;
         private PlayerBlockAndParry2D _blockParry;
-
-        public AttackConfig AttackHigh => attackHigh;
-        public AttackConfig AttackMid => attackMid;
-        public AttackConfig AttackLow => attackLow;
 
         private void Awake()
         {
@@ -443,28 +339,6 @@ namespace Combat
             if (go != null) Destroy(go);
         }
 
-        private void UpdateChargeCrawl()
-        {
-            if (vectorWheel == null || !vectorWheel.IsDragging) return;
-            if (vectorWheel.ActiveGestureButton != Combat.UI.WheelGestureButton.LMB) return;
-            if (vectorWheel.DirectionHoldTimer < 0.2f) return;
-            if (CurrentState != CombatState.Idle) return;
-
-            var intent = MapDirection(vectorWheel.CurrentDirection);
-            if (!intent.HasValue) return;
-
-            float sign = intent.Value.horizontalSign;
-            if (Mathf.Abs(sign) > 0.01f)
-            {
-                SetFacingDirection(sign);
-                if (_rb != null)
-                {
-                    // Медленное продвижение вперед во время зажатия (подкрадывание/подшаг)
-                    _rb.linearVelocity = new Vector2(sign * chargeCrawlSpeed, _rb.linearVelocity.y);
-                }
-            }
-        }
-
         private void UpdateFacingDirection()
         {
             if (_sr == null) _sr = GetComponent<SpriteRenderer>();
@@ -518,7 +392,6 @@ namespace Combat
         {
             _hitstunTimer = Mathf.Max(_hitstunTimer, duration);
             CancelAttack();
-            ClearBuffer();
             ClearSequenceBuffer();
         }
 
@@ -536,14 +409,10 @@ namespace Combat
                 ResetCombo();
             }
 
-            // Устаревание буфера ввода
+            // Устаревание буфера связок
             if (_bufferedSequence != null && Time.time - _bufferedAttackTime > inputBufferDuration)
             {
                 ClearSequenceBuffer();
-            }
-            if (_bufferedIntent.HasValue && Time.time - _bufferedAttackTime > inputBufferDuration)
-            {
-                _bufferedIntent = null;
             }
         }
 
@@ -555,14 +424,6 @@ namespace Combat
                 bool stale = _bufferedIsStale;
                 ClearSequenceBuffer();
                 ExecuteSequenceAttack(seq, stale);
-                return;
-            }
-
-            if (_bufferedIntent.HasValue && CanExecuteAttackNow())
-            {
-                var intent = _bufferedIntent.Value;
-                ClearBuffer();
-                ExecuteAttack(intent);
             }
         }
 
@@ -576,10 +437,9 @@ namespace Combat
             return false;
         }
 
-        private void ClearBuffer()
+        public void ClearBuffer()
         {
-            _bufferedIntent = null;
-            _bufferedAttackTime = -10f;
+            ClearSequenceBuffer();
         }
 
         private void ClearSequenceBuffer()
@@ -593,7 +453,6 @@ namespace Combat
         {
             CurrentComboStep = 1;
             _lastWasFinisher = false;
-            _lastComboIntent = null;
             onComboStepChanged?.Invoke(CurrentComboStep, false);
             if (sequenceRecognizer != null)
             {
@@ -604,7 +463,7 @@ namespace Combat
         private void OnSequenceMatched(ComboSequenceDefinition seq, bool isStale)
         {
             if (seq == null) return;
-            if (currentStance == CombatStance.Tactician) return; // В стойке тактика жесты воина не активируются
+            if (currentStance == CombatStance.Tactician) return; // В стойке тактика связки воина не активируются
 
             // Проверка стамины игрока: при истощении связки продолжать нельзя!
             if (_stamina != null && (_stamina.IsExhausted || _stamina.CurrentStamina <= 0f))
@@ -613,7 +472,6 @@ namespace Combat
                 return;
             }
 
-            _sequenceMatchedThisSwipe = true;
             TryExecuteSequenceOrBuffer(seq, isStale);
         }
 
@@ -635,6 +493,7 @@ namespace Combat
         {
             if (dir == Direction8.None) return;
 
+            // В стойке Тактика свайп активирует способность арена-контроля
             if (currentStance == CombatStance.Tactician)
             {
                 if (_stamina != null && (_stamina.IsExhausted || !_stamina.CanAfford(18f)))
@@ -658,301 +517,8 @@ namespace Combat
                 return;
             }
 
-            // Если во время текущего свайпа уже активировался комбо-приём, не перекрываем его базовым ударом
-            if (_sequenceMatchedThisSwipe)
-            {
-                _sequenceMatchedThisSwipe = false;
-                return;
-            }
-
-            bool isCharged = vectorWheel != null && vectorWheel.ConsumeCharge();
-            AttackIntent? mapped = MapDirection(dir, isCharged);
-            if (!mapped.HasValue) return;
-
-            TryAttackOrBuffer(mapped.Value);
-        }
-
-        public AttackIntent? MapDirection(Direction8 dir, bool isCharged = false)
-        {
-            if (dir == Direction8.None) return null;
-
-            // 1. Высота атаки (High, Mid, Low)
-            AttackHeight height = dir switch
-            {
-                Direction8.Up or Direction8.UpRight or Direction8.UpLeft => AttackHeight.High,
-                Direction8.Right or Direction8.Left => AttackHeight.Mid,
-                Direction8.Down or Direction8.DownRight or Direction8.DownLeft => AttackHeight.Low,
-                _ => AttackHeight.Mid
-            };
-
-            // 2. Определение стороны удара (+1 вправо, -1 влево на экране)
-            float sign;
-            if (wheelControlMode == WheelControlMode.FacingRelative)
-            {
-                if (dir == Direction8.Right || dir == Direction8.UpRight || dir == Direction8.DownRight)
-                    sign = FacingDirection;
-                else if (dir == Direction8.Left || dir == Direction8.UpLeft || dir == Direction8.DownLeft)
-                    sign = -FacingDirection;
-                else
-                    sign = FacingDirection;
-            }
-            else // ScreenAbsolute (по умолчанию): строго вправо / влево
-            {
-                if (dir == Direction8.Right || dir == Direction8.UpRight || dir == Direction8.DownRight)
-                    sign = 1f; // бьет вправо на экране
-                else if (dir == Direction8.Left || dir == Direction8.UpLeft || dir == Direction8.DownLeft)
-                    sign = -1f; // бьет влево на экране
-                else
-                    sign = FacingDirection; // для чистых Up/Down бьем в сторону текущего взгляда
-            }
-
-            return new AttackIntent(height, StrikeDirection.Forward, sign, isCharged);
-        }
-
-        public bool TryAttackOrBuffer(AttackIntent intent)
-        {
-            if (CanExecuteAttackNow())
-            {
-                ClearBuffer();
-                return ExecuteAttack(intent);
-            }
-
-            _bufferedIntent = intent;
-            _bufferedAttackTime = Time.time;
-            return false;
-        }
-
-        public bool TryAttackOrBuffer(AttackDirection dir)
-        {
-            var intent = ConvertLegacyDirection(dir);
-            return TryAttackOrBuffer(intent);
-        }
-
-        public bool ExecuteAttack(AttackDirection dir)
-        {
-            return ExecuteAttack(ConvertLegacyDirection(dir));
-        }
-
-        public bool ExecuteAttack(AttackHeight height, StrikeDirection strikeDir = StrikeDirection.Forward)
-        {
-            float sign = (strikeDir == StrikeDirection.Forward) ? FacingDirection : -FacingDirection;
-            return ExecuteAttack(new AttackIntent(height, strikeDir, sign));
-        }
-
-        private AttackIntent ConvertLegacyDirection(AttackDirection dir)
-        {
-            return dir switch
-            {
-                AttackDirection.Right => new AttackIntent(AttackHeight.Mid, StrikeDirection.Forward, 1f),
-                AttackDirection.Up => new AttackIntent(AttackHeight.High, StrikeDirection.Forward, FacingDirection),
-                AttackDirection.Down => new AttackIntent(AttackHeight.Low, StrikeDirection.Forward, FacingDirection),
-                AttackDirection.Left => new AttackIntent(AttackHeight.Mid, StrikeDirection.Forward, -1f),
-                _ => new AttackIntent(AttackHeight.Mid, StrikeDirection.Forward, FacingDirection)
-            };
-        }
-
-        public AttackConfig GetAttackForHeight(AttackHeight height)
-        {
-            return height switch
-            {
-                AttackHeight.High => attackHigh,
-                AttackHeight.Mid => attackMid,
-                AttackHeight.Low => attackLow,
-                _ => attackMid
-            };
-        }
-
-        private bool IsComboCompatible(AttackIntent lastIntent, AttackIntent nextIntent)
-        {
-            if (!requireSameAttackForCombo) return true;
-
-            // 1. Высота удара должна строго совпадать (например, Mid != High)
-            if (lastIntent.height != nextIntent.height) return false;
-
-            // 2. Горизонтальное направление должно строго совпадать (Вправо != Влево)
-            if (Mathf.Sign(lastIntent.horizontalSign) != Mathf.Sign(nextIntent.horizontalSign)) return false;
-
-            // 3. Относительное направление должно совпадать (Forward != Backward)
-            if (lastIntent.strikeDir != nextIntent.strikeDir) return false;
-
-            // 4. Ограничение комбо только средними ударами (если включено в инспекторе)
-            if (limitCombosToMidStrikesOnly && nextIntent.height != AttackHeight.Mid) return false;
-
-            return true;
-        }
-
-        private void PrepareNextComboStep(AttackIntent newIntent, bool isChaining)
-        {
-            if (newIntent.isCharged)
-            {
-                CurrentComboStep = 1;
-                _lastComboIntent = newIntent;
-                _lastAttackStartTime = Time.time;
-                return;
-            }
-
-            if (isChaining)
-            {
-                if (_lastComboIntent.HasValue && IsComboCompatible(_lastComboIntent.Value, newIntent))
-                {
-                    CurrentComboStep = (CurrentComboStep >= maxComboSteps) ? 1 : CurrentComboStep + 1;
-                }
-                else
-                {
-                    CurrentComboStep = 1;
-                }
-            }
-            else
-            {
-                float idleTimeReference = _lastAttackFinishTime > 0f ? _lastAttackFinishTime : _lastAttackStartTime;
-                bool withinTime = (Time.time - idleTimeReference <= comboResetTime) && !_lastWasFinisher && (idleTimeReference > 0f);
-                if (withinTime && _lastComboIntent.HasValue && IsComboCompatible(_lastComboIntent.Value, newIntent))
-                {
-                    CurrentComboStep = (CurrentComboStep >= maxComboSteps) ? 1 : CurrentComboStep + 1;
-                }
-                else
-                {
-                    CurrentComboStep = 1;
-                }
-            }
-
-            _lastComboIntent = newIntent;
-            _lastAttackStartTime = Time.time;
-        }
-
-        public bool ExecuteAttack(AttackIntent intent, bool isComboChain = false)
-        {
-            if (!CanExecuteAttackNow()) return false;
-
-            AttackConfig attack = GetAttackForHeight(intent.height);
-            if (attack == null) return false;
-
-            if (_stamina != null)
-            {
-                string actionId = $"{intent.height}_{intent.strikeDir}_{(intent.isCharged ? "Charged" : "Normal")}";
-                float cost = intent.isCharged ? 20f : 12f;
-                _stamina.ConsumeForAction(actionId, cost);
-            }
-
-            // Поворачиваем персонажа и отзеркаливаем лицо в сторону удара (влево / вправо)
-            if (Mathf.Abs(intent.horizontalSign) > 0.01f)
-            {
-                SetFacingDirection(intent.horizontalSign);
-            }
-
-            bool isChaining = isComboChain || (_attackRoutine != null) || (CurrentState != CombatState.Idle);
-
-            if (_attackRoutine != null)
-            {
-                StopCoroutine(_attackRoutine);
-                _attackRoutine = null;
-                if (visualizer != null) visualizer.HideHitbox();
-            }
-
-            PrepareNextComboStep(intent, isChaining);
-
-            _attackRoutine = StartCoroutine(AttackSequenceRoutine(attack, intent));
-            return true;
-        }
-
-        private IEnumerator AttackSequenceRoutine(AttackConfig attack, AttackIntent intent)
-        {
-            CurrentAttack = attack;
-            CurrentIntent = intent;
-            _hitTargetsInCurrentSwing.Clear();
-            _hitReceiversInCurrentSwing.Clear();
-            _canCancelIntoCombo = false;
-            _hasHitTargetInCurrentAttack = false;
-
-            int thisAttackStep = CurrentComboStep;
-            bool isFinisher = thisAttackStep >= maxComboSteps && !intent.isCharged;
-            bool isCharged = intent.isCharged;
-
-            string dirLabel = intent.horizontalSign > 0 ? "ВПРАВО" : "ВЛЕВО";
-            string arrow = intent.horizontalSign > 0 ? "▶" : "◀";
-            if (intent.height == AttackHeight.High) arrow = intent.horizontalSign > 0 ? "↗" : "↖";
-            if (intent.height == AttackHeight.Low) arrow = intent.horizontalSign > 0 ? "↘" : "↙";
-
-            string displayName = $"{attack.attackName} {dirLabel} {arrow}";
-
-            if (vectorWheel != null)
-            {
-                vectorWheel.SetAttackPlaqueWithCombo(displayName, thisAttackStep, isFinisher, isCharged);
-            }
-            onComboStepChanged?.Invoke(thisAttackStep, isFinisher);
-
-            float speedMult = _stamina != null ? _stamina.ActionSpeedMultiplier : 1.0f;
-
-            // 1. ФАЗА ЗАМАХА (STARTUP) — удары в комбо ускоряются, заряженный слегка акцентирован
-            CurrentState = CombatState.Startup;
-            float startup = (isCharged ? attack.startupTime * 1.1f : (thisAttackStep > 1 ? attack.startupTime * comboStartupMultiplier : attack.startupTime)) / speedMult;
-            yield return new WaitForSeconds(startup);
-
-            // 2. АКТИВНАЯ ФАЗА (ACTIVE)
-            CurrentState = CombatState.Active;
-            float activeTimer = attack.activeTime / speedMult;
-
-            // Выпад в направлении удара (усиленный выпад при заряженном ударе)
-            ApplyComboLunge(intent.horizontalSign, isCharged);
-
-            Vector2 boxSize = isCharged ? attack.hitboxSize * empoweredHitboxScale : attack.hitboxSize;
-            Color boxColor = isCharged ? empoweredHitboxColor : attack.hitboxColor;
-
-            while (activeTimer > 0f)
-            {
-                Vector2 boxCenter = GetHitboxCenter(attack, intent.horizontalSign);
-
-                if (visualizer != null)
-                {
-                    visualizer.ShowHitbox(boxCenter, boxSize, boxColor, isFinisher, isCharged);
-                }
-
-                CheckHitboxOverlap(attack, intent, boxCenter, boxSize, isFinisher, isCharged);
-
-                activeTimer -= Time.deltaTime;
-                yield return null;
-            }
-
-            if (visualizer != null)
-            {
-                visualizer.HideHitbox();
-            }
-
-            // 3. ФАЗА ВОССТАНОВЛЕНИЯ (RECOVERY)
-            CurrentState = CombatState.Recovery;
-            float recovery = attack.recoveryTime / speedMult;
-            float cancelOpenTime = recovery * recoveryCancelThreshold;
-            float recoveryTimer = 0f;
-
-            while (recoveryTimer < recovery)
-            {
-                recoveryTimer += Time.deltaTime;
-
-                if (recoveryTimer >= cancelOpenTime || _hasHitTargetInCurrentAttack)
-                {
-                    _canCancelIntoCombo = true;
-
-                    if (_bufferedIntent.HasValue)
-                    {
-                        _lastAttackFinishTime = Time.time;
-                        _lastWasFinisher = isFinisher;
-                        var nextIntent = _bufferedIntent.Value;
-                        ClearBuffer();
-                        _attackRoutine = null;
-                        ExecuteAttack(nextIntent, isComboChain: true);
-                        yield break;
-                    }
-                }
-
-                yield return null;
-            }
-
-            _lastAttackFinishTime = Time.time;
-            _lastWasFinisher = isFinisher;
-            _canCancelIntoCombo = false;
-            CurrentState = CombatState.Idle;
-            CurrentAttack = null;
-            _attackRoutine = null;
+            // В Боевой Стойке (Normal) одиночные свайпы НЕ наносят ударов!
+            // Все удары и комбо выполняются строго через связки жестов (DirectionSequenceRecognizer)
         }
 
         public bool ExecuteSequenceAttack(ComboSequenceDefinition seq, bool isStale, bool isComboChain = false)
@@ -1119,16 +685,6 @@ namespace Combat
                         ExecuteSequenceAttack(nextSeq, nextStale, isComboChain: true);
                         yield break;
                     }
-                    else if (_bufferedIntent.HasValue)
-                    {
-                        _lastAttackFinishTime = Time.time;
-                        _lastWasFinisher = isFinisher;
-                        var nextIntent = _bufferedIntent.Value;
-                        ClearBuffer();
-                        _attackRoutine = null;
-                        ExecuteAttack(nextIntent, isComboChain: true);
-                        yield break;
-                    }
                 }
 
                 yield return null;
@@ -1200,24 +756,6 @@ namespace Combat
             }
         }
 
-        private void ApplyComboLunge(float horizontalSign, bool isCharged = false)
-        {
-            if (_rb == null) _rb = GetComponent<Rigidbody2D>();
-            if (_rb != null)
-            {
-                float speedMult = _stamina != null ? _stamina.ActionSpeedMultiplier : 1.0f;
-                if (isCharged)
-                {
-                    _rb.linearVelocity = new Vector2(horizontalSign * empoweredLungeForce * speedMult, _rb.linearVelocity.y);
-                }
-                else if (comboLungeForce > 0.05f)
-                {
-                    float multiplier = IsFinisher ? 1.5f : (CurrentComboStep > 1 ? 1.15f : 0.85f);
-                    _rb.linearVelocity = new Vector2(horizontalSign * comboLungeForce * multiplier * speedMult, _rb.linearVelocity.y);
-                }
-            }
-        }
-
         public void TriggerHitstop(float customDuration = -1f)
         {
             float duration = customDuration > 0.001f ? customDuration : hitstopDuration;
@@ -1234,76 +772,6 @@ namespace Combat
             _hitstopRoutine = null;
         }
 
-        private void CheckHitboxOverlap(AttackConfig attack, AttackIntent intent, Vector2 center, Vector2 size, bool isFinisher, bool isCharged = false)
-        {
-            _overlapResults.Clear();
-            int count = Physics2D.OverlapBox(center, size, 0f, _contactFilter, _overlapResults);
-
-            string statusSuffix = isCharged ? " [УСИЛЕННАЯ АТАКА!]" : (isFinisher ? " [ФИНИШЕР!]" : "");
-            float dmgMult = isCharged ? empoweredDamageMultiplier : (isFinisher ? finisherDamageMultiplier : 1f);
-            float kbMult = isCharged ? empoweredKnockbackMultiplier : (isFinisher ? finisherKnockbackMultiplier : 1f);
-            Color effectiveColor = isCharged ? empoweredHitboxColor : attack.hitboxColor;
-
-            AttackConfig effectiveAttack = (isFinisher || isCharged)
-                ? new AttackConfig(
-                    attack.attackName + statusSuffix,
-                    attack.targetedZones,
-                    attack.hitboxOffset,
-                    size,
-                    attack.startupTime,
-                    attack.activeTime,
-                    attack.recoveryTime,
-                    attack.damage * dmgMult,
-                    attack.knockbackForce * kbMult,
-                    effectiveColor
-                )
-                : attack;
-
-            for (int i = 0; i < count; i++)
-            {
-                var col = _overlapResults[i];
-                if (col == null || col.gameObject == gameObject) continue;
-                if (_hitTargetsInCurrentSwing.Contains(col)) continue;
-
-                var hurtbox = col.GetComponent<CombatHurtbox2D>();
-                if (hurtbox != null)
-                {
-                    if (effectiveAttack.targetedZones.Overlaps(hurtbox.BodyZone))
-                    {
-                        var receiver = hurtbox.GetTargetReceiver();
-                        if (receiver != null && _hitReceiversInCurrentSwing.Contains(receiver))
-                        {
-                            continue;
-                        }
-
-                        _hitTargetsInCurrentSwing.Add(col);
-                        if (receiver != null) _hitReceiversInCurrentSwing.Add(receiver);
-
-                        OnTargetHitSuccess(isFinisher, isCharged);
-
-                        Vector2 knockbackDir = new Vector2(intent.horizontalSign, 1f).normalized;
-                        hurtbox.ReceiveHit(effectiveAttack, center, knockbackDir);
-                    }
-                }
-                else
-                {
-                    var target = col.GetComponent<IHurtboxTarget2D>() ?? col.GetComponentInParent<IHurtboxTarget2D>();
-                    if (target != null)
-                    {
-                        if (_hitReceiversInCurrentSwing.Contains(target)) continue;
-
-                        _hitTargetsInCurrentSwing.Add(col);
-                        _hitReceiversInCurrentSwing.Add(target);
-
-                        OnTargetHitSuccess(isFinisher, isCharged);
-
-                        Vector2 knockbackDir = new Vector2(intent.horizontalSign, 1f).normalized;
-                        target.TakeHit(effectiveAttack, effectiveAttack.targetedZones, center, knockbackDir);
-                    }
-                }
-            }
-        }
-
         private void OnTargetHitSuccess(bool isFinisher = false, bool isCharged = false)
         {
             if (!_hasHitTargetInCurrentAttack)
@@ -1312,11 +780,6 @@ namespace Combat
                 _canCancelIntoCombo = true;
                 float hitstop = isCharged ? 0.10f : (isFinisher ? hitstopDuration * 1.8f : hitstopDuration);
                 TriggerHitstop(hitstop);
-
-                if (isCharged && visualizer != null)
-                {
-                    visualizer.ShowEmpoweredPopup(transform.position + new Vector3(FacingDirection * 1.1f, 0.6f, 0f));
-                }
             }
         }
 
@@ -1336,42 +799,21 @@ namespace Combat
 
         private void OnDrawGizmosSelected()
         {
-            float forwardSign = Application.isPlaying ? FacingDirection : (transform.localScale.x < 0 ? -1f : 1f);
-
-            if (showAllHitboxesInEditorGizmos)
+            if (CurrentAttack != null)
             {
-                DrawAttackGizmo(attackHigh, forwardSign, false);
-                DrawAttackGizmo(attackMid, forwardSign, false);
-                DrawAttackGizmo(attackLow, forwardSign, false);
-
-                if (showBackwardHitboxesInGizmos)
-                {
-                    DrawAttackGizmo(attackHigh, -forwardSign, true);
-                    DrawAttackGizmo(attackMid, -forwardSign, true);
-                    DrawAttackGizmo(attackLow, -forwardSign, true);
-                }
-            }
-            else if (CurrentAttack != null)
-            {
-                DrawAttackGizmo(CurrentAttack, CurrentIntent.horizontalSign, CurrentIntent.strikeDir == StrikeDirection.Backward);
+                DrawAttackGizmo(CurrentAttack, FacingDirection);
             }
         }
 
-        private void DrawAttackGizmo(AttackConfig attack, float sign, bool isBackward)
+        private void DrawAttackGizmo(AttackConfig attack, float sign)
         {
             if (attack == null) return;
             Vector2 pos = (Vector2)transform.position + new Vector2(attack.hitboxOffset.x * sign, attack.hitboxOffset.y);
 
-            Color c = attack.hitboxColor;
-            if (isBackward)
-            {
-                c = new Color(c.r, c.g, c.b, c.a * 0.45f);
-            }
-
-            Gizmos.color = c;
+            Gizmos.color = attack.hitboxColor;
             Gizmos.DrawWireCube(new Vector3(pos.x, pos.y, 0f), new Vector3(attack.hitboxSize.x, attack.hitboxSize.y, 0.1f));
 
-            Gizmos.color = new Color(c.r, c.g, c.b, isBackward ? 0.08f : 0.18f);
+            Gizmos.color = new Color(attack.hitboxColor.r, attack.hitboxColor.g, attack.hitboxColor.b, 0.18f);
             Gizmos.DrawCube(new Vector3(pos.x, pos.y, 0f), new Vector3(attack.hitboxSize.x, attack.hitboxSize.y, 0.05f));
         }
     }
