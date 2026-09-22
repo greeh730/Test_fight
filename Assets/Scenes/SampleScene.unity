@@ -3055,6 +3055,59 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
   m_BlendShapeWeights: []
+--- !u!1 &928127884
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 928127886}
+  - component: {fileID: 928127885}
+  m_Layer: 0
+  m_Name: '[SYSTEM] PlatformNavGraph2D'
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &928127885
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 928127884}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 95d00b97b88965243a0e9771e5a8b2b6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Combat.Navigation.PlatformNavGraph2D
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  edgeInset: 0.25
+  effectiveGravity: 34.34
+  maxJumpForce: 14
+  botRunSpeed: 3.6
+  jumpHeightClearance: 0.45
+  showFullGraphInScene: 0
+--- !u!4 &928127886
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 928127884}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &936163873
 GameObject:
   m_ObjectHideFlags: 0
@@ -3433,11 +3486,14 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 0
   moveSpeed: 3.6
-  jumpForce: 12
+  jumpForce: 13.5
   jumpCooldown: 0.85
   groundLayer:
     serializedVersion: 2
     m_Bits: 4294967295
+  usePlatformPathfinding: 1
+  showPathGizmos: 1
+  pathGizmoColor: {r: 0, g: 1, b: 0.85, a: 0.95}
   enableFlanking: 1
   flankSpeedMultiplier: 1.18
   combatLeapIntervalMin: 2.4
@@ -5861,11 +5917,14 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 0
   moveSpeed: 3.6
-  jumpForce: 12
+  jumpForce: 13.5
   jumpCooldown: 0.85
   groundLayer:
     serializedVersion: 2
     m_Bits: 4294967295
+  usePlatformPathfinding: 1
+  showPathGizmos: 1
+  pathGizmoColor: {r: 0, g: 1, b: 0.85, a: 0.95}
   enableFlanking: 1
   flankSpeedMultiplier: 1.18
   combatLeapIntervalMin: 2.4
@@ -7344,3 +7403,4 @@ SceneRoots:
   - {fileID: 1432960079}
   - {fileID: 6970111000722754028}
   - {fileID: 1843114823}
+  - {fileID: 928127886}

@@ -5,6 +5,7 @@ using UnityEngine;
 using UnityEngine.Events;
 using Combat.Player;
 using Combat.Common;
+using Combat.Navigation;
 
 namespace Combat
 {
@@ -87,11 +88,21 @@ namespace Combat
         [Header("--- Movement & Jumping ---")]
         [SerializeField] private float moveSpeed = 3.6f;
         [Tooltip("Сила прыжка врага на платформы и к игроку")]
-        [SerializeField] private float jumpForce = 12.0f;
+        [SerializeField] private float jumpForce = 13.5f;
         [Tooltip("Кулдаун между прыжками врага (сек)")]
         [SerializeField] private float jumpCooldown = 0.85f;
         [Tooltip("Слои земли и платформ для прыжков")]
         [SerializeField] private LayerMask groundLayer = ~0;
+
+        [Header("--- Navigation & Pathfinding ---")]
+        [Tooltip("Использовать умную навигацию по графу платформ (A*)")]
+        [SerializeField] private bool usePlatformPathfinding = true;
+
+        [Tooltip("Отрисовывать проложенный путь прямо в Scene View")]
+        [SerializeField] private bool showPathGizmos = true;
+
+        [Tooltip("Цвет линии пути в Scene View")]
+        [SerializeField] private Color pathGizmoColor = new Color(0f, 1f, 0.85f, 0.95f);
 
         [Header("--- Tactical & Flanking Coordination ---")]
         [Tooltip("Включить тактическое окружение игрока (один спереди, другой заходит сзади/с фланга)")]
@@ -214,6 +225,16 @@ namespace Combat
         private ContactFilter2D _playerFilter;
         private ContactFilter2D _groundFilter;
         private readonly RaycastHit2D[] _groundCastHits = new RaycastHit2D[8];
+
+        // Navigation & Pathfinding
+        private readonly List<NavPathStep> _currentNavPath = new List<NavPathStep>();
+        private int _currentPathIndex = 0;
+        private float _pathRecalculateTimer = 0f;
+        private Vector2 _lastPathGoal = Vector2.zero;
+        private bool _isJumpingToNextPlatform = false;
+        private bool _isDroppingToNextPlatform = false;
+        public IReadOnlyList<NavPathStep> CurrentNavPath => _currentNavPath;
+        public int CurrentPathIndex => _currentPathIndex;
 
         // Tactician Status Effects
         private float _vulnerabilityMultiplier = 1.0f;
@@ -548,7 +569,86 @@ namespace Combat
             }
 
             // -------------------------------------------------------------
-            // 3. ПРЫЖКОВЫЙ ИНТЕЛЛЕКТ И ПРЕОДОЛЕНИЕ ПРЕПЯТСТВИЙ
+            // 3. НАВИГАЦИЯ ПО ПЛАТФОРМАМ (A* PLATFORM PATHFINDING)
+            // -------------------------------------------------------------
+            Vector2 goalDestination = new Vector2(targetX, _playerTransform.position.y);
+
+            if (usePlatformPathfinding && PlatformNavGraph2D.Instance != null)
+            {
+                _pathRecalculateTimer -= Time.deltaTime;
+                if (_pathRecalculateTimer <= 0f || Vector2.Distance(_lastPathGoal, goalDestination) > 1.35f || _currentNavPath.Count == 0)
+                {
+                    PlatformNavGraph2D.Instance.FindPath(transform.position, goalDestination, _currentNavPath);
+                    _currentPathIndex = 0;
+                    _lastPathGoal = goalDestination;
+                    _pathRecalculateTimer = UnityEngine.Random.Range(0.28f, 0.45f);
+                }
+            }
+
+            // Определение направления движения и прыжков по маршруту:
+            float dirX = Mathf.Sign(targetX - transform.position.x);
+            bool pathHandledMovement = false;
+
+            if (usePlatformPathfinding && _currentNavPath != null && _currentNavPath.Count > 0 && _currentPathIndex < _currentNavPath.Count)
+            {
+                var step = _currentNavPath[_currentPathIndex];
+                float stepDx = step.Position.x - transform.position.x;
+                float absStepDx = Mathf.Abs(stepDx);
+
+                if (step.Action == NavActionType.Walk)
+                {
+                    dirX = Mathf.Sign(stepDx);
+                    if (absStepDx < 0.40f)
+                    {
+                        _currentPathIndex++;
+                    }
+                    pathHandledMovement = true;
+                }
+                else if (step.Action == NavActionType.Jump)
+                {
+                    // Находимся в точке прыжка на следующую платформу
+                    if (IsGrounded && _jumpCooldownTimer <= 0f && !_isJumpingToNextPlatform)
+                    {
+                        _isJumpingToNextPlatform = true;
+                        _jumpCooldownTimer = jumpCooldown * 1.15f;
+                        Jump(step.JumpForce, step.ForwardSpeed);
+                    }
+                    else if (!IsGrounded)
+                    {
+                        // В воздухе летим к точке приземления с заданной скоростью
+                        _rb.linearVelocity = new Vector2(step.ForwardSpeed, _rb.linearVelocity.y);
+                    }
+                    else if (_isJumpingToNextPlatform && IsGrounded)
+                    {
+                        // Успешно приземлились на платформу!
+                        _isJumpingToNextPlatform = false;
+                        _currentPathIndex++;
+                    }
+                    pathHandledMovement = true;
+                }
+                else if (step.Action == NavActionType.Drop)
+                {
+                    // Спуск с платформы вниз
+                    if (IsGrounded && !_isDroppingToNextPlatform)
+                    {
+                        _isDroppingToNextPlatform = true;
+                        _rb.linearVelocity = new Vector2(step.ForwardSpeed, _rb.linearVelocity.y);
+                    }
+                    else if (!IsGrounded)
+                    {
+                        _rb.linearVelocity = new Vector2(step.ForwardSpeed, _rb.linearVelocity.y);
+                    }
+                    else if (_isDroppingToNextPlatform && IsGrounded)
+                    {
+                        _isDroppingToNextPlatform = false;
+                        _currentPathIndex++;
+                    }
+                    pathHandledMovement = true;
+                }
+            }
+
+            // -------------------------------------------------------------
+            // 4. ДОПОЛНИТЕЛЬНЫЙ РЕАКТИВНЫЙ ПРЫЖКОВЫЙ ИНТЕЛЛЕКТ (FALLBACK & COMBAT)
             // -------------------------------------------------------------
             if (IsGrounded && _jumpCooldownTimer <= 0f)
             {
@@ -556,16 +656,8 @@ namespace Combat
                 float customJumpForce = jumpForce;
                 float customForwardVel = 0f;
 
-                // А. Игрок находится выше на платформе (dy > 0.5f) в радиусе до 6.5м
-                if (dy > 0.5f && absDx < 6.5f)
-                {
-                    shouldJump = true;
-                    customJumpForce = jumpForce * Mathf.Clamp(1.0f + (dy - 0.5f) * 0.2f, 1.0f, 1.35f);
-                }
-                // Б. Фланговый прыжок через игрока:
-                // Когда фланкер обходит игрока и подходит вплотную (absDx < 2.0f),
-                // он перепрыгивает через голову игрока, приземляясь за спиной!
-                else if (isFlankingThrough && absDx < 2.0f)
+                // Б. Фланговый прыжок через игрока (когда бот обходит вплотную)
+                if (isFlankingThrough && absDx < 2.0f)
                 {
                     shouldJump = true;
                     customJumpForce = jumpForce * 1.05f;
@@ -573,9 +665,8 @@ namespace Combat
                     customForwardVel = flankDir * (moveSpeed * 1.35f);
                     _jumpCooldownTimer = jumpCooldown * 1.3f;
                 }
-                // В. Боевой прыжок сближения (Combat Leap / Pounce):
-                // При погоне на средней дистанции бот периодически прыгает вперед
-                else if (_combatLeapTimer <= 0f && distToPlayer >= 2.6f && distToPlayer <= 6.0f)
+                // В. Боевой прыжок сближения (Combat Leap / Pounce) при отсутствии ступеней
+                else if (!pathHandledMovement && _combatLeapTimer <= 0f && distToPlayer >= 2.6f && distToPlayer <= 6.0f)
                 {
                     shouldJump = true;
                     customJumpForce = jumpForce * 0.95f;
@@ -632,10 +723,9 @@ namespace Combat
             }
 
             // -------------------------------------------------------------
-            // 4. ДВИЖЕНИЕ И РАЗДЕЛЕНИЕ ВРАГОВ (ANTI-STACKING)
+            // 5. ДВИЖЕНИЕ И РАЗДЕЛЕНИЕ ВРАГОВ (ANTI-STACKING)
             // -------------------------------------------------------------
-            float dirX = Mathf.Sign(targetX - transform.position.x);
-            if (Mathf.Abs(targetX - transform.position.x) < 0.2f)
+            if (Mathf.Abs(targetX - transform.position.x) < 0.2f && !pathHandledMovement)
             {
                 dirX = 0f;
             }
@@ -1407,8 +1497,123 @@ namespace Combat
             _flashRoutine = null;
         }
 
+        private void OnDrawGizmos()
+        {
+            if (!showPathGizmos) return;
+
+            // Отрисовка активного маршрута навигации прямо в окне Scene!
+            if (_currentNavPath != null && _currentNavPath.Count > 0)
+            {
+                Vector2 prevPos = transform.position;
+
+                for (int i = Mathf.Clamp(_currentPathIndex - 1, 0, _currentNavPath.Count - 1); i < _currentNavPath.Count; i++)
+                {
+                    var step = _currentNavPath[i];
+
+                    if (step.Action == NavActionType.Jump)
+                    {
+                        // Траектория прыжка (параболическая дуга)
+                        Gizmos.color = new Color(1.0f, 0.72f, 0.1f, 0.95f);
+                        PlatformNavGraph2D.DrawJumpArcGizmo(step.Position, step.LandingTarget, step.JumpForce, step.ForwardSpeed, step.FlightDuration);
+                        Gizmos.DrawSphere(step.Position, 0.14f);
+                        Gizmos.DrawSphere(step.LandingTarget, 0.18f);
+                        prevPos = step.LandingTarget;
+                    }
+                    else if (step.Action == NavActionType.Drop)
+                    {
+                        // Траектория спуска
+                        Gizmos.color = new Color(0.2f, 0.8f, 1.0f, 0.85f);
+                        Gizmos.DrawLine(prevPos, step.Position);
+                        Gizmos.DrawLine(step.Position, step.LandingTarget);
+                        Gizmos.DrawSphere(step.LandingTarget, 0.15f);
+                        prevPos = step.LandingTarget;
+                    }
+                    else
+                    {
+                        // Обычный бег по платформе
+                        Gizmos.color = pathGizmoColor;
+                        Gizmos.DrawLine(prevPos, step.Position);
+                        Gizmos.DrawSphere(step.Position, 0.13f);
+                        prevPos = step.Position;
+                    }
+                }
+
+                // Маркер целевой точки
+                Gizmos.color = new Color(1.0f, 0.2f, 0.2f, 0.85f);
+                if (_playerTransform != null)
+                {
+                    Gizmos.DrawWireSphere(_lastPathGoal, 0.35f);
+                }
+            }
+
+#if UNITY_EDITOR
+            if (showPathGizmos && CurrentState == EnemyState.Chasing && _currentNavPath != null && _currentNavPath.Count > 0 && _currentPathIndex < _currentNavPath.Count)
+            {
+                var currStep = _currentNavPath[_currentPathIndex];
+                string label = $"[NAV] {currStep.Action} ({_currentPathIndex + 1}/{_currentNavPath.Count})\n{currStep.Description}";
+                GUIStyle style = new GUIStyle();
+                style.normal.textColor = pathGizmoColor;
+                style.fontStyle = FontStyle.Bold;
+                style.fontSize = 11;
+                style.alignment = TextAnchor.MiddleCenter;
+                UnityEditor.Handles.Label(transform.position + new Vector3(0f, 1.35f, 0f), label, style);
+            }
+#endif
+        }
+
         private void OnDrawGizmosSelected()
         {
+            // Предпросмотр пути в окне Scene даже в режиме редактирования (Edit Mode)
+            if (!Application.isPlaying && showPathGizmos && PlatformNavGraph2D.Instance != null)
+            {
+                var target = _playerTransform != null ? _playerTransform : (GameObject.FindWithTag("Player")?.transform);
+                if (target != null)
+                {
+                    var previewPath = new List<NavPathStep>();
+                    if (PlatformNavGraph2D.Instance.FindPath(transform.position, target.position, previewPath))
+                    {
+                        Vector2 prevPos = transform.position;
+                        for (int i = 0; i < previewPath.Count; i++)
+                        {
+                            var step = previewPath[i];
+                            if (step.Action == NavActionType.Jump)
+                            {
+                                Gizmos.color = new Color(1.0f, 0.72f, 0.1f, 0.95f);
+                                PlatformNavGraph2D.DrawJumpArcGizmo(step.Position, step.LandingTarget, step.JumpForce, step.ForwardSpeed, step.FlightDuration);
+                                Gizmos.DrawSphere(step.Position, 0.14f);
+                                Gizmos.DrawSphere(step.LandingTarget, 0.18f);
+                                prevPos = step.LandingTarget;
+                            }
+                            else if (step.Action == NavActionType.Drop)
+                            {
+                                Gizmos.color = new Color(0.2f, 0.8f, 1.0f, 0.85f);
+                                Gizmos.DrawLine(prevPos, step.Position);
+                                Gizmos.DrawLine(step.Position, step.LandingTarget);
+                                Gizmos.DrawSphere(step.LandingTarget, 0.15f);
+                                prevPos = step.LandingTarget;
+                            }
+                            else
+                            {
+                                Gizmos.color = pathGizmoColor;
+                                Gizmos.DrawLine(prevPos, step.Position);
+                                Gizmos.DrawSphere(step.Position, 0.13f);
+                                prevPos = step.Position;
+                            }
+                        }
+
+#if UNITY_EDITOR
+                        string label = $"[NAV PREVIEW] {previewPath.Count} steps to Player";
+                        GUIStyle style = new GUIStyle();
+                        style.normal.textColor = pathGizmoColor;
+                        style.fontStyle = FontStyle.Bold;
+                        style.fontSize = 11;
+                        style.alignment = TextAnchor.MiddleCenter;
+                        UnityEditor.Handles.Label(transform.position + new Vector3(0f, 1.35f, 0f), label, style);
+#endif
+                    }
+                }
+            }
+
             // Зеленый круг зоны обнаружения
             Gizmos.color = new Color(0.2f, 0.9f, 0.3f, 0.4f);
             Gizmos.DrawWireSphere(transform.position, detectionRange);

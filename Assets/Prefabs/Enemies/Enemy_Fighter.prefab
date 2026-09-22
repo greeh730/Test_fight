@@ -314,11 +314,14 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 0
   moveSpeed: 3.6
-  jumpForce: 12
+  jumpForce: 13.5
   jumpCooldown: 0.85
   groundLayer:
     serializedVersion: 2
     m_Bits: 4294967295
+  usePlatformPathfinding: 1
+  showPathGizmos: 1
+  pathGizmoColor: {r: 0, g: 1, b: 0.85, a: 0.95}
   enableFlanking: 1
   flankSpeedMultiplier: 1.18
   combatLeapIntervalMin: 2.4
