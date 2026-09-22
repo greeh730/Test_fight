@@ -213,8 +213,6 @@ namespace Combat.Player
             }
         }
 
-        public float CurrentFacing => _currentFacing;
-
         private void Awake()
         {
             _rb = GetComponent<Rigidbody2D>();
