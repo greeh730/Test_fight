@@ -3089,10 +3089,10 @@ MonoBehaviour:
     m_Bits: 4294967295
   edgeInset: 0.25
   effectiveGravity: 34.34
-  maxJumpForce: 14
-  botRunSpeed: 3.6
-  jumpHeightClearance: 0.45
-  showFullGraphInScene: 0
+  maxJumpForce: 15.5
+  botRunSpeed: 3.8
+  jumpHeightClearance: 0.65
+  showFullGraphInScene: 1
 --- !u!4 &928127886
 Transform:
   m_ObjectHideFlags: 0
@@ -3485,8 +3485,8 @@ MonoBehaviour:
   visionObstacleLayers:
     serializedVersion: 2
     m_Bits: 0
-  moveSpeed: 3.6
-  jumpForce: 13.5
+  moveSpeed: 3.8
+  jumpForce: 14.8
   jumpCooldown: 0.85
   groundLayer:
     serializedVersion: 2
@@ -5916,8 +5916,8 @@ MonoBehaviour:
   visionObstacleLayers:
     serializedVersion: 2
     m_Bits: 0
-  moveSpeed: 3.6
-  jumpForce: 13.5
+  moveSpeed: 3.8
+  jumpForce: 14.8
   jumpCooldown: 0.85
   groundLayer:
     serializedVersion: 2

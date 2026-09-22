@@ -96,24 +96,30 @@ namespace Combat.Navigation
         [SerializeField] private LayerMask groundLayer = ~0;
 
         [Tooltip("Отступ от краев коллайдера вовнутрь (чтобы боты не срывались)")]
-        [SerializeField] private float edgeInset = 0.25f;
+        [SerializeField] private float edgeInset = 0.30f;
 
         [Header("--- Bot Physics Capabilities ---")]
         [Tooltip("Базовая гравитация для расчетов")]
         [SerializeField] private float effectiveGravity = 34.34f; // 9.81 * 3.5
 
+        [Tooltip("Смещение центра (пивота) бота над поверхностью платформы (половина высоты коллайдера)")]
+        [SerializeField] private float botPivotOffsetY = 0.50f;
+
         [Tooltip("Максимальная сила прыжка бота")]
-        [SerializeField] private float maxJumpForce = 14.0f;
+        [SerializeField] private float maxJumpForce = 15.5f;
 
         [Tooltip("Скорость горизонтального бега")]
-        [SerializeField] private float botRunSpeed = 3.6f;
+        [SerializeField] private float botRunSpeed = 3.8f;
 
-        [Tooltip("Запас высоты при расчете дуги прыжка (clearing margin)")]
-        [SerializeField] private float jumpHeightClearance = 0.45f;
+        [Tooltip("Запас высоты над посадочной платформой при расчете дуги прыжка (clearing margin)")]
+        [SerializeField] private float jumpHeightClearance = 0.65f;
+
+        [Tooltip("Отступ точки приземления внутрь платформы от края")]
+        [SerializeField] private float landingEdgeInset = 0.85f;
 
         [Header("--- Scene View Gizmos ---")]
         [Tooltip("Показывать ли всю структуру графа навигации в Scene View (зеленые платформы и желтые связи)")]
-        [SerializeField] private bool showFullGraphInScene = false;
+        [SerializeField] private bool showFullGraphInScene = true;
 
         // Построенные сегменты платформ
         private readonly List<PlatformSegment> _segments = new List<PlatformSegment>();
@@ -208,49 +214,78 @@ namespace Combat.Navigation
                     float dy = segB.YTop - segA.YTop;
 
                     // 1. ПРЫЖКОВЫЕ СВЯЗИ (JUMP LINKS)
-                    // Платформа B выше или на том же уровне или немного ниже (но не прямо под ногами)
+                    // Платформа B выше или на том же уровне или немного ниже
                     if (dy <= maxJumpHeight && dy > -3.5f)
                     {
-                        // А. Прыжок с правого края segA в сторону segB
-                        if (segB.XMin > segA.XMax - 0.5f)
+                        // А. segB находится справа от segA
+                        if (segB.XMin >= segA.XMax - 0.5f)
                         {
                             Vector2 takeoff = segA.RightLedge;
-                            Vector2 landing = new Vector2(Mathf.Clamp(segB.XMin + 0.5f, segB.XMin, segB.XMax), segB.YTop);
+                            float landX = Mathf.Clamp(segB.XMin + landingEdgeInset, segB.XMin + 0.35f, segB.XMax - 0.35f);
+                            Vector2 landing = new Vector2(landX, segB.YTop);
                             TryCreateJumpLink(segA, segB, takeoff, landing);
                         }
-
-                        // Б. Прыжок с левого края segA в сторону segB
-                        if (segB.XMax < segA.XMin + 0.5f)
+                        // Б. segB находится слева от segA
+                        else if (segB.XMax <= segA.XMin + 0.5f)
                         {
                             Vector2 takeoff = segA.LeftLedge;
-                            Vector2 landing = new Vector2(Mathf.Clamp(segB.XMax - 0.5f, segB.XMin, segB.XMax), segB.YTop);
+                            float landX = Mathf.Clamp(segB.XMax - landingEdgeInset, segB.XMin + 0.35f, segB.XMax - 0.35f);
+                            Vector2 landing = new Vector2(landX, segB.YTop);
                             TryCreateJumpLink(segA, segB, takeoff, landing);
                         }
-
-                        // В. Прыжок с платформы A вверх на перекрывающую платформу B (вертикальный подскок)
-                        if (dy > 0.4f && dy <= maxJumpHeight)
+                        // В. segA и segB перекрываются по горизонтали (segB выше segA)
+                        else if (dy > 0.35f)
                         {
-                            float overlapLeft = Mathf.Max(segA.XMin, segB.XMin);
-                            float overlapRight = Mathf.Min(segA.XMax, segB.XMax);
-                            if (overlapRight > overlapLeft + 0.5f)
+                            // Прыжок с левого открытого края segA в обход левого края segB
+                            if (segA.XMin <= segB.XMin - 0.35f)
                             {
-                                float midX = (overlapLeft + overlapRight) * 0.5f;
-                                Vector2 takeoff = new Vector2(midX, segA.YTop);
-                                Vector2 landing = new Vector2(midX, segB.YTop);
+                                float takeoffX = Mathf.Clamp(segB.XMin - 0.85f, segA.XMin + 0.25f, segB.XMin - 0.40f);
+                                float landX = Mathf.Clamp(segB.XMin + landingEdgeInset, segB.XMin + 0.35f, segB.XMax - 0.35f);
+                                Vector2 takeoff = new Vector2(takeoffX, segA.YTop);
+                                Vector2 landing = new Vector2(landX, segB.YTop);
                                 TryCreateJumpLink(segA, segB, takeoff, landing);
+                            }
+
+                            // Прыжок с правого открытого края segA в обход правого края segB
+                            if (segA.XMax >= segB.XMax + 0.35f)
+                            {
+                                float takeoffX = Mathf.Clamp(segB.XMax + 0.85f, segB.XMax + 0.40f, segA.XMax - 0.25f);
+                                float landX = Mathf.Clamp(segB.XMax - landingEdgeInset, segB.XMin + 0.35f, segB.XMax - 0.35f);
+                                Vector2 takeoff = new Vector2(takeoffX, segA.YTop);
+                                Vector2 landing = new Vector2(landX, segB.YTop);
+                                TryCreateJumpLink(segA, segB, takeoff, landing);
+                            }
+
+                            // Исключение: ТОЛЬКО для односторонних сквозных платформ (PlatformEffector2D с useOneWay)
+                            // разрешен вертикальный прыжок сквозь платформу снизу вверх
+                            if (segB.Collider != null && segB.Collider.usedByEffector)
+                            {
+                                var effector = segB.Collider.GetComponent<PlatformEffector2D>();
+                                if (effector != null && effector.useOneWay)
+                                {
+                                    float overlapLeft = Mathf.Max(segA.XMin, segB.XMin);
+                                    float overlapRight = Mathf.Min(segA.XMax, segB.XMax);
+                                    if (overlapRight > overlapLeft + 0.6f)
+                                    {
+                                        float midX = (overlapLeft + overlapRight) * 0.5f;
+                                        Vector2 takeoff = new Vector2(midX, segA.YTop);
+                                        Vector2 landing = new Vector2(midX, segB.YTop);
+                                        TryCreateJumpLink(segA, segB, takeoff, landing);
+                                    }
+                                }
                             }
                         }
                     }
 
                     // 2. СПУСКИ И ПАДЕНИЯ (DROP LINKS)
                     // Платформа B находится ниже платформы A
-                    if (dy < -0.8f && dy > -8.0f)
+                    if (dy < -0.8f && dy > -8.5f)
                     {
                         // Спуск с правого края A на B
                         if (segA.RightLedge.x >= segB.XMin - 0.6f && segA.RightLedge.x <= segB.XMax + 0.6f)
                         {
                             Vector2 takeoff = segA.RightLedge;
-                            Vector2 landing = new Vector2(Mathf.Clamp(takeoff.x + 0.4f, segB.XMin, segB.XMax), segB.YTop);
+                            Vector2 landing = new Vector2(Mathf.Clamp(takeoff.x + 0.45f, segB.XMin + 0.3f, segB.XMax - 0.3f), segB.YTop);
                             CreateDropLink(segA, segB, takeoff, landing);
                         }
 
@@ -258,7 +293,7 @@ namespace Combat.Navigation
                         if (segA.LeftLedge.x >= segB.XMin - 0.6f && segA.LeftLedge.x <= segB.XMax + 0.6f)
                         {
                             Vector2 takeoff = segA.LeftLedge;
-                            Vector2 landing = new Vector2(Mathf.Clamp(takeoff.x - 0.4f, segB.XMin, segB.XMax), segB.YTop);
+                            Vector2 landing = new Vector2(Mathf.Clamp(takeoff.x - 0.45f, segB.XMin + 0.3f, segB.XMax - 0.3f), segB.YTop);
                             CreateDropLink(segA, segB, takeoff, landing);
                         }
                     }
@@ -268,13 +303,16 @@ namespace Combat.Navigation
 
         private void TryCreateJumpLink(PlatformSegment from, PlatformSegment to, Vector2 takeoff, Vector2 landing)
         {
-            float dx = landing.x - takeoff.x;
-            float dy = landing.y - takeoff.y;
+            Vector2 takeoffPivot = takeoff + new Vector2(0f, botPivotOffsetY);
+            Vector2 landingPivot = landing + new Vector2(0f, botPivotOffsetY);
 
-            // Расчет физики прыжка
-            float peakY = Mathf.Max(takeoff.y, landing.y) + jumpHeightClearance;
-            float hUp = peakY - takeoff.y;
-            float hDown = peakY - landing.y;
+            float dx = landingPivot.x - takeoffPivot.x;
+            float dy = landingPivot.y - takeoffPivot.y;
+
+            // Расчет физики прыжка с учетом смещения центра бота и запаса клиренса
+            float peakY = Mathf.Max(takeoffPivot.y, landingPivot.y) + jumpHeightClearance;
+            float hUp = peakY - takeoffPivot.y;
+            float hDown = peakY - landingPivot.y;
 
             if (hUp < 0.1f) hUp = 0.1f;
             if (hDown < 0.1f) hDown = 0.1f;
@@ -289,8 +327,14 @@ namespace Combat.Navigation
             if (totalTime <= 0.05f) return;
 
             float vx = dx / totalTime;
-            // Проверяем, укладывается ли горизонтальная скорость в бег с ускорением
-            if (Mathf.Abs(vx) > botRunSpeed * 1.6f) return; // Слишком далеко по горизонтали
+            // Проверяем, укладывается ли горизонтальная скорость в бег
+            if (Mathf.Abs(vx) > botRunSpeed * 1.85f) return; // Слишком далеко по горизонтали
+
+            // Проверка траектории: дуга не должна проходить сквозь твердые платформы или врезаться в потолок!
+            if (!IsJumpTrajectoryClear(takeoffPivot, landingPivot, vy, vx, totalTime, from.Collider, to.Collider))
+            {
+                return;
+            }
 
             var link = new PlatformLink
             {
@@ -299,13 +343,51 @@ namespace Combat.Navigation
                 Action = NavActionType.Jump,
                 TakeoffPoint = takeoff,
                 LandingPoint = landing,
-                RequiredJumpForce = Mathf.Clamp(vy, 9.0f, maxJumpForce * 1.05f),
+                RequiredJumpForce = Mathf.Clamp(vy, 9.0f, maxJumpForce * 1.1f),
                 RequiredForwardSpeed = vx,
                 FlightDuration = totalTime,
-                Cost = Vector2.Distance(takeoff, landing) * 1.2f + 1.5f
+                Cost = Vector2.Distance(takeoff, landing) * 1.1f + 1.2f
             };
 
             from.Links.Add(link);
+        }
+
+        private bool IsJumpTrajectoryClear(Vector2 takeoffPivot, Vector2 landingPivot, float vy, float vx, float totalTime, Collider2D fromCol, Collider2D toCol)
+        {
+            int steps = 14;
+            float botRadius = 0.30f;
+
+            for (int i = 1; i < steps; i++)
+            {
+                float t = (totalTime * i) / steps;
+                float px = takeoffPivot.x + vx * t;
+                float py = takeoffPivot.y + (vy * t - 0.5f * effectiveGravity * t * t);
+                Vector2 checkPos = new Vector2(px, py);
+
+                var hit = Physics2D.OverlapCircle(checkPos, botRadius, groundLayer);
+                if (hit != null && !hit.isTrigger)
+                {
+                    // Стартовый коллайдер игнорируем только в самом начале отрыва
+                    if (hit == fromCol && i <= 2) continue;
+
+                    // Целевой коллайдер разрешен только в финальной фазе снижения
+                    float currVy = vy - effectiveGravity * t;
+                    if (hit == toCol)
+                    {
+                        if (i >= steps - 3 && currVy < 0.15f)
+                        {
+                            continue;
+                        }
+                        // Врезались в целевой коллайдер снизу или сбоку во время подъема
+                        return false;
+                    }
+
+                    // Любое другое препятствие (потолок платформы снизу, стена)
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private void CreateDropLink(PlatformSegment from, PlatformSegment to, Vector2 takeoff, Vector2 landing)
@@ -536,7 +618,7 @@ namespace Combat.Navigation
                     if (link.Action == NavActionType.Jump)
                     {
                         Gizmos.color = new Color(1.0f, 0.75f, 0.1f, 0.5f);
-                        DrawJumpArcGizmo(link.TakeoffPoint, link.LandingPoint, link.RequiredJumpForce, link.RequiredForwardSpeed, link.FlightDuration);
+                        DrawJumpArcGizmo(link.TakeoffPoint, link.LandingPoint, link.RequiredJumpForce, link.RequiredForwardSpeed, link.FlightDuration, 14, botPivotOffsetY);
                     }
                     else if (link.Action == NavActionType.Drop)
                     {
@@ -550,21 +632,21 @@ namespace Combat.Navigation
         /// <summary>
         /// Рисует физическую параболическую дугу прыжка в Scene View
         /// </summary>
-        public static void DrawJumpArcGizmo(Vector2 takeoff, Vector2 landing, float vy, float vx, float duration, int steps = 14)
+        public static void DrawJumpArcGizmo(Vector2 takeoff, Vector2 landing, float vy, float vx, float duration, int steps = 14, float pivotOffsetY = 0.5f)
         {
             float g = 34.34f;
-            Vector2 prev = takeoff;
+            Vector2 prev = takeoff + new Vector2(0f, pivotOffsetY);
 
             for (int s = 1; s <= steps; s++)
             {
                 float t = (float)s / steps * duration;
                 float px = takeoff.x + vx * t;
-                float py = takeoff.y + (vy * t - 0.5f * g * t * t);
+                float py = takeoff.y + pivotOffsetY + (vy * t - 0.5f * g * t * t);
                 Vector2 curr = new Vector2(px, py);
                 Gizmos.DrawLine(prev, curr);
                 prev = curr;
             }
-            Gizmos.DrawLine(prev, landing);
+            Gizmos.DrawLine(prev, landing + new Vector2(0f, pivotOffsetY));
         }
     }
 }

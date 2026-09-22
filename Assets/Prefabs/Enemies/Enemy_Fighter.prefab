@@ -313,8 +313,8 @@ MonoBehaviour:
   visionObstacleLayers:
     serializedVersion: 2
     m_Bits: 0
-  moveSpeed: 3.6
-  jumpForce: 13.5
+  moveSpeed: 3.8
+  jumpForce: 14.8
   jumpCooldown: 0.85
   groundLayer:
     serializedVersion: 2
