@@ -19,6 +19,14 @@ namespace Combat
         Dead             // Повержен
     }
 
+    public enum EnemyTacticalRole
+    {
+        Solo,
+        Front,
+        Flanker,
+        Support
+    }
+
     [DisallowMultipleComponent]
     [RequireComponent(typeof(Rigidbody2D))]
     [RequireComponent(typeof(Collider2D))]
@@ -85,6 +93,22 @@ namespace Combat
         [Tooltip("Слои земли и платформ для прыжков")]
         [SerializeField] private LayerMask groundLayer = ~0;
 
+        [Header("--- Tactical & Flanking Coordination ---")]
+        [Tooltip("Включить тактическое окружение игрока (один спереди, другой заходит сзади/с фланга)")]
+        [SerializeField] private bool enableFlanking = true;
+
+        [Tooltip("Множитель скорости при обходе с фланга")]
+        [SerializeField] private float flankSpeedMultiplier = 1.18f;
+
+        [Tooltip("Минимальный интервал между боевыми прыжками сближения (сек)")]
+        [SerializeField] private float combatLeapIntervalMin = 2.4f;
+
+        [Tooltip("Максимальный интервал между боевыми прыжками сближения (сек)")]
+        [SerializeField] private float combatLeapIntervalMax = 4.2f;
+
+        [Tooltip("Дистанция разделения между врагами для предотвращения наложения спрайтов")]
+        [SerializeField] private float separationDistance = 1.15f;
+
         [Header("--- Attack Parameters (Straight Mid Strike) ---")]
         [Tooltip("Дистанция до игрока для начала замаха")]
         [SerializeField] private float attackRange = 2.05f;
@@ -148,16 +172,22 @@ namespace Combat
         public float MaxStamina => maxStamina;
         public float CurrentStamina => currentStamina;
         public Rigidbody2D Rigidbody => _rb;
+        public EnemyTacticalRole TacticalRole { get; private set; } = EnemyTacticalRole.Solo;
+
+        private static readonly List<EnemyAIController2D> _activeEnemies = new List<EnemyAIController2D>();
+        public static IReadOnlyList<EnemyAIController2D> ActiveEnemies => _activeEnemies;
 
         private void OnEnable()
         {
             CombatTargetResolver.Register(this);
+            if (!_activeEnemies.Contains(this)) _activeEnemies.Add(this);
         }
 
         private void OnDisable()
         {
             Time.timeScale = 1.0f;
             CombatTargetResolver.Unregister(this);
+            _activeEnemies.Remove(this);
         }
 
         private Transform _playerTransform;
@@ -177,10 +207,13 @@ namespace Combat
         private float _lastHitTime;
         private float _hitstunTimer;
         private float _jumpCooldownTimer;
+        private float _combatLeapTimer;
         public bool IsGrounded { get; private set; }
         private float _stunRemaining;
         private readonly List<Collider2D> _overlapResults = new List<Collider2D>(8);
         private ContactFilter2D _playerFilter;
+        private ContactFilter2D _groundFilter;
+        private readonly RaycastHit2D[] _groundCastHits = new RaycastHit2D[8];
 
         // Tactician Status Effects
         private float _vulnerabilityMultiplier = 1.0f;
@@ -230,6 +263,12 @@ namespace Combat
             _playerFilter = new ContactFilter2D();
             _playerFilter.useTriggers = true;
             _playerFilter.SetLayerMask(~0);
+
+            _groundFilter = new ContactFilter2D();
+            _groundFilter.useTriggers = false;
+            _groundFilter.SetLayerMask(groundLayer != 0 ? groundLayer : ~0);
+
+            _combatLeapTimer = UnityEngine.Random.Range(combatLeapIntervalMin, combatLeapIntervalMax);
         }
 
         private void Start()
@@ -297,6 +336,9 @@ namespace Combat
 
             // Обновление негативных эффектов Тактика (Root, Gravity, Smoke, Vulnerability)
             UpdateTacticianStatusEffects();
+
+            // Проверка заземления каждый кадр
+            CheckGrounded();
 
             // Основная машина состояний ИИ
             switch (CurrentState)
@@ -401,44 +443,182 @@ namespace Combat
 
             CheckGrounded();
             if (_jumpCooldownTimer > 0f) _jumpCooldownTimer -= Time.deltaTime;
+            if (_combatLeapTimer > 0f) _combatLeapTimer -= Time.deltaTime;
 
-            float dist = Vector2.Distance(transform.position, _playerTransform.position);
+            float distToPlayer = Vector2.Distance(transform.position, _playerTransform.position);
             float dy = _playerTransform.position.y - transform.position.y;
             float dx = _playerTransform.position.x - transform.position.x;
             float absDx = Mathf.Abs(dx);
 
             // Игрок убежал слишком далеко
-            if (dist > loseTargetRange)
+            if (distToPlayer > loseTargetRange)
             {
                 CurrentState = EnemyState.Idle;
                 _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
                 return;
             }
 
-            // Прыжковый интеллект врага:
+            // -------------------------------------------------------------
+            // 1. ТАКТИЧЕСКАЯ КООРДИНАЦИЯ И РАСПРЕДЕЛЕНИЕ РОЛЕЙ (FLANKING)
+            // -------------------------------------------------------------
+            EnemyTacticalRole role = EnemyTacticalRole.Solo;
+            float targetX = _playerTransform.position.x;
+            float currentMoveSpeed = moveSpeed;
+            bool isFlankingThrough = false;
+
+            if (enableFlanking)
+            {
+                // Находим всех живых преследователей в зоне видимости игрока
+                List<EnemyAIController2D> chasers = new List<EnemyAIController2D>(4);
+                for (int i = 0; i < _activeEnemies.Count; i++)
+                {
+                    var e = _activeEnemies[i];
+                    if (e != null && !e.IsDead && e.gameObject.activeInHierarchy && _playerTransform != null)
+                    {
+                        float d = Vector2.Distance(e.transform.position, _playerTransform.position);
+                        if (d <= e.loseTargetRange && (e.CurrentState == EnemyState.Chasing || e.CurrentState == EnemyState.TelegraphWindup || e.CurrentState == EnemyState.ActiveStrike || e.CurrentState == EnemyState.Recovery))
+                        {
+                            chasers.Add(e);
+                        }
+                    }
+                }
+
+                if (chasers.Count > 1)
+                {
+                    // Сортируем:
+                    // 1. Активно атакующий держит Front
+                    // 2. Ближайший к игроку — Front, второй — Flanker
+                    chasers.Sort((a, b) =>
+                    {
+                        int aAttacking = (a.CurrentState == EnemyState.TelegraphWindup || a.CurrentState == EnemyState.ActiveStrike) ? 0 : 1;
+                        int bAttacking = (b.CurrentState == EnemyState.TelegraphWindup || b.CurrentState == EnemyState.ActiveStrike) ? 0 : 1;
+                        if (aAttacking != bAttacking) return aAttacking.CompareTo(bAttacking);
+
+                        float distA = Vector2.Distance(a.transform.position, _playerTransform.position);
+                        float distB = Vector2.Distance(b.transform.position, _playerTransform.position);
+                        return distA.CompareTo(distB);
+                    });
+
+                    var frontBot = chasers[0];
+                    float frontSide = Mathf.Sign(frontBot.transform.position.x - _playerTransform.position.x);
+                    if (Mathf.Abs(frontBot.transform.position.x - _playerTransform.position.x) < 0.15f)
+                    {
+                        frontSide = frontBot.FacingDirection != 0f ? -frontBot.FacingDirection : 1f;
+                    }
+
+                    if (this == frontBot)
+                    {
+                        role = EnemyTacticalRole.Front;
+                        targetX = _playerTransform.position.x + frontSide * (attackRange * 0.8f);
+                    }
+                    else if (chasers.Count >= 2 && this == chasers[1])
+                    {
+                        role = EnemyTacticalRole.Flanker;
+                        // Фланкер заходит с противоположной стороны!
+                        float desiredFlankSide = -frontSide;
+                        targetX = _playerTransform.position.x + desiredFlankSide * (attackRange * 0.85f);
+                        currentMoveSpeed = moveSpeed * flankSpeedMultiplier;
+
+                        float mySide = Mathf.Sign(transform.position.x - _playerTransform.position.x);
+                        if (Mathf.Sign(mySide) == Mathf.Sign(frontSide))
+                        {
+                            isFlankingThrough = true;
+                        }
+                    }
+                    else
+                    {
+                        role = EnemyTacticalRole.Support;
+                        targetX = _playerTransform.position.x + frontSide * (attackRange + 2.5f);
+                    }
+                }
+            }
+            TacticalRole = role;
+
+            // -------------------------------------------------------------
+            // 2. ДИСТАНЦИЯ АТАКИ И ПРОВЕРКА УДАРА
+            // -------------------------------------------------------------
+            // Если бот выполняет сквозной обход, он не начинает атаку спереди, а бежит за спину
+            if (!isFlankingThrough)
+            {
+                if (distToPlayer <= attackRange || (dy > 0.8f && dy < 3.2f && absDx < 1.8f))
+                {
+                    StartTelegraphAttack();
+                    return;
+                }
+            }
+
+            // -------------------------------------------------------------
+            // 3. ПРЫЖКОВЫЙ ИНТЕЛЛЕКТ И ПРЕОДОЛЕНИЕ ПРЕПЯТСТВИЙ
+            // -------------------------------------------------------------
             if (IsGrounded && _jumpCooldownTimer <= 0f)
             {
                 bool shouldJump = false;
-                // 1. Игрок находится выше на платформе (dy > 1.1f) в радиусе до 6.5м
-                if (dy > 1.1f && absDx < 6.5f)
+                float customJumpForce = jumpForce;
+                float customForwardVel = 0f;
+
+                // А. Игрок находится выше на платформе (dy > 0.5f) в радиусе до 6.5м
+                if (dy > 0.5f && absDx < 6.5f)
                 {
                     shouldJump = true;
+                    customJumpForce = jumpForce * Mathf.Clamp(1.0f + (dy - 0.5f) * 0.2f, 1.0f, 1.35f);
                 }
-                // 2. Препятствие / стена перед врагом на уровне пояса
+                // Б. Фланговый прыжок через игрока:
+                // Когда фланкер обходит игрока и подходит вплотную (absDx < 2.0f),
+                // он перепрыгивает через голову игрока, приземляясь за спиной!
+                else if (isFlankingThrough && absDx < 2.0f)
+                {
+                    shouldJump = true;
+                    customJumpForce = jumpForce * 1.05f;
+                    float flankDir = Mathf.Sign(targetX - transform.position.x);
+                    customForwardVel = flankDir * (moveSpeed * 1.35f);
+                    _jumpCooldownTimer = jumpCooldown * 1.3f;
+                }
+                // В. Боевой прыжок сближения (Combat Leap / Pounce):
+                // При погоне на средней дистанции бот периодически прыгает вперед
+                else if (_combatLeapTimer <= 0f && distToPlayer >= 2.6f && distToPlayer <= 6.0f)
+                {
+                    shouldJump = true;
+                    customJumpForce = jumpForce * 0.95f;
+                    float leapDir = Mathf.Sign(targetX - transform.position.x);
+                    customForwardVel = leapDir * (moveSpeed * 1.35f);
+                    _combatLeapTimer = UnityEngine.Random.Range(combatLeapIntervalMin, combatLeapIntervalMax);
+                }
+                // Г. Препятствие / стена перед врагом на уровне пояса
                 else if (absDx > 0.5f)
                 {
-                    Vector2 checkOrigin = (Vector2)transform.position + new Vector2(0f, 0.2f);
-                    RaycastHit2D wallHit = Physics2D.Raycast(checkOrigin, new Vector2(FacingDirection, 0f), 0.75f, groundLayer);
-                    if (wallHit.collider != null && wallHit.collider.gameObject != gameObject && !wallHit.collider.transform.IsChildOf(transform))
+                    Vector2 checkOrigin = (Vector2)transform.position + new Vector2(0f, 0.25f);
+                    var wallHits = Physics2D.RaycastAll(checkOrigin, new Vector2(FacingDirection, 0f), 0.85f, groundLayer);
+                    bool wallAhead = false;
+                    for (int i = 0; i < wallHits.Length; i++)
+                    {
+                        var col = wallHits[i].collider;
+                        if (col != null && !col.isTrigger && col != _col && col.gameObject != gameObject && !col.transform.IsChildOf(transform))
+                        {
+                            wallAhead = true;
+                            break;
+                        }
+                    }
+
+                    if (wallAhead)
                     {
                         shouldJump = true;
                     }
                     else
                     {
-                        // 3. Проверка ямы / обрыва перед ногами (если игрок дальше по горизонтали)
+                        // Д. Проверка ямы / обрыва перед ногами
                         Vector2 edgeOrigin = (Vector2)transform.position + new Vector2(FacingDirection * 0.65f, -0.2f);
-                        RaycastHit2D groundAhead = Physics2D.Raycast(edgeOrigin, Vector2.down, 1.4f, groundLayer);
-                        if (groundAhead.collider == null)
+                        var edgeHits = Physics2D.RaycastAll(edgeOrigin, Vector2.down, 1.4f, groundLayer);
+                        bool groundAhead = false;
+                        for (int i = 0; i < edgeHits.Length; i++)
+                        {
+                            var col = edgeHits[i].collider;
+                            if (col != null && !col.isTrigger && col != _col && col.gameObject != gameObject && !col.transform.IsChildOf(transform))
+                            {
+                                groundAhead = true;
+                                break;
+                            }
+                        }
+                        if (!groundAhead)
                         {
                             shouldJump = true;
                         }
@@ -447,41 +627,115 @@ namespace Combat
 
                 if (shouldJump)
                 {
-                    Jump();
+                    Jump(customJumpForce, customForwardVel);
                 }
             }
 
-            // Дистанция атаки достигнута:
-            // Либо обычная дистанция attackRange, либо игрок находится прямо над врагом (Anti-Air окно)
-            if (dist <= attackRange || (dy > 1.0f && dy < 3.2f && absDx < 1.8f))
+            // -------------------------------------------------------------
+            // 4. ДВИЖЕНИЕ И РАЗДЕЛЕНИЕ ВРАГОВ (ANTI-STACKING)
+            // -------------------------------------------------------------
+            float dirX = Mathf.Sign(targetX - transform.position.x);
+            if (Mathf.Abs(targetX - transform.position.x) < 0.2f)
             {
-                StartTelegraphAttack();
-                return;
+                dirX = 0f;
             }
 
-            // Преследуем игрока по горизонтали
-            float dirX = Mathf.Sign(_playerTransform.position.x - transform.position.x);
-            SetFacing(dirX);
+            // Поворот: если обходит игрока — смотрит по направлению движения; иначе на игрока
+            if (isFlankingThrough)
+            {
+                SetFacing(dirX != 0f ? dirX : FacingDirection);
+            }
+            else
+            {
+                SetFacing(Mathf.Sign(_playerTransform.position.x - transform.position.x));
+            }
 
-            _rb.linearVelocity = new Vector2(dirX * moveSpeed, _rb.linearVelocity.y);
+            // Мягкое расталкивание между врагами (Anti-Stacking)
+            float separationVelocityX = 0f;
+            for (int i = 0; i < _activeEnemies.Count; i++)
+            {
+                var other = _activeEnemies[i];
+                if (other != null && other != this && !other.IsDead && other.gameObject.activeInHierarchy)
+                {
+                    float diffX = transform.position.x - other.transform.position.x;
+                    float diffY = Mathf.Abs(transform.position.y - other.transform.position.y);
+                    if (Mathf.Abs(diffX) < separationDistance && diffY < 1.1f)
+                    {
+                        float pushSign = diffX > 0.001f ? 1f : (diffX < -0.001f ? -1f : (string.CompareOrdinal(name, other.name) >= 0 ? 1f : -1f));
+                        float overlap = separationDistance - Mathf.Abs(diffX);
+                        separationVelocityX += pushSign * (overlap / separationDistance) * 2.4f;
+                    }
+                }
+            }
+
+            float finalVelX = (dirX * currentMoveSpeed) + separationVelocityX;
+            _rb.linearVelocity = new Vector2(finalVelX, _rb.linearVelocity.y);
         }
 
         public void CheckGrounded()
         {
+            if (_col == null) _col = GetComponent<Collider2D>();
             if (_col == null) return;
-            Bounds b = _col.bounds;
-            Vector2 origin = new Vector2(b.center.x, b.min.y + 0.05f);
-            Vector2 boxSize = new Vector2(b.size.x * 0.85f, 0.1f);
-            RaycastHit2D hit = Physics2D.BoxCast(origin, boxSize, 0f, Vector2.down, 0.15f, groundLayer);
-            IsGrounded = hit.collider != null && hit.collider.gameObject != gameObject && !hit.collider.transform.IsChildOf(transform);
+
+            _groundFilter = new ContactFilter2D();
+            _groundFilter.useTriggers = false;
+            _groundFilter.SetLayerMask(groundLayer != 0 ? groundLayer : ~0);
+
+            // 1. Прямой Collider2D.Cast вниз (игнорирует собственный коллайдер и триггеры)
+            int count = _col.Cast(Vector2.down, _groundFilter, _groundCastHits, 0.15f);
+            bool grounded = false;
+            for (int i = 0; i < count; i++)
+            {
+                var h = _groundCastHits[i];
+                if (h.collider != null && h.collider != _col && !h.collider.isTrigger && !h.collider.transform.IsChildOf(transform))
+                {
+                    if (h.normal.y > 0.35f)
+                    {
+                        grounded = true;
+                        break;
+                    }
+                }
+            }
+
+            // 2. Fallback: RaycastAll по краям нижней границы коллайдера
+            if (!grounded)
+            {
+                Bounds b = _col.bounds;
+                Vector2 leftPoint = new Vector2(b.min.x + 0.08f, b.min.y + 0.02f);
+                Vector2 centerPoint = new Vector2(b.center.x, b.min.y + 0.02f);
+                Vector2 rightPoint = new Vector2(b.max.x - 0.08f, b.min.y + 0.02f);
+
+                if (CheckRayDown(leftPoint) || CheckRayDown(centerPoint) || CheckRayDown(rightPoint))
+                {
+                    grounded = true;
+                }
+            }
+
+            IsGrounded = grounded;
         }
 
-        public void Jump()
+        private bool CheckRayDown(Vector2 origin)
+        {
+            var hits = Physics2D.RaycastAll(origin, Vector2.down, 0.22f, groundLayer != 0 ? groundLayer : ~0);
+            for (int i = 0; i < hits.Length; i++)
+            {
+                var col = hits[i].collider;
+                if (col != null && col != _col && !col.isTrigger && !col.transform.IsChildOf(transform))
+                {
+                    if (hits[i].normal.y > 0.35f) return true;
+                }
+            }
+            return false;
+        }
+
+        public void Jump(float customForce = -1f, float customForwardSpeed = 0f)
         {
             if (!IsGrounded || _rb == null) return;
             _jumpCooldownTimer = jumpCooldown;
-            _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, jumpForce);
-            Debug.Log("[ENEMY AI] Враг совершает прыжок к цели/через препятствие!");
+            float forceY = customForce > 0f ? customForce : jumpForce;
+            float velX = customForwardSpeed != 0f ? customForwardSpeed : _rb.linearVelocity.x;
+            _rb.linearVelocity = new Vector2(velX, forceY);
+            Debug.Log($"[ENEMY AI] {name} совершает прыжок! (ForceY: {forceY:F1}, VelX: {velX:F1})");
         }
 
         public void SetFacing(float dir)

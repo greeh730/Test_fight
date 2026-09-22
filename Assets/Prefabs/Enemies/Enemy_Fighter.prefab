@@ -308,7 +308,7 @@ MonoBehaviour:
   respawnOnDeath: 0
   respawnDelay: 4
   defeatColor: {r: 0.28, g: 0.28, b: 0.28, a: 0.75}
-  detectionRange: 2.62
+  detectionRange: 9.5
   loseTargetRange: 14
   visionObstacleLayers:
     serializedVersion: 2
@@ -319,6 +319,11 @@ MonoBehaviour:
   groundLayer:
     serializedVersion: 2
     m_Bits: 4294967295
+  enableFlanking: 1
+  flankSpeedMultiplier: 1.18
+  combatLeapIntervalMin: 2.4
+  combatLeapIntervalMax: 4.2
+  separationDistance: 1.15
   attackRange: 2.11
   telegraphDuration: 0.75
   activeStrikeDuration: 0.15
