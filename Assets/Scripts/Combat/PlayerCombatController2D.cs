@@ -585,19 +585,7 @@ namespace Combat
         private void OnSequenceMatched(ComboSequenceDefinition seq, bool isStale)
         {
             if (seq == null) return;
-
-            if (currentStance == CombatStance.Tactician)
-            {
-                if (_stamina != null)
-                {
-                    _stamina.ConsumeForAction($"Tactician_{seq.SequenceId}", 18f);
-                }
-                if (tacticianController != null && seq.RequiredDirections.Count > 0)
-                {
-                    tacticianController.ExecuteAbility(seq.RequiredDirections[seq.RequiredDirections.Count - 1]);
-                }
-                return;
-            }
+            if (currentStance == CombatStance.Tactician) return; // В стойке тактика жесты воина не активируются
 
             // Проверка стамины игрока: при истощении связки продолжать нельзя!
             if (_stamina != null && (_stamina.IsExhausted || _stamina.CurrentStamina <= 0f))
@@ -629,6 +617,12 @@ namespace Combat
 
             if (currentStance == CombatStance.Tactician)
             {
+                if (_stamina != null && (_stamina.IsExhausted || !_stamina.CanAfford(18f)))
+                {
+                    Debug.LogWarning("<color=orange>[СТАМИНА НА НУЛЕ]</color> Недостаточно выносливости для способности Тактика!");
+                    return;
+                }
+
                 if (_stamina != null)
                 {
                     _stamina.ConsumeForAction($"Tactician_{dir}", 18f);
@@ -959,11 +953,19 @@ namespace Combat
                 _stamina.ConsumeForAction(seq.SequenceId, seq.StaminaCost);
             }
 
-            // Направление удара
+            // Направление удара определяется направлением связки (абсолютно на экране)
             float strikeSign = FacingDirection;
-            if (seq.SequenceId == "strike_turnaround")
+            if (seq.RequiredDirections != null && seq.RequiredDirections.Count > 0)
             {
-                strikeSign = -FacingDirection;
+                var lastDir = seq.RequiredDirections[seq.RequiredDirections.Count - 1];
+                if (lastDir == Direction8.Right || lastDir == Direction8.UpRight || lastDir == Direction8.DownRight)
+                {
+                    strikeSign = 1f;
+                }
+                else if (lastDir == Direction8.Left || lastDir == Direction8.UpLeft || lastDir == Direction8.DownLeft)
+                {
+                    strikeSign = -1f;
+                }
             }
 
             if (Mathf.Abs(strikeSign) > 0.01f)

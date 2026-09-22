@@ -440,14 +440,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a68ef54ae21631b428afde9429718e1d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Combat.Player.PlayerStamina2D
-  maxStamina: 100
-  currentStamina: 100
-  regenRate: 25
+  maxStamina: 200
+  currentStamina: 200
+  regenRate: 35
   regenDelay: 0.85
   spamWindow: 1.4
   spamPenaltyMultiplier: 1.5
   maxSpamPenalty: 3.5
-  exhaustionSlowdownFactor: 20
+  exhaustionSlowdownFactor: 2
   exhaustionPulseColor: {r: 0.75, g: 0.75, b: 0.85, a: 0.85}
   onStaminaChanged:
     m_PersistentCalls:

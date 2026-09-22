@@ -109,6 +109,39 @@ namespace Combat.Common
         }
 
         /// <summary>
+        /// Находит ближайшую живую боевую цель с заданной стороны по горизонтали (+1 вправо, -1 влево).
+        /// </summary>
+        public static bool FindNearestInDirection(Vector3 origin, float dirSignX, float maxDistance, out ICombatEntity2D nearestEntity)
+        {
+            nearestEntity = null;
+            float minDist = maxDistance;
+
+            for (int i = _activeEntities.Count - 1; i >= 0; i--)
+            {
+                var ent = _activeEntities[i];
+                if (ent == null || ent.gameObject == null)
+                {
+                    _activeEntities.RemoveAt(i);
+                    continue;
+                }
+
+                if (ent.IsDead) continue;
+
+                float diffX = ent.transform.position.x - origin.x;
+                if (Mathf.Sign(diffX) != Mathf.Sign(dirSignX)) continue;
+
+                float dist = Vector2.Distance(origin, ent.transform.position);
+                if (dist < minDist)
+                {
+                    minDist = dist;
+                    nearestEntity = ent;
+                }
+            }
+
+            return nearestEntity != null;
+        }
+
+        /// <summary>
         /// Фильтрует массив коллайдеров и возвращает список уникальных живых целей.
         /// </summary>
         public static List<ICombatEntity2D> GetUniqueAliveTargets(Collider2D[] colliders, GameObject self = null)

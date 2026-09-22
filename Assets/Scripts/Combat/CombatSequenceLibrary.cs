@@ -97,16 +97,16 @@ namespace Combat
                 new AttackConfig(
                     "Срез назад",
                     CombatZone.Mid,
-                    new Vector2(-1.2f, 0.0f),
+                    new Vector2(1.2f, 0.0f),
                     new Vector2(1.4f, 0.85f),
                     0.06f, 0.15f, 0.18f,
                     24f,
-                    new Vector2(-6.5f, 1.5f),
+                    new Vector2(6.5f, 1.5f),
                     new Color(1f, 0.55f, 0.15f, 0.85f)
                 ),
                 stamina: 14f,
                 launcher: false,
-                lunge: -3.8f
+                lunge: 3.8f
             ));
 
             // 3. Верхний рубящий / Апперкот (High Slash): ⬇ ⬆ или ⬋ ⬈

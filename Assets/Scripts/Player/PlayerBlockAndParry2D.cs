@@ -86,6 +86,7 @@ namespace Combat.Player
         private PlayerController2D _movement;
         private PlayerCombatController2D _combat;
         private Rigidbody2D _rb;
+        private SpriteRenderer _sr;
 
         // Block / Parry State
         public bool IsBlocking { get; private set; }
@@ -93,6 +94,15 @@ namespace Combat.Player
         public bool IsParryStaggered { get; private set; }
         public float BlockMoveSpeedMultiplier => blockMoveSpeedMultiplier;
         public Vector2 CurrentParryDirection => _parryDirection;
+
+        public float GetCurrentFacing()
+        {
+            EnsureComponents();
+            if (_combat != null) return _combat.FacingDirection;
+            if (_movement != null) return _movement.CurrentFacing;
+            if (_sr != null) return _sr.flipX ? -1f : 1f;
+            return 1f;
+        }
 
         private float _rmbPressTime;
         private Vector2 _rmbPressScreenPos;
@@ -119,6 +129,7 @@ namespace Combat.Player
             if (_movement == null) _movement = GetComponent<PlayerController2D>();
             if (_combat == null) _combat = GetComponent<PlayerCombatController2D>();
             if (_rb == null) _rb = GetComponent<Rigidbody2D>();
+            if (_sr == null) _sr = GetComponent<SpriteRenderer>();
         }
 
         private void BuildProceduralShieldVisual()
@@ -127,39 +138,49 @@ namespace Combat.Player
 
             _shieldRootObj = new GameObject("Player_BlockShield_Visual");
             _shieldRootObj.transform.SetParent(transform, false);
-            _shieldRootObj.transform.localPosition = new Vector3(0f, 0.05f, 0f);
+            _shieldRootObj.transform.localPosition = new Vector3(0.45f, 0.05f, 0f);
 
-            // Полупрозрачный заполняющий круг/овал
+            // Полупрозрачный заполняющий сегмент фронтального щита
             var fillObj = new GameObject("Shield_Fill");
             fillObj.transform.SetParent(_shieldRootObj.transform, false);
             _shieldRenderer = fillObj.AddComponent<SpriteRenderer>();
             _shieldRenderer.sprite = CombatSprites.WhiteBox;
-            _shieldRenderer.color = new Color(blockNormalColor.r, blockNormalColor.g, blockNormalColor.b, 0.22f);
+            _shieldRenderer.color = new Color(blockNormalColor.r, blockNormalColor.g, blockNormalColor.b, 0.24f);
             _shieldRenderer.sortingOrder = 35;
-            fillObj.transform.localScale = new Vector3(1.7f, 2.1f, 1f);
+            fillObj.transform.localPosition = new Vector3(0.18f, 0f, 0f);
+            fillObj.transform.localScale = new Vector3(0.72f, 1.95f, 1f);
 
-            // Внешний светящийся контур щита
+            // Внешний светящийся контур фронтального щита (выпуклая дуга барьера спереди)
             var outlineObj = new GameObject("Shield_Outline");
             outlineObj.transform.SetParent(_shieldRootObj.transform, false);
             _shieldOutlineRenderer = outlineObj.AddComponent<LineRenderer>();
-            _shieldOutlineRenderer.positionCount = 28;
+            _shieldOutlineRenderer.positionCount = 18;
             _shieldOutlineRenderer.useWorldSpace = false;
             _shieldOutlineRenderer.loop = true;
-            _shieldOutlineRenderer.startWidth = 0.045f;
-            _shieldOutlineRenderer.endWidth = 0.045f;
+            _shieldOutlineRenderer.startWidth = 0.05f;
+            _shieldOutlineRenderer.endWidth = 0.05f;
             _shieldOutlineRenderer.sortingOrder = 36;
             _shieldOutlineRenderer.material = new Material(Shader.Find("Sprites/Default"));
             _shieldOutlineRenderer.startColor = blockNormalColor;
             _shieldOutlineRenderer.endColor = blockNormalColor;
 
-            // Формируем эллипс вокруг персонажа
-            float rx = 0.9f;
-            float ry = 1.15f;
-            for (int i = 0; i < 28; i++)
+            // Формируем выпуклую защитную дугу щита спереди (от -70° до +70°)
+            float rx = 0.65f;
+            float ry = 1.05f;
+            int arcPoints = 14;
+            for (int i = 0; i < arcPoints; i++)
             {
-                float angle = i * (Mathf.PI * 2f / 28);
-                _shieldOutlineRenderer.SetPosition(i, new Vector3(Mathf.Cos(angle) * rx, Mathf.Sin(angle) * ry, 0f));
+                float t = (float)i / (arcPoints - 1);
+                float angle = Mathf.Lerp(-1.22f, 1.22f, t); // ~ -70 deg to +70 deg
+                float x = Mathf.Cos(angle) * rx;
+                float y = Mathf.Sin(angle) * ry;
+                _shieldOutlineRenderer.SetPosition(i, new Vector3(x, y, 0f));
             }
+            // Замыкаем заднюю кромку щита
+            _shieldOutlineRenderer.SetPosition(14, new Vector3(0.05f, ry * 0.75f, 0f));
+            _shieldOutlineRenderer.SetPosition(15, new Vector3(-0.06f, 0f, 0f));
+            _shieldOutlineRenderer.SetPosition(16, new Vector3(0.05f, -ry * 0.75f, 0f));
+            _shieldOutlineRenderer.SetPosition(17, _shieldOutlineRenderer.GetPosition(0));
 
             _shieldRootObj.SetActive(false);
         }
@@ -511,6 +532,32 @@ namespace Combat.Player
             // 2. Проверка БЛОКИРОВАНИЯ (Block)
             if (IsBlocking)
             {
+                // Направленный блок: защищает ТОЛЬКО сторону, куда смотрит игрок!
+                float facing = GetCurrentFacing();
+                float attackDirectionX = 0f;
+                if (attack != null && attack.attacker != null)
+                {
+                    attackDirectionX = attack.attacker.transform.position.x - transform.position.x;
+                }
+                else if (Mathf.Abs(knockbackDirection.x) > 0.01f)
+                {
+                    // Отталкивание направлено ОТ атакующего, следовательно атакующий с противоположной стороны
+                    attackDirectionX = -knockbackDirection.x;
+                }
+                else
+                {
+                    attackDirectionX = hitPoint.x - transform.position.x;
+                }
+
+                // Если атакующий находится позади взгляда игрока (удар со спины)
+                bool isFromBehind = (attackDirectionX * facing) < -0.15f;
+                if (isFromBehind)
+                {
+                    Debug.Log("<color=red>[BLOCK BYPASS]</color> Удар пришелся со спины! Блок спереди не защитил игрока.");
+                    CombatFloatingText.Spawn(transform.position + Vector3.up * 1.3f, "[УДАР В СПИНУ!]", new Color(1f, 0.25f, 0.25f), 0.6f);
+                    return false; // Блок пробит, удар проходит в здоровье!
+                }
+
                 bool hasStamina = _stamina != null && _stamina.CurrentStamina > 0.05f;
 
                 if (hasStamina)
@@ -668,9 +715,12 @@ namespace Combat.Player
         {
             if (_shieldRootObj == null || !_shieldRootObj.activeSelf) return;
 
-            // Пульсация щита при удержании
-            float pulse = 0.85f + 0.15f * Mathf.Sin(Time.time * 7f);
-            _shieldRootObj.transform.localScale = new Vector3(pulse, pulse, 1f);
+            float facing = GetCurrentFacing();
+            _shieldRootObj.transform.localPosition = new Vector3(facing * 0.42f, 0.05f, 0f);
+
+            // Пульсация щита при удержании с ориентацией в сторону взгляда
+            float pulse = 0.9f + 0.12f * Mathf.Sin(Time.time * 7f);
+            _shieldRootObj.transform.localScale = new Vector3(facing * pulse, pulse, 1f);
 
             Color targetColor = (_stamina != null && _stamina.CurrentStamina <= 0.05f) ? blockChipColor : blockNormalColor;
             if (_shieldOutlineRenderer != null && _shieldOutlineRenderer.startColor != Color.white)

@@ -69,17 +69,18 @@ namespace Combat
         }
 
         /// <summary>
-        /// Добавляет новое направление в буфер с учетом стороны взгляда персонажа (Facing-Relative).
+        /// Добавляет новое направление в буфер (абсолютное экранное направление).
+        /// Направление ударов и жестов не зависит от того, куда повернут персонаж.
         /// Если направление совпадает с предыдущим сектором, повторно не добавляется.
         /// </summary>
         public void AddToken(Direction8 rawDir, float facingSign = 1f)
         {
             if (rawDir == Direction8.None) return;
 
-            // Зеркалим направление по горизонтали, если персонаж смотрит влево
-            Direction8 relDir = rawDir.ToFacingRelative(facingSign);
+            // Направление абсолютно на экране и не зеркалится от взгляда персонажа
+            Direction8 dir = rawDir;
 
-            if (_buffer.Count > 0 && _buffer[_buffer.Count - 1] == relDir)
+            if (_buffer.Count > 0 && _buffer[_buffer.Count - 1] == dir)
             {
                 // Уже находимся в этом секторе
                 return;
@@ -95,11 +96,11 @@ namespace Combat
                 _buffer.RemoveAt(0);
             }
 
-            _buffer.Add(relDir);
+            _buffer.Add(dir);
             _lastTokenTime = Time.time;
 
             OnRawTokenAdded?.Invoke(rawDir);
-            OnTokenAdded?.Invoke(relDir);
+            OnTokenAdded?.Invoke(dir);
 
             // Проверяем совпадение с библиотекой приёмов
             CheckForMatch();

@@ -97,6 +97,9 @@ namespace Combat.Player
         [Tooltip("Количество рывков в воздухе до приземления")]
         [SerializeField] private int maxAirDashes = 1;
 
+        [Tooltip("Расход выносливости на совершение рывка")]
+        [SerializeField] private float dashStaminaCost = 18f;
+
         [Header("--- Ground Detection ---")]
         [Tooltip("Слои, считающиеся землей (по умолчанию всё, кроме триггеров и игрока)")]
         [SerializeField] private LayerMask groundLayer = ~0;
@@ -209,6 +212,8 @@ namespace Combat.Player
                 _combatController.SetFacingDirection(_currentFacing);
             }
         }
+
+        public float CurrentFacing => _currentFacing;
 
         private void Awake()
         {
@@ -429,6 +434,7 @@ namespace Combat.Player
             if (_dashCooldownTimer > 0f) return false;
             if (!IsGrounded && _airDashesLeft <= 0) return false;
             if (_blockParry != null && (_blockParry.IsBlocking || _blockParry.IsParrying || _blockParry.IsParryStaggered)) return false;
+            if (_stamina != null && (_stamina.IsExhausted || !_stamina.CanAfford(dashStaminaCost))) return false;
             return true;
         }
 
@@ -436,7 +442,7 @@ namespace Combat.Player
         {
             if (_stamina != null)
             {
-                _stamina.ConsumeForAction("Dash", 18f);
+                _stamina.ConsumeForAction("Dash", dashStaminaCost);
             }
 
             _isDashing = true;

@@ -287,6 +287,14 @@ namespace Combat.UI
 
         private void Start()
         {
+            if (playerCombat != null)
+            {
+                SetStance(playerCombat.CurrentStance);
+            }
+            else
+            {
+                SetStance(CombatStance.Normal);
+            }
             UpdateVisuals(instant: true);
         }
 
@@ -421,7 +429,11 @@ namespace Combat.UI
 
                         if (ActiveGestureButton == WheelGestureButton.LMB)
                         {
-                            if (sequenceRecognizer != null)
+                            if (playerCombat != null && playerCombat.CurrentStance == CombatStance.Tactician)
+                            {
+                                UpdatePlaqueText(CurrentDirection);
+                            }
+                            else if (sequenceRecognizer != null)
                             {
                                 float facing = playerCombat != null ? playerCombat.FacingDirection : 1f;
                                 sequenceRecognizer.AddToken(CurrentDirection, facing);
@@ -442,7 +454,7 @@ namespace Combat.UI
                     if (CurrentDirection != Direction8.None)
                     {
                         CurrentDirection = Direction8.None;
-                        if (ActiveGestureButton == WheelGestureButton.RMB)
+                        if (ActiveGestureButton == WheelGestureButton.RMB || (playerCombat != null && playerCombat.CurrentStance == CombatStance.Tactician))
                         {
                             UpdatePlaqueText(Direction8.None);
                         }
@@ -763,7 +775,7 @@ namespace Combat.UI
             {
                 if (dir == Direction8.None)
                 {
-                    attackNameText.text = "🛡️ КРУГОВОЙ БЛОК (ПКМ)";
+                    attackNameText.text = "🛡️ НАПРАВЛЕННЫЙ БЛОК (ПКМ)";
                     attackNameText.color = new Color(0.25f, 0.88f, 1f, 1f);
                 }
                 else
@@ -774,6 +786,21 @@ namespace Combat.UI
                         attackNameText.text = $"🛡️ ПАРИРОВАНИЕ {ParryDirectionNames[idx]}";
                         attackNameText.color = new Color(1f, 0.88f, 0.25f, 1f);
                     }
+                }
+                return;
+            }
+
+            if (playerCombat != null && playerCombat.CurrentStance == CombatStance.Tactician)
+            {
+                if (dir != Direction8.None && (int)dir >= 0 && (int)dir < _currentAttackNames.Length)
+                {
+                    attackNameText.text = _currentAttackNames[(int)dir];
+                    attackNameText.color = highlightColor;
+                }
+                else
+                {
+                    attackNameText.text = neutralStanceName;
+                    attackNameText.color = textIdleColor;
                 }
                 return;
             }
@@ -826,6 +853,32 @@ namespace Combat.UI
             if (centerCoreImage != null) centerCoreImage.color = centerCoreColor;
         }
 
+        private static readonly string[] DefaultNormalAttackNames = new string[8]
+        {
+            "СРЕДНИЙ ВПЕРЕД ▶",    // Right (0)
+            "ВЕРХНИЙ ВПЕРЕД ↗",    // UpRight (1)
+            "ВЕРХНИЙ УДАР ▲",      // Up (2)
+            "ВЕРХНИЙ НАЗАД ↖",     // UpLeft (3)
+            "СРЕДНИЙ НАЗАД ◀",     // Left (4)
+            "НИЖНИЙ НАЗАД ↙",      // DownLeft (5)
+            "НИЖНИЙ УДАР ▼",       // Down (6)
+            "НИЖНИЙ ВПЕРЕД ↘"      // DownRight (7)
+        };
+
+        private static readonly string[] TacticianAttackNames = new string[8]
+        {
+            "ПРОЩУПЫВАЮЩИЙ ВЫПАД ➡️", // Right (0)
+            "КИНЕТИЧЕСКИЙ ПОДБРОС ↗️", // UpRight (1)
+            "ГРАВИТАЦИОННЫЙ ЯКОРЬ ⬆️", // Up (2)
+            "ВЕЕРНАЯ ЗАЩИТА ↖️",     // UpLeft (3)
+            "ТАКТИЧЕСКИЙ ОТХОД ⬅️",   // Left (4)
+            "МАГИЧЕСКИЙ ГАРПУН ↙️",   // DownLeft (5)
+            "ГЛУБИННАЯ ПЕЧАТЬ ⬇️",    // Down (6)
+            "НАПРАВЛЕННЫЕ ШИПЫ ↘️"    // DownRight (7)
+        };
+
+        private string[] _currentAttackNames = (string[])DefaultNormalAttackNames.Clone();
+
         private static readonly string[] ParryDirectionNames = new string[8]
         {
             "ВПЕРЕД ▶",       // Right (0)
@@ -845,12 +898,14 @@ namespace Combat.UI
         {
             if (stance == CombatStance.Tactician)
             {
+                _currentAttackNames = (string[])TacticianAttackNames.Clone();
                 neutralStanceName = "— СТОЙКА ТАКТИКА —";
                 highlightColor = new Color(0f, 0.85f, 1f, 0.75f); // Runic Cyan
                 outlineColor = new Color(0.6f, 0.95f, 1f, 1f);
             }
             else
             {
+                _currentAttackNames = (string[])DefaultNormalAttackNames.Clone();
                 neutralStanceName = "— БОЕВАЯ СТОЙКА —";
                 highlightColor = new Color(1f, 0.12f, 0.25f, 0.65f); // Crimson Neon
                 outlineColor = Color.white;

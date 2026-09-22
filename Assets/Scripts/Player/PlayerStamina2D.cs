@@ -16,10 +16,10 @@ namespace Combat.Player
     public class PlayerStamina2D : MonoBehaviour
     {
         [Header("--- Stamina Settings ---")]
-        [SerializeField] private float maxStamina = 100f;
-        [SerializeField] private float currentStamina = 100f;
+        [SerializeField] private float maxStamina = 200f;
+        [SerializeField] private float currentStamina = 200f;
         [Tooltip("Скорость восстановления стамины в секунду")]
-        [SerializeField] private float regenRate = 25f;
+        [SerializeField] private float regenRate = 35f;
         [Tooltip("Задержка перед началом восстановления после любого действия (сек)")]
         [SerializeField] private float regenDelay = 0.85f;
 

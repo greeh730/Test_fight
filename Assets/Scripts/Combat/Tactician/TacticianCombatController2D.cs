@@ -203,8 +203,9 @@ namespace Combat.Tactician
         // ==========================================
         private IEnumerator ProbingThrustRoutine()
         {
-            float facing = GetFacing();
-            Vector2 center = (Vector2)transform.position + new Vector2(facing * thrustOffset.x, thrustOffset.y);
+            if (_playerCombat != null) _playerCombat.SetFacingDirection(1f);
+
+            Vector2 center = (Vector2)transform.position + new Vector2(thrustOffset.x, thrustOffset.y);
             Vector2 size = thrustSize;
 
             if (_visualizer != null)
@@ -212,10 +213,10 @@ namespace Combat.Tactician
                 _visualizer.ShowHitbox(center, size, tacticianCyan, isFinisher: false, isCharged: false);
             }
 
-            // Быстрый выпад вперед
+            // Быстрый выпад вправо (+X)
             if (_rb != null)
             {
-                _rb.linearVelocity = new Vector2(facing * thrustLungeForce, _rb.linearVelocity.y);
+                _rb.linearVelocity = new Vector2(thrustLungeForce, _rb.linearVelocity.y);
             }
 
             yield return new WaitForSeconds(0.12f);
@@ -229,7 +230,7 @@ namespace Combat.Tactician
                 size,
                 0.05f, 0.1f, 0.1f,
                 thrustDamage,
-                new Vector2(facing * thrustKnockback.x, thrustKnockback.y),
+                new Vector2(thrustKnockback.x, thrustKnockback.y),
                 tacticianCyan
             );
 
@@ -243,7 +244,7 @@ namespace Combat.Tactician
                 {
                     if (hitReceivers.Add(target))
                     {
-                        target.TakeHit(attack, CombatZone.Mid, center, new Vector2(facing, 0.2f).normalized);
+                        target.TakeHit(attack, CombatZone.Mid, center, new Vector2(1f, 0.2f).normalized);
                         target.ApplyVulnerabilityMark(thrustVulnerabilityDuration, thrustVulnerabilityMultiplier);
                     }
                 }
@@ -259,8 +260,7 @@ namespace Combat.Tactician
         // ==========================================
         private void ExecuteAbyssalTrap()
         {
-            float facing = GetFacing();
-            Vector3 spawnPos = transform.position + new Vector3(facing * trapSpawnOffset.x, trapSpawnOffset.y, 0f);
+            Vector3 spawnPos = transform.position + new Vector3(0f, trapSpawnOffset.y, 0f);
 
             var trapObj = new GameObject("Tactician_Trap");
             trapObj.transform.position = spawnPos;
@@ -276,8 +276,7 @@ namespace Combat.Tactician
         // ==========================================
         private void ExecuteGravityAnchor()
         {
-            float facing = GetFacing();
-            Vector3 spawnPos = transform.position + new Vector3(facing * anchorSpawnOffset.x, anchorSpawnOffset.y, 0f);
+            Vector3 spawnPos = transform.position + new Vector3(0f, anchorSpawnOffset.y, 0f);
 
             var anchorObj = new GameObject("Tactician_GravityAnchor");
             anchorObj.transform.position = spawnPos;
@@ -293,7 +292,6 @@ namespace Combat.Tactician
         // ==========================================
         private void ExecuteTacticalRetreat()
         {
-            float facing = GetFacing();
             Vector3 smokePos = transform.position;
 
             // 1. Создание дымовой завесы на прежнем месте
@@ -302,14 +300,14 @@ namespace Combat.Tactician
             var smoke = smokeObj.AddComponent<TacticianSmokeCloud2D>();
             smoke.Initialize(smokeRadius, smokeDisorientDuration, smokeLifetime, Color.white);
 
-            // 2. Резкий рывок назад
+            // 2. Резкий рывок влево (-X)
             if (_rb != null)
             {
-                _rb.linearVelocity = new Vector2(-facing * retreatVelocity.x, retreatVelocity.y);
+                _rb.linearVelocity = new Vector2(-retreatVelocity.x, retreatVelocity.y);
             }
 
             SpawnPopupText(smokePos + Vector3.up * 1.2f, "[ТАКТИЧЕСКИЙ ОТХОД]", Color.white);
-            Debug.Log("<color=#FFFFFF><b>[ТАКТИК]</b></color> Резкий отскок назад со сбросом дымовой завесы!");
+            Debug.Log("<color=#FFFFFF><b>[ТАКТИК]</b></color> Резкий отскок назад влево со сбросом дымовой завесы!");
         }
 
         // ==========================================
@@ -317,12 +315,12 @@ namespace Combat.Tactician
         // ==========================================
         private IEnumerator KineticLaunchRoutine()
         {
-            float facing = GetFacing();
+            if (_playerCombat != null) _playerCombat.SetFacingDirection(1f);
 
-            // Ищем ближайшего врага или манекен перед нами для точечного взрыва
-            Vector3 targetGroundPos = transform.position + new Vector3(facing * launchDefaultOffset.x, launchDefaultOffset.y, 0f);
-            FindNearestTarget(launchAutoTargetRange, out var targetT, out _);
-            if (targetT != null && Mathf.Abs(targetT.position.x - transform.position.x) > 0.5f)
+            // Ищем ближайшую цель справа (+X) или берем стандартное смещение вправо
+            Vector3 targetGroundPos = transform.position + new Vector3(launchDefaultOffset.x, launchDefaultOffset.y, 0f);
+            FindNearestTargetInDirection(1f, launchAutoTargetRange, out var targetT, out _);
+            if (targetT != null && targetT.position.x > transform.position.x + 0.3f)
             {
                 targetGroundPos = new Vector3(targetT.position.x, transform.position.y - 0.6f, 0f);
             }
@@ -350,7 +348,7 @@ namespace Combat.Tactician
                 geyserBoxSize,
                 0f, 0.15f, 0.1f,
                 launchDamage,
-                new Vector2(facing * launchKnockback.x, launchKnockback.y),
+                new Vector2(launchKnockback.x, launchKnockback.y),
                 tacticianCyan
             );
 
@@ -406,16 +404,17 @@ namespace Combat.Tactician
         // ==========================================
         private void ExecuteDirectionalSpikes()
         {
-            float facing = GetFacing();
-            Vector3 spawnPos = transform.position + new Vector3(facing * spikesSpawnOffset.x, spikesSpawnOffset.y, 0f);
+            if (_playerCombat != null) _playerCombat.SetFacingDirection(1f);
+
+            Vector3 spawnPos = transform.position + new Vector3(spikesSpawnOffset.x, spikesSpawnOffset.y, 0f);
 
             var spikeObj = new GameObject("Tactician_SpikeWave");
             spikeObj.transform.position = spawnPos;
             var wave = spikeObj.AddComponent<TacticianSpikeWave2D>();
-            wave.Initialize(facing, spikesSpeed, spikesMaxDistance, spikesHitRadius, spikesDamage, spikesKnockback, tacticianCyan);
+            wave.Initialize(1f, spikesSpeed, spikesMaxDistance, spikesHitRadius, spikesDamage, spikesKnockback, tacticianCyan);
 
             SpawnPopupText(spawnPos + Vector3.up * 0.9f, "[НАПРАВЛЕННЫЕ ШИПЫ]", tacticianCyan);
-            Debug.Log("<color=#00E5FF><b>[ТАКТИК]</b></color> Запущена волна направленных шипов по земле!");
+            Debug.Log("<color=#00E5FF><b>[ТАКТИК]</b></color> Запущена волна направленных шипов вправо!");
         }
 
         // ==========================================
@@ -423,11 +422,13 @@ namespace Combat.Tactician
         // ==========================================
         private IEnumerator MagicHarpoonRoutine()
         {
-            float facing = GetFacing();
-            Vector3 origin = transform.position + new Vector3(facing * harpoonSpawnOffset.x, harpoonSpawnOffset.y, 0f);
+            if (_playerCombat != null) _playerCombat.SetFacingDirection(-1f);
 
-            FindNearestTarget(harpoonReachDistance, out var targetT, out var targetEntity);
-            Vector3 targetPos = targetT != null ? targetT.position : origin + new Vector3(facing * harpoonReachDistance * 0.85f, -0.4f, 0f);
+            Vector3 origin = transform.position + new Vector3(-harpoonSpawnOffset.x, harpoonSpawnOffset.y, 0f);
+
+            // Ищем цель слева (-X)
+            FindNearestTargetInDirection(-1f, harpoonReachDistance, out var targetT, out var targetEntity);
+            Vector3 targetPos = targetT != null ? targetT.position : origin + new Vector3(-harpoonReachDistance * 0.85f, -0.4f, 0f);
 
             // Отрисовка спектральной цепи/хлыста
             var tetherObj = new GameObject("Harpoon_Tether");
@@ -456,15 +457,15 @@ namespace Combat.Tactician
                 Vector2.one,
                 0f, 0.1f, 0.1f,
                 harpoonDamage,
-                new Vector2(-facing * harpoonKnockback.x, harpoonKnockback.y),
+                new Vector2(harpoonKnockback.x, harpoonKnockback.y),
                 tacticianPurple
             );
 
             if (targetEntity != null && !targetEntity.IsDead)
             {
-                targetEntity.TakeHit(harpoonAttack, CombatZone.Mid, targetPos, -Vector2.right * facing);
-                // Притягиваем цель прямо под ноги игроку!
-                targetEntity.PullTowards(transform.position + new Vector3(facing * 1.2f, 0f, 0f), harpoonPullSpeed);
+                targetEntity.TakeHit(harpoonAttack, CombatZone.Mid, targetPos, Vector2.right);
+                // Притягиваем цель к ногам игрока слева
+                targetEntity.PullTowards(transform.position + new Vector3(-1.2f, 0f, 0f), harpoonPullSpeed);
                 SpawnPopupText(origin + Vector3.up * 1.0f, "[МАГИЧЕСКИЙ ГАРПУН!]", tacticianPurple);
             }
 
@@ -479,8 +480,9 @@ namespace Combat.Tactician
         // ==========================================
         private IEnumerator FanGuardRoutine()
         {
-            float facing = GetFacing();
-            Vector2 arcCenter = (Vector2)transform.position + fanArcOffset;
+            if (_playerCombat != null) _playerCombat.SetFacingDirection(-1f);
+
+            Vector2 arcCenter = (Vector2)transform.position + new Vector2(-Mathf.Abs(fanArcOffset.x) - 0.45f, fanArcOffset.y);
             Vector2 arcSize = fanArcSize;
 
             if (_visualizer != null)
@@ -505,11 +507,11 @@ namespace Combat.Tactician
                     arcSize,
                     0f, 0.1f, 0.1f,
                     dmg,
-                    new Vector2(facing * 2f, isAirborne ? -fanKnockdownForce : 1f), // Сбивает прыгающих врагов вниз!
+                    new Vector2(-2f, isAirborne ? -fanKnockdownForce : 1f), // Сбивает прыгающих врагов вниз!
                     tacticianGold
                 );
 
-                target.TakeHit(fanAttack, CombatZone.High, arcCenter, isAirborne ? Vector2.down : Vector2.up);
+                target.TakeHit(fanAttack, CombatZone.High, arcCenter, isAirborne ? Vector2.down : new Vector2(-1f, 1f).normalized);
                 if (isAirborne)
                 {
                     target.ApplyRoot(fanAirRootDuration); // Микро-стан при сбивании с воздуха
@@ -520,6 +522,16 @@ namespace Combat.Tactician
             yield return new WaitForSeconds(0.1f);
             if (_visualizer != null) _visualizer.HideHitbox();
             _abilityRoutine = null;
+        }
+
+        private void FindNearestTargetInDirection(float dirX, float maxDist, out Transform targetTransform, out ICombatEntity2D targetEntity)
+        {
+            targetTransform = null;
+            targetEntity = null;
+            if (CombatTargetResolver.FindNearestInDirection(transform.position, dirX, maxDist, out targetEntity))
+            {
+                targetTransform = targetEntity.transform;
+            }
         }
 
         private void FindNearestTarget(float maxDist, out Transform targetTransform, out ICombatEntity2D targetEntity)
