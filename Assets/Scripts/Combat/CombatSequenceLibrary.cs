@@ -89,27 +89,27 @@ namespace Combat
                 lunge: 4.2f
             ));
 
-            // 2. Удар назад с разворота (Turnaround Slash): ⮕ ⬅
+            // 2. Средний выпад влево (Mid Left Slash): ⮕ ⬅
             RegisterSequence(new ComboSequenceDefinition(
                 "strike_turnaround",
-                "Удар с разворота ◀",
+                "Выпад клинком ◀",
                 "⮕⬅",
                 new AttackConfig(
-                    "Срез назад",
+                    "Выпад влево",
                     CombatZone.Mid,
                     new Vector2(1.2f, 0.0f),
                     new Vector2(1.4f, 0.85f),
-                    0.06f, 0.15f, 0.18f,
-                    24f,
-                    new Vector2(6.5f, 1.5f),
-                    new Color(1f, 0.55f, 0.15f, 0.85f)
+                    0.05f, 0.14f, 0.16f,
+                    22f,
+                    new Vector2(6.0f, 1.5f),
+                    new Color(1f, 0.85f, 0.15f, 0.85f)
                 ),
-                stamina: 14f,
+                stamina: 12f,
                 launcher: false,
-                lunge: 3.8f
+                lunge: 4.2f
             ));
 
-            // 3. Верхний рубящий / Апперкот (High Slash): ⬇ ⬆ или ⬋ ⬈
+            // 3. Верхний рубящий / Апперкот (High Slash): ⬇ ⬆ или ⬋ ⬈ / ⬊ ⬉
             RegisterSequence(new ComboSequenceDefinition(
                 "strike_high_slash",
                 "Верхний рубящий ▲",
@@ -134,7 +134,7 @@ namespace Combat
                 "Диагональный срез ↗",
                 "⬋⬈",
                 new AttackConfig(
-                    "Верхний диагональный",
+                    "Верхний диагональный вправо",
                     CombatZone.Mid | CombatZone.High,
                     new Vector2(1.0f, 0.5f),
                     new Vector2(1.3f, 1.4f),
@@ -148,7 +148,26 @@ namespace Combat
                 lunge: 3.2f
             ));
 
-            // 4. Нижняя подсечка (Low Sweep): ⬆ ⬇ или ⬉ ⬊
+            RegisterSequence(new ComboSequenceDefinition(
+                "strike_high_slash_diag_left",
+                "Диагональный срез ↖",
+                "⬊⬉",
+                new AttackConfig(
+                    "Верхний диагональный влево",
+                    CombatZone.Mid | CombatZone.High,
+                    new Vector2(1.0f, 0.5f),
+                    new Vector2(1.3f, 1.4f),
+                    0.06f, 0.16f, 0.20f,
+                    26f,
+                    new Vector2(4.0f, 7.5f),
+                    new Color(1f, 0.35f, 0.1f, 0.85f)
+                ),
+                stamina: 15f,
+                launcher: false,
+                lunge: 3.2f
+            ));
+
+            // 4. Нижняя подсечка (Low Sweep): ⬆ ⬇ или ⬉ ⬊ / ⬈ ⬋
             RegisterSequence(new ComboSequenceDefinition(
                 "strike_low_sweep",
                 "Нижняя подсечка ▼",
@@ -173,7 +192,7 @@ namespace Combat
                 "Низкий срез ↘",
                 "⬉⬊",
                 new AttackConfig(
-                    "Низкий срез",
+                    "Низкий срез вправо",
                     CombatZone.Low,
                     new Vector2(1.1f, -0.45f),
                     new Vector2(1.5f, 0.65f),
@@ -187,33 +206,90 @@ namespace Combat
                 lunge: 3.5f
             ));
 
-            // 5. Подбрасывающий финишер (Launcher Uppercut): ⬋ ⬇ ⬊ ⮕ ⬈
+            RegisterSequence(new ComboSequenceDefinition(
+                "strike_low_sweep_diag_left",
+                "Низкий срез ↙",
+                "⬈⬋",
+                new AttackConfig(
+                    "Низкий срез влево",
+                    CombatZone.Low,
+                    new Vector2(1.1f, -0.45f),
+                    new Vector2(1.5f, 0.65f),
+                    0.05f, 0.14f, 0.18f,
+                    20f,
+                    new Vector2(5.5f, 0.8f),
+                    new Color(0.15f, 0.85f, 1f, 0.85f)
+                ),
+                stamina: 12f,
+                launcher: false,
+                lunge: 3.5f
+            ));
+
+            // 5. Подбрасывающий финишер (Launcher Uppercut): ⬋ ⬇ ⬊ ⮕ ⬈ / ⬊ ⬇ ⬋ ⬅ ⬉
             RegisterSequence(new ComboSequenceDefinition(
                 "finisher_launcher",
                 "ВОСХОДЯЩИЙ ВИХРЬ ⚡",
                 "⬋⬇⬊⮕⬈",
                 new AttackConfig(
-                    "Небесный апперкот",
+                    "Небесный апперкот вправо",
                     CombatZone.Mid | CombatZone.High,
                     new Vector2(1.1f, 0.6f),
                     new Vector2(1.6f, 1.8f),
                     0.08f, 0.20f, 0.24f,
                     38f,
-                    new Vector2(3.0f, 12.0f), // Мощное подбрасывание в небо
-                    new Color(0.95f, 0.2f, 0.95f, 0.95f) // Неоновый маджента
+                    new Vector2(3.0f, 12.0f),
+                    new Color(0.95f, 0.2f, 0.95f, 0.95f)
                 ),
                 stamina: 24f,
                 launcher: true,
                 lunge: 5.5f
             ));
 
-            // 6. Силовой выпад клинком (Piercing Thrust): ⬊ ⮕ ⬈
+            RegisterSequence(new ComboSequenceDefinition(
+                "finisher_launcher_left",
+                "ВОСХОДЯЩИЙ ВИХРЬ ⚡",
+                "⬊⬇⬋⬅⬉",
+                new AttackConfig(
+                    "Небесный апперкот влево",
+                    CombatZone.Mid | CombatZone.High,
+                    new Vector2(1.1f, 0.6f),
+                    new Vector2(1.6f, 1.8f),
+                    0.08f, 0.20f, 0.24f,
+                    38f,
+                    new Vector2(3.0f, 12.0f),
+                    new Color(0.95f, 0.2f, 0.95f, 0.95f)
+                ),
+                stamina: 24f,
+                launcher: true,
+                lunge: 5.5f
+            ));
+
+            // 6. Силовой выпад клинком (Piercing Thrust): ⬊ ⮕ ⬈ / ⬋ ⬅ ⬉
             RegisterSequence(new ComboSequenceDefinition(
                 "strike_piercing_thrust",
                 "ПРОНЗАЮЩИЙ ШТОРМ 💥",
                 "⬊⮕⬈",
                 new AttackConfig(
-                    "Силовой выпад",
+                    "Силовой выпад вправо",
+                    CombatZone.Mid,
+                    new Vector2(1.5f, 0.0f),
+                    new Vector2(1.8f, 0.9f),
+                    0.07f, 0.18f, 0.22f,
+                    32f,
+                    new Vector2(8.5f, 2.0f),
+                    new Color(1f, 0.45f, 0.05f, 0.9f)
+                ),
+                stamina: 20f,
+                launcher: false,
+                lunge: 6.8f
+            ));
+
+            RegisterSequence(new ComboSequenceDefinition(
+                "strike_piercing_thrust_left",
+                "ПРОНЗАЮЩИЙ ШТОРМ 💥",
+                "⬋⬅⬉",
+                new AttackConfig(
+                    "Силовой выпад влево",
                     CombatZone.Mid,
                     new Vector2(1.5f, 0.0f),
                     new Vector2(1.8f, 0.9f),

@@ -429,9 +429,11 @@ namespace Combat.UI
 
                         if (ActiveGestureButton == WheelGestureButton.LMB)
                         {
+                            UpdatePlaqueText(CurrentDirection);
+
                             if (playerCombat != null && playerCombat.CurrentStance == CombatStance.Tactician)
                             {
-                                UpdatePlaqueText(CurrentDirection);
+                                // В стойке Тактика буфер связок не используется
                             }
                             else if (sequenceRecognizer != null)
                             {
@@ -510,7 +512,7 @@ namespace Combat.UI
             if (!IsDragging) return;
 
             float dist = _penPosition.magnitude;
-            if (dist >= minSwipeDistance && CurrentDirection != Direction8.None)
+            if (CurrentDirection != Direction8.None)
             {
                 onSwipeCompleted?.Invoke(CurrentDirection, _penPosition.normalized, dist);
                 if (wheelTrailGraphic != null)
@@ -619,10 +621,19 @@ namespace Combat.UI
                 {
                     CurrentDirection = newDir;
                     _flashIntensity = 1f;
-                    if (ActiveGestureButton == WheelGestureButton.LMB && sequenceRecognizer != null)
+                    if (ActiveGestureButton == WheelGestureButton.LMB)
                     {
-                        float facing = playerCombat != null ? playerCombat.FacingDirection : 1f;
-                        sequenceRecognizer.AddToken(CurrentDirection, facing);
+                        UpdatePlaqueText(CurrentDirection);
+
+                        if (playerCombat != null && playerCombat.CurrentStance == CombatStance.Tactician)
+                        {
+                            // В стойке Тактика буфер связок не используется
+                        }
+                        else if (sequenceRecognizer != null)
+                        {
+                            float facing = playerCombat != null ? playerCombat.FacingDirection : 1f;
+                            sequenceRecognizer.AddToken(CurrentDirection, facing);
+                        }
                     }
                     else if (ActiveGestureButton == WheelGestureButton.RMB)
                     {
@@ -805,10 +816,17 @@ namespace Combat.UI
                 return;
             }
 
-            if (sequenceRecognizer != null && sequenceRecognizer.CurrentBuffer.Count > 0)
+            if (dir != Direction8.None && (int)dir >= 0 && (int)dir < _currentAttackNames.Length)
             {
-                attackNameText.text = $"[ {sequenceRecognizer.GetBufferGlyphString()} ]";
-                attackNameText.color = textActiveColor;
+                if (sequenceRecognizer != null && sequenceRecognizer.CurrentBuffer.Count > 1)
+                {
+                    attackNameText.text = $"{_currentAttackNames[(int)dir]}  [ {sequenceRecognizer.GetBufferGlyphString()} ]";
+                }
+                else
+                {
+                    attackNameText.text = _currentAttackNames[(int)dir];
+                }
+                attackNameText.color = highlightColor;
             }
             else
             {
@@ -855,14 +873,14 @@ namespace Combat.UI
 
         private static readonly string[] DefaultNormalAttackNames = new string[8]
         {
-            "СРЕДНИЙ ВПЕРЕД ▶",    // Right (0)
-            "ВЕРХНИЙ ВПЕРЕД ↗",    // UpRight (1)
+            "СРЕДНИЙ ВПРАВО ▶",    // Right (0)
+            "ВЕРХНИЙ ВПРАВО ↗",    // UpRight (1)
             "ВЕРХНИЙ УДАР ▲",      // Up (2)
-            "ВЕРХНИЙ НАЗАД ↖",     // UpLeft (3)
-            "СРЕДНИЙ НАЗАД ◀",     // Left (4)
-            "НИЖНИЙ НАЗАД ↙",      // DownLeft (5)
+            "ВЕРХНИЙ ВЛЕВО ↖",     // UpLeft (3)
+            "СРЕДНИЙ ВЛЕВО ◀",     // Left (4)
+            "НИЖНИЙ ВЛЕВО ↙",      // DownLeft (5)
             "НИЖНИЙ УДАР ▼",       // Down (6)
-            "НИЖНИЙ ВПЕРЕД ↘"      // DownRight (7)
+            "НИЖНИЙ ВПРАВО ↘"      // DownRight (7)
         };
 
         private static readonly string[] TacticianAttackNames = new string[8]
@@ -881,14 +899,14 @@ namespace Combat.UI
 
         private static readonly string[] ParryDirectionNames = new string[8]
         {
-            "ВПЕРЕД ▶",       // Right (0)
-            "ВВЕРХ-ВПЕРЕД ↗", // UpRight (1)
+            "ВПРАВО ▶",       // Right (0)
+            "ВВЕРХ-ВПРАВО ↗", // UpRight (1)
             "ВВЕРХ ▲",         // Up (2)
-            "ВВЕРХ-НАЗАД ↖",   // UpLeft (3)
-            "НАЗАД ◀",        // Left (4)
-            "ВНИЗ-НАЗАД ↙",    // DownLeft (5)
+            "ВВЕРХ-ВЛЕВО ↖",   // UpLeft (3)
+            "ВЛЕВО ◀",        // Left (4)
+            "ВНИЗ-ВЛЕВО ↙",    // DownLeft (5)
             "ВНИЗ ▼",          // Down (6)
-            "ВНИЗ-ВПЕРЕД ↘"    // DownRight (7)
+            "ВНИЗ-ВПРАВО ↘"    // DownRight (7)
         };
 
         /// <summary>

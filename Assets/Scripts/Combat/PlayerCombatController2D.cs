@@ -207,6 +207,7 @@ namespace Combat
         private bool _hasHitTargetInCurrentAttack;
         private bool _lastWasFinisher;
         private AttackIntent? _lastComboIntent;
+        private bool _sequenceMatchedThisSwipe;
         private Rigidbody2D _rb;
         private SpriteRenderer _sr;
         private PlayerStamina2D _stamina;
@@ -280,10 +281,24 @@ namespace Combat
 
         private void OnEnable()
         {
+            if (vectorWheel == null)
+            {
+                vectorWheel = FindAnyObjectByType<VectorWheelController>();
+            }
+
+            if (vectorWheel != null)
+            {
+                vectorWheel.onSwipeCompleted.RemoveListener(OnWheelSwipeCompleted);
+                vectorWheel.onSwipeCompleted.AddListener(OnWheelSwipeCompleted);
+            }
+
+            if (sequenceRecognizer == null && vectorWheel != null)
+            {
+                sequenceRecognizer = vectorWheel.SequenceRecognizer;
+            }
             if (sequenceRecognizer == null)
             {
-                if (vectorWheel != null) sequenceRecognizer = vectorWheel.SequenceRecognizer;
-                if (sequenceRecognizer == null) sequenceRecognizer = FindAnyObjectByType<DirectionSequenceRecognizer>();
+                sequenceRecognizer = FindAnyObjectByType<DirectionSequenceRecognizer>();
             }
 
             if (sequenceRecognizer != null)
@@ -307,6 +322,10 @@ namespace Combat
         private void OnDisable()
         {
             CancelAttack();
+            if (vectorWheel != null)
+            {
+                vectorWheel.onSwipeCompleted.RemoveListener(OnWheelSwipeCompleted);
+            }
             if (sequenceRecognizer != null)
             {
                 sequenceRecognizer.OnSequenceMatched -= OnSequenceMatched;
@@ -594,6 +613,7 @@ namespace Combat
                 return;
             }
 
+            _sequenceMatchedThisSwipe = true;
             TryExecuteSequenceOrBuffer(seq, isStale);
         }
 
@@ -627,10 +647,21 @@ namespace Combat
                 {
                     _stamina.ConsumeForAction($"Tactician_{dir}", 18f);
                 }
+                if (tacticianController == null)
+                {
+                    tacticianController = GetComponent<TacticianCombatController2D>() ?? gameObject.AddComponent<TacticianCombatController2D>();
+                }
                 if (tacticianController != null)
                 {
                     tacticianController.ExecuteAbility(dir);
                 }
+                return;
+            }
+
+            // Если во время текущего свайпа уже активировался комбо-приём, не перекрываем его базовым ударом
+            if (_sequenceMatchedThisSwipe)
+            {
+                _sequenceMatchedThisSwipe = false;
                 return;
             }
 
@@ -656,46 +687,26 @@ namespace Combat
 
             // 2. Определение стороны удара (+1 вправо, -1 влево на экране)
             float sign;
-            StrikeDirection strikeDir;
-
-            if (wheelControlMode == WheelControlMode.ScreenAbsolute)
+            if (wheelControlMode == WheelControlMode.FacingRelative)
             {
                 if (dir == Direction8.Right || dir == Direction8.UpRight || dir == Direction8.DownRight)
-                {
-                    sign = 1f; // бьет вправо на экране -> ВПЕРЕД
-                    strikeDir = StrikeDirection.Forward;
-                }
-                else if (dir == Direction8.Left || dir == Direction8.UpLeft || dir == Direction8.DownLeft)
-                {
-                    sign = -1f; // бьет влево на экране -> НАЗАД
-                    strikeDir = StrikeDirection.Backward;
-                }
-                else
-                {
-                    sign = FacingDirection; // для чистых Up/Down бьем в сторону взгляда
-                    strikeDir = StrikeDirection.Forward;
-                }
-            }
-            else // FacingRelative
-            {
-                if (dir == Direction8.Right || dir == Direction8.UpRight || dir == Direction8.DownRight)
-                {
-                    strikeDir = StrikeDirection.Forward;
                     sign = FacingDirection;
-                }
                 else if (dir == Direction8.Left || dir == Direction8.UpLeft || dir == Direction8.DownLeft)
-                {
-                    strikeDir = StrikeDirection.Backward;
                     sign = -FacingDirection;
-                }
                 else
-                {
-                    strikeDir = StrikeDirection.Forward;
                     sign = FacingDirection;
-                }
+            }
+            else // ScreenAbsolute (по умолчанию): строго вправо / влево
+            {
+                if (dir == Direction8.Right || dir == Direction8.UpRight || dir == Direction8.DownRight)
+                    sign = 1f; // бьет вправо на экране
+                else if (dir == Direction8.Left || dir == Direction8.UpLeft || dir == Direction8.DownLeft)
+                    sign = -1f; // бьет влево на экране
+                else
+                    sign = FacingDirection; // для чистых Up/Down бьем в сторону текущего взгляда
             }
 
-            return new AttackIntent(height, strikeDir, sign, isCharged);
+            return new AttackIntent(height, StrikeDirection.Forward, sign, isCharged);
         }
 
         public bool TryAttackOrBuffer(AttackIntent intent)
@@ -732,10 +743,10 @@ namespace Combat
         {
             return dir switch
             {
-                AttackDirection.Right => new AttackIntent(AttackHeight.Mid, StrikeDirection.Forward, FacingDirection),
+                AttackDirection.Right => new AttackIntent(AttackHeight.Mid, StrikeDirection.Forward, 1f),
                 AttackDirection.Up => new AttackIntent(AttackHeight.High, StrikeDirection.Forward, FacingDirection),
                 AttackDirection.Down => new AttackIntent(AttackHeight.Low, StrikeDirection.Forward, FacingDirection),
-                AttackDirection.Left => new AttackIntent(AttackHeight.Mid, StrikeDirection.Backward, -FacingDirection),
+                AttackDirection.Left => new AttackIntent(AttackHeight.Mid, StrikeDirection.Forward, -1f),
                 _ => new AttackIntent(AttackHeight.Mid, StrikeDirection.Forward, FacingDirection)
             };
         }
@@ -857,7 +868,7 @@ namespace Combat
             bool isFinisher = thisAttackStep >= maxComboSteps && !intent.isCharged;
             bool isCharged = intent.isCharged;
 
-            string dirLabel = (intent.strikeDir == StrikeDirection.Forward) ? "ВПЕРЕД" : "НАЗАД";
+            string dirLabel = intent.horizontalSign > 0 ? "ВПРАВО" : "ВЛЕВО";
             string arrow = intent.horizontalSign > 0 ? "▶" : "◀";
             if (intent.height == AttackHeight.High) arrow = intent.horizontalSign > 0 ? "↗" : "↖";
             if (intent.height == AttackHeight.Low) arrow = intent.horizontalSign > 0 ? "↘" : "↙";
@@ -954,18 +965,27 @@ namespace Combat
             }
 
             // Направление удара определяется направлением связки (абсолютно на экране)
-            float strikeSign = FacingDirection;
+            float strikeSign = 0f;
             if (seq.RequiredDirections != null && seq.RequiredDirections.Count > 0)
             {
-                var lastDir = seq.RequiredDirections[seq.RequiredDirections.Count - 1];
-                if (lastDir == Direction8.Right || lastDir == Direction8.UpRight || lastDir == Direction8.DownRight)
+                for (int i = seq.RequiredDirections.Count - 1; i >= 0; i--)
                 {
-                    strikeSign = 1f;
+                    var d = seq.RequiredDirections[i];
+                    if (d == Direction8.Right || d == Direction8.UpRight || d == Direction8.DownRight)
+                    {
+                        strikeSign = 1f;
+                        break;
+                    }
+                    if (d == Direction8.Left || d == Direction8.UpLeft || d == Direction8.DownLeft)
+                    {
+                        strikeSign = -1f;
+                        break;
+                    }
                 }
-                else if (lastDir == Direction8.Left || lastDir == Direction8.UpLeft || lastDir == Direction8.DownLeft)
-                {
-                    strikeSign = -1f;
-                }
+            }
+            if (Mathf.Abs(strikeSign) < 0.01f)
+            {
+                strikeSign = FacingDirection;
             }
 
             if (Mathf.Abs(strikeSign) > 0.01f)
