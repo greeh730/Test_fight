@@ -319,54 +319,69 @@ namespace Combat.Navigation
             float dx = landingPivot.x - takeoffPivot.x;
             float dy = landingPivot.y - takeoffPivot.y;
 
-            // Расчет физики прыжка с учетом смещения центра бота и запаса клиренса
-            float peakY = Mathf.Max(takeoffPivot.y, landingPivot.y) + jumpHeightClearance;
-            float hUp = peakY - takeoffPivot.y;
-            float hDown = peakY - landingPivot.y;
+            // Кандидаты высоты подъема над наивысшей точкой (clearance)
+            // Проверяем несколько вариантов дуг: от стандартной до более высокой или пологой
+            float[] clearanceCandidates = new float[] { jumpHeightClearance, jumpHeightClearance + 0.35f, jumpHeightClearance + 0.70f, 0.45f };
 
-            if (hUp < 0.1f) hUp = 0.1f;
-            if (hDown < 0.1f) hDown = 0.1f;
+            PlatformLink bestLink = null;
+            float bestCost = float.MaxValue;
 
-            float vy = Mathf.Sqrt(2f * effectiveGravity * hUp);
-            if (vy > maxJumpForce * 1.15f) return; // Слишком высоко
-
-            float tUp = vy / effectiveGravity;
-            float tDown = Mathf.Sqrt((2f * hDown) / effectiveGravity);
-            float totalTime = tUp + tDown;
-
-            if (totalTime <= 0.05f) return;
-
-            float vx = dx / totalTime;
-            // Проверяем, укладывается ли горизонтальная скорость в бег
-            if (Mathf.Abs(vx) > botRunSpeed * 1.85f) return; // Слишком далеко по горизонтали
-
-            // Проверка траектории: дуга не должна проходить сквозь твердые платформы или врезаться в потолок!
-            if (!IsJumpTrajectoryClear(takeoffPivot, landingPivot, vy, vx, totalTime, from.Collider, to.Collider))
+            for (int c = 0; c < clearanceCandidates.Length; c++)
             {
-                return;
+                float clearance = clearanceCandidates[c];
+                float peakY = Mathf.Max(takeoffPivot.y, landingPivot.y) + clearance;
+                float hUp = peakY - takeoffPivot.y;
+                if (hUp < 0.15f) hUp = 0.15f;
+
+                float vy = Mathf.Sqrt(2f * effectiveGravity * hUp);
+                if (vy > maxJumpForce) continue; // Не превышаем физический лимит силы прыжка бота
+
+                float radicand = (vy * vy) - (2f * effectiveGravity * dy);
+                if (radicand < 0f) continue; // Не долетит по высоте
+
+                float totalTime = (vy + Mathf.Sqrt(radicand)) / effectiveGravity;
+                if (totalTime <= 0.08f) continue;
+
+                float vx = dx / totalTime;
+                if (Mathf.Abs(vx) > botRunSpeed * 1.65f) continue; // Превышает максимальную скорость бега
+
+                // Проверяем коллизии по всей дуге с реальным размером коллайдера бота (Box 0.80 x 0.95)
+                if (!IsJumpTrajectoryClear(takeoffPivot, landingPivot, vy, vx, totalTime, from.Collider, to.Collider))
+                {
+                    continue;
+                }
+
+                // Стоимость траектории (предпочитаем естественные и быстрые дуги)
+                float cost = Vector2.Distance(takeoff, landing) * 1.1f + totalTime * 1.5f + (vy * 0.08f);
+                if (cost < bestCost)
+                {
+                    bestCost = cost;
+                    bestLink = new PlatformLink
+                    {
+                        From = from,
+                        To = to,
+                        Action = NavActionType.Jump,
+                        TakeoffPoint = takeoff,
+                        LandingPoint = landing,
+                        RequiredJumpForce = vy,      // ТОЧНОЕ значение vy (без Clamp, синхронизировано с totalTime)
+                        RequiredForwardSpeed = vx,   // ТОЧНОЕ значение vx
+                        FlightDuration = totalTime,  // ТОЧНОЕ время полета
+                        Cost = cost
+                    };
+                }
             }
 
-            var link = new PlatformLink
+            if (bestLink != null)
             {
-                From = from,
-                To = to,
-                Action = NavActionType.Jump,
-                TakeoffPoint = takeoff,
-                LandingPoint = landing,
-                RequiredJumpForce = Mathf.Clamp(vy, 9.0f, maxJumpForce * 1.1f),
-                RequiredForwardSpeed = vx,
-                FlightDuration = totalTime,
-                Cost = Vector2.Distance(takeoff, landing) * 1.1f + 1.2f
-            };
-
-            from.Links.Add(link);
+                from.Links.Add(bestLink);
+            }
         }
 
         private bool IsJumpTrajectoryClear(Vector2 takeoffPivot, Vector2 landingPivot, float vy, float vx, float totalTime, Collider2D fromCol, Collider2D toCol)
         {
-            int steps = 16;
-            float botRadius = 0.425f; // Половина ширины BoxCollider2D бота (0.85м / 2)
-            float botHalfHeight = 0.49f; // Половина высоты коллайдера бота (0.98м / 2)
+            int steps = 20;
+            Vector2 botBoxSize = new Vector2(0.80f, 0.95f);
+            float botHalfHeight = botBoxSize.y * 0.5f;
             var toBounds = toCol != null ? toCol.bounds : default;
 
             for (int i = 1; i < steps; i++)
@@ -376,11 +391,14 @@ namespace Combat.Navigation
                 float py = takeoffPivot.y + (vy * t - 0.5f * effectiveGravity * t * t);
                 Vector2 checkPos = new Vector2(px, py);
 
-                var hit = Physics2D.OverlapCircle(checkPos, botRadius, groundLayer);
-                if (hit != null && !hit.isTrigger)
+                var hits = Physics2D.OverlapBoxAll(checkPos, botBoxSize, 0f, groundLayer);
+                for (int h = 0; h < hits.Length; h++)
                 {
-                    // Стартовый коллайдер игнорируем только в самом начале отрыва
-                    if (hit == fromCol && i <= 2) continue;
+                    var hit = hits[h];
+                    if (hit == null || hit.isTrigger) continue;
+
+                    // Стартовый коллайдер игнорируем только в самом начале отрыва (первые ~15% времени)
+                    if (hit == fromCol && (float)i / steps <= 0.15f) continue;
 
                     // Проверка коллизии с целевой платформой
                     if (hit == toCol)
@@ -396,7 +414,18 @@ namespace Combat.Navigation
                         continue; // Ноги выше платформы -> безопасное приземление сверху
                     }
 
-                    // Любое другое препятствие (потолок платформы снизу, стена, другая платформа)
+                    // Односторонние платформы (PlatformEffector2D): снизу вверх проходить можно
+                    if (hit.usedByEffector)
+                    {
+                        var effector = hit.GetComponent<PlatformEffector2D>();
+                        if (effector != null && effector.useOneWay)
+                        {
+                            float currentVy = vy - effectiveGravity * t;
+                            if (currentVy > 0f) continue;
+                        }
+                    }
+
+                    // Любое другое препятствие (потолок платформы снизу, стена, чужая платформа)
                     return false;
                 }
             }
@@ -543,18 +572,21 @@ namespace Combat.Navigation
                     var link = current.Links[l];
                     var neighbor = link.To;
 
-                    // Учитываем расстояние от текущей позиции до точки отрыва (TakeoffPoint)
+                    // Учитываем горизонтальное расстояние перемещения по платформе до точки отрыва (TakeoffPoint)
                     float distToTakeoff = (current == startSeg)
-                        ? Vector2.Distance(startPos, link.TakeoffPoint)
-                        : (cameFrom.ContainsKey(current) ? Vector2.Distance(cameFrom[current].LandingPoint, link.TakeoffPoint) : 0f);
+                        ? Mathf.Abs(startPos.x - link.TakeoffPoint.x)
+                        : (cameFrom.ContainsKey(current) ? Mathf.Abs(cameFrom[current].LandingPoint.x - link.TakeoffPoint.x) : 0f);
 
-                    float tentativeG = gScore[current] + link.Cost + distToTakeoff * 1.05f;
+                    float tentativeG = gScore[current] + link.Cost + (distToTakeoff / Mathf.Max(0.5f, botRunSpeed));
 
                     if (!gScore.ContainsKey(neighbor) || tentativeG < gScore[neighbor])
                     {
                         cameFrom[neighbor] = link;
                         gScore[neighbor] = tentativeG;
-                        fScore[neighbor] = tentativeG + Vector2.Distance(neighbor.Center, goalSeg.Center);
+                        float heuristic = (neighbor == goalSeg)
+                            ? Mathf.Abs(link.LandingPoint.x - goalPos.x) / Mathf.Max(0.5f, botRunSpeed)
+                            : (Vector2.Distance(neighbor.Center, goalSeg.Center) / Mathf.Max(0.5f, botRunSpeed));
+                        fScore[neighbor] = tentativeG + heuristic;
 
                         if (!openSet.Contains(neighbor))
                         {
@@ -646,7 +678,7 @@ namespace Combat.Navigation
                     if (link.Action == NavActionType.Jump)
                     {
                         Gizmos.color = new Color(1.0f, 0.75f, 0.1f, 0.5f);
-                        DrawJumpArcGizmo(link.TakeoffPoint, link.LandingPoint, link.RequiredJumpForce, link.RequiredForwardSpeed, link.FlightDuration, 14, botPivotOffsetY);
+                        DrawJumpArcGizmo(link.TakeoffPoint, link.LandingPoint, link.RequiredJumpForce, link.RequiredForwardSpeed, link.FlightDuration, 16, botPivotOffsetY, effectiveGravity);
                     }
                     else if (link.Action == NavActionType.Drop)
                     {
@@ -660,9 +692,9 @@ namespace Combat.Navigation
         /// <summary>
         /// Рисует физическую параболическую дугу прыжка в Scene View
         /// </summary>
-        public static void DrawJumpArcGizmo(Vector2 takeoff, Vector2 landing, float vy, float vx, float duration, int steps = 14, float pivotOffsetY = 0.5f)
+        public static void DrawJumpArcGizmo(Vector2 takeoff, Vector2 landing, float vy, float vx, float duration, int steps = 16, float pivotOffsetY = 0.5f, float gravity = 34.34f)
         {
-            float g = 34.34f;
+            float g = gravity > 0.01f ? gravity : 34.34f;
             Vector2 prev = takeoff + new Vector2(0f, pivotOffsetY);
 
             for (int s = 1; s <= steps; s++)

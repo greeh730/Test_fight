@@ -234,6 +234,7 @@ namespace Combat
         private bool _isJumpingToNextPlatform = false;
         private bool _isDroppingToNextPlatform = false;
         private float _jumpAirborneGraceTimer = 0f;
+        private float _dropAirborneGraceTimer = 0f;
         private float _jumpMaxDurationTimer = 0f;
         private float _activeJumpForwardSpeed = 0f;
         private float _activeJumpTargetY = 0f;
@@ -485,8 +486,8 @@ namespace Combat
             float dx = _playerTransform.position.x - transform.position.x;
             float absDx = Mathf.Abs(dx);
 
-            // Игрок убежал слишком далеко
-            if (distToPlayer > loseTargetRange)
+            // Игрок убежал слишком далеко (не прерываем активный прыжок или спуск в воздухе)
+            if (distToPlayer > loseTargetRange && !_isJumpingToNextPlatform && !_isDroppingToNextPlatform && IsGrounded)
             {
                 CurrentState = EnemyState.Idle;
                 _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
@@ -572,8 +573,9 @@ namespace Combat
             // -------------------------------------------------------------
             // 2. ДИСТАНЦИЯ АТАКИ И ПРОВЕРКА УДАРА
             // -------------------------------------------------------------
-            // Если бот выполняет сквозной обход, он не начинает атаку спереди, а бежит за спину
-            if (!isFlankingThrough)
+            // Если бот выполняет сквозной обход, он не начинает атаку спереди, а бежит за спину.
+            // Атаку разрешено начинать ТОЛЬКО с устойчивой опоры (не в полете, не в прыжке, не во время спуска!)
+            if (!isFlankingThrough && IsGrounded && !_isJumpingToNextPlatform && !_isDroppingToNextPlatform && Mathf.Abs(_rb.linearVelocity.y) <= 0.2f)
             {
                 if (distToPlayer <= attackRange || (dy > 0.8f && dy < 3.2f && absDx < 1.8f))
                 {
@@ -587,9 +589,9 @@ namespace Combat
             // -------------------------------------------------------------
             Vector2 goalDestination = new Vector2(targetX, _playerTransform.position.y);
 
-            bool isMidJump = _isJumpingToNextPlatform || (!IsGrounded && _jumpAirborneGraceTimer > 0f);
+            bool isMidJump = _isJumpingToNextPlatform || _isDroppingToNextPlatform || (!IsGrounded && (_jumpAirborneGraceTimer > 0f || _dropAirborneGraceTimer > 0f));
 
-            // Не сбрасываем и не пересчитываем путь во время полета/прыжка на платформу!
+            // Не сбрасываем и не пересчитываем путь во время полета/прыжка/спуска на платформу!
             if (usePlatformPathfinding && PlatformNavGraph2D.Instance != null && !isMidJump)
             {
                 _pathRecalculateTimer -= Time.deltaTime;
@@ -615,7 +617,7 @@ namespace Combat
                 if (step.Action == NavActionType.Walk)
                 {
                     dirX = Mathf.Sign(stepDx);
-                    if (absStepDx < 0.45f)
+                    if (absStepDx < 0.35f)
                     {
                         _currentPathIndex++;
                     }
@@ -630,15 +632,17 @@ namespace Combat
 
                     if (!_isJumpingToNextPlatform)
                     {
-                        // Если бот еще не дошел до точки отталкивания — бежим к ней
-                        if (absStepDx > 0.45f && IsGrounded)
+                        // Если бот еще не дошел до точки отталкивания — бежим к ней с плавным торможением перед краем
+                        if (absStepDx > 0.22f && IsGrounded)
                         {
-                            dirX = Mathf.Sign(stepDx);
+                            float approachFactor = absStepDx < 0.75f ? Mathf.Clamp(absStepDx / 0.75f, 0.45f, 1.0f) : 1.0f;
+                            dirX = Mathf.Sign(stepDx) * approachFactor;
                         }
                         else if (IsGrounded)
                         {
-                            // Находимся у точки отрыва. При активном кд останавливаемся и ждем взлета
+                            // Точно на точке отрыва! Останавливаемся и ждем завершения кд
                             dirX = 0f;
+                            _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
                             if (_jumpCooldownTimer <= 0f)
                             {
                                 _isJumpingToNextPlatform = true;
@@ -674,15 +678,18 @@ namespace Combat
                 else if (step.Action == NavActionType.Drop)
                 {
                     pathHandledMovement = true;
+                    if (_dropAirborneGraceTimer > 0f) _dropAirborneGraceTimer -= Time.deltaTime;
+
                     if (IsGrounded && !_isDroppingToNextPlatform)
                     {
-                        if (absStepDx > 0.35f)
+                        if (absStepDx > 0.25f)
                         {
                             dirX = Mathf.Sign(stepDx);
                         }
                         else
                         {
                             _isDroppingToNextPlatform = true;
+                            _dropAirborneGraceTimer = 0.22f; // Первые 220мс игнорируем землю исходной платформы
                             _rb.linearVelocity = new Vector2(step.ForwardSpeed, _rb.linearVelocity.y);
                         }
                     }
@@ -690,7 +697,7 @@ namespace Combat
                     {
                         _rb.linearVelocity = new Vector2(step.ForwardSpeed, _rb.linearVelocity.y);
                     }
-                    else if (_isDroppingToNextPlatform && IsGrounded)
+                    else if (_isDroppingToNextPlatform && _dropAirborneGraceTimer <= 0f && IsGrounded)
                     {
                         _isDroppingToNextPlatform = false;
                         _currentPathIndex++;
@@ -815,22 +822,27 @@ namespace Combat
                 SetFacing(Mathf.Sign(_playerTransform.position.x - transform.position.x));
             }
 
-            // На земле применяем ходьбу и мягкое расталкивание между врагами (в воздухе/прыжке не перебиваем скорость!)
-            if (!_isJumpingToNextPlatform && IsGrounded)
+            // На земле применяем ходьбу и мягкое расталкивание между врагами (в воздухе/прыжке/спуске не перебиваем скорость!)
+            if (!_isJumpingToNextPlatform && !_isDroppingToNextPlatform && IsGrounded)
             {
+                bool isPreparingJump = usePlatformPathfinding && _currentNavPath != null && _currentPathIndex < _currentNavPath.Count && _currentNavPath[_currentPathIndex].Action == NavActionType.Jump && Mathf.Abs(_currentNavPath[_currentPathIndex].Position.x - transform.position.x) < 0.6f;
+
                 float separationVelocityX = 0f;
-                for (int i = 0; i < _activeEnemies.Count; i++)
+                if (!isPreparingJump)
                 {
-                    var other = _activeEnemies[i];
-                    if (other != null && other != this && !other.IsDead && other.gameObject.activeInHierarchy)
+                    for (int i = 0; i < _activeEnemies.Count; i++)
                     {
-                        float diffX = transform.position.x - other.transform.position.x;
-                        float diffY = Mathf.Abs(transform.position.y - other.transform.position.y);
-                        if (Mathf.Abs(diffX) < separationDistance && diffY < 1.1f)
+                        var other = _activeEnemies[i];
+                        if (other != null && other != this && !other.IsDead && other.gameObject.activeInHierarchy)
                         {
-                            float pushSign = diffX > 0.001f ? 1f : (diffX < -0.001f ? -1f : (string.CompareOrdinal(name, other.name) >= 0 ? 1f : -1f));
-                            float overlap = separationDistance - Mathf.Abs(diffX);
-                            separationVelocityX += pushSign * (overlap / separationDistance) * 2.4f;
+                            float diffX = transform.position.x - other.transform.position.x;
+                            float diffY = Mathf.Abs(transform.position.y - other.transform.position.y);
+                            if (Mathf.Abs(diffX) < separationDistance && diffY < 1.1f)
+                            {
+                                float pushSign = diffX > 0.001f ? 1f : (diffX < -0.001f ? -1f : (string.CompareOrdinal(name, other.name) >= 0 ? 1f : -1f));
+                                float overlap = separationDistance - Mathf.Abs(diffX);
+                                separationVelocityX += pushSign * (overlap / separationDistance) * 2.4f;
+                            }
                         }
                     }
                 }
@@ -896,12 +908,12 @@ namespace Combat
             return false;
         }
 
-        public void Jump(float customForce = -1f, float customForwardSpeed = 0f)
+        public void Jump(float customForce = -1f, float? customForwardSpeed = null)
         {
             if (!IsGrounded || _rb == null) return;
             _jumpCooldownTimer = jumpCooldown;
             float forceY = customForce > 0f ? customForce : jumpForce;
-            float velX = customForwardSpeed != 0f ? customForwardSpeed : _rb.linearVelocity.x;
+            float velX = customForwardSpeed.HasValue ? customForwardSpeed.Value : _rb.linearVelocity.x;
             _rb.linearVelocity = new Vector2(velX, forceY);
             Debug.Log($"[ENEMY AI] {name} совершает прыжок! (ForceY: {forceY:F1}, VelX: {velX:F1})");
         }
