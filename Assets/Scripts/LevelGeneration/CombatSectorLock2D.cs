@@ -15,7 +15,6 @@ namespace LevelGeneration
     /// - При победе над всеми врагами открывает вход и выход, позволяя пройти к Кристаллу Победы.
     /// </summary>
     [DisallowMultipleComponent]
-    [ExecuteAlways]
     public class CombatSectorLock2D : MonoBehaviour
     {
         private static CombatSectorLock2D _instance;
@@ -194,15 +193,11 @@ namespace LevelGeneration
 
         private void CreateEntryTrigger(Vector3 triggerPos)
         {
-            if (_entryTriggerObject != null)
-            {
-                if (Application.isPlaying) Destroy(_entryTriggerObject);
-                else DestroyImmediate(_entryTriggerObject);
-                _entryTriggerObject = null;
-            }
+            CleanupExistingTriggers();
 
             _entryTriggerObject = new GameObject("[CombatSector_EntryTrigger]");
-            _entryTriggerObject.transform.SetParent(transform, false);
+            Transform parentTransform = entranceDoor != null ? entranceDoor.transform : transform;
+            _entryTriggerObject.transform.SetParent(parentTransform, false);
             _entryTriggerObject.transform.position = triggerPos;
 
             var col = _entryTriggerObject.AddComponent<BoxCollider2D>();
@@ -212,6 +207,20 @@ namespace LevelGeneration
 
             var triggerHook = _entryTriggerObject.AddComponent<SectorTriggerHook2D>();
             triggerHook.OnPlayerEntered = OnPlayerCrossedEntrance;
+        }
+
+        private void CleanupExistingTriggers()
+        {
+            var oldHooks = FindObjectsByType<SectorTriggerHook2D>();
+            for (int i = 0; i < oldHooks.Length; i++)
+            {
+                if (oldHooks[i] != null)
+                {
+                    if (Application.isPlaying) Destroy(oldHooks[i].gameObject);
+                    else DestroyImmediate(oldHooks[i].gameObject);
+                }
+            }
+            _entryTriggerObject = null;
         }
 
         private void OnPlayerCrossedEntrance()
@@ -322,12 +331,7 @@ namespace LevelGeneration
 
         public void ClearSector()
         {
-            if (_entryTriggerObject != null)
-            {
-                if (Application.isPlaying) Destroy(_entryTriggerObject);
-                else DestroyImmediate(_entryTriggerObject);
-                _entryTriggerObject = null;
-            }
+            CleanupExistingTriggers();
 
             _livingEnemies.Clear();
             isLocked = false;
@@ -335,26 +339,6 @@ namespace LevelGeneration
             remainingEnemiesCount = 0;
             _bannerText = "";
             _bannerTimer = 0f;
-        }
-    }
-
-    /// <summary>
-    /// Вспомогательный триггер пересечения игроком порога сектора
-    /// </summary>
-    public class SectorTriggerHook2D : MonoBehaviour
-    {
-        public Action OnPlayerEntered;
-
-        private void OnTriggerEnter2D(Collider2D other)
-        {
-            bool isPlayer = other.CompareTag("Player") ||
-                            other.GetComponentInParent<PlayerController2D>() != null ||
-                            other.gameObject.name.IndexOf("Player", StringComparison.OrdinalIgnoreCase) >= 0;
-
-            if (isPlayer)
-            {
-                OnPlayerEntered?.Invoke();
-            }
         }
     }
 }
