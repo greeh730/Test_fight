@@ -41,6 +41,12 @@ namespace Combat.Player
         public UnityEvent onDeath;
         public UnityEvent onRespawn;
 
+        public static event Action OnAnyPlayerDeath;
+        public static event Action OnAnyPlayerRespawn;
+
+        public static void TriggerDeathEvent() => OnAnyPlayerDeath?.Invoke();
+        public static void TriggerRespawnEvent() => OnAnyPlayerRespawn?.Invoke();
+
         private Rigidbody2D _rb;
         private SpriteRenderer _sr;
         private PlayerController2D _movement;
@@ -215,6 +221,7 @@ namespace Combat.Player
 
             ShowDeathBanner();
             onDeath?.Invoke();
+            OnAnyPlayerDeath?.Invoke();
 
             Debug.Log("<color=red><b>[PLAYER DIED]</b></color> Игрок погиб! Нажмите [R] для возрождения.");
 
@@ -258,6 +265,7 @@ namespace Combat.Player
             _iFrameRoutine = StartCoroutine(IFrameRoutine(1.2f));
 
             onRespawn?.Invoke();
+            OnAnyPlayerRespawn?.Invoke();
             Debug.Log("<color=green><b>[PLAYER RESPAWN]</b></color> Игрок возрожден на исходной позиции!");
         }
 

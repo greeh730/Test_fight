@@ -15,6 +15,7 @@ namespace LevelGeneration
     /// - При победе над всеми врагами открывает вход и выход, позволяя пройти к Кристаллу Победы.
     /// </summary>
     [DisallowMultipleComponent]
+    [ExecuteAlways]
     public class CombatSectorLock2D : MonoBehaviour
     {
         private static CombatSectorLock2D _instance;
@@ -42,6 +43,9 @@ namespace LevelGeneration
 
         private readonly List<EnemyAIController2D> _livingEnemies = new List<EnemyAIController2D>();
         private GameObject _entryTriggerObject;
+        private Vector3 _sectorEntryPos;
+        private Transform _playerTransform;
+        private bool _isSubscribed = false;
 
         // UI уведомление на экране
         private string _bannerText = "";
@@ -67,12 +71,30 @@ namespace LevelGeneration
 
         private void OnEnable()
         {
-            EnemyAIController2D.OnAnyEnemyDied += HandleEnemyDied;
+            SubscribeEvents();
         }
 
         private void OnDisable()
         {
+            UnsubscribeEvents();
+        }
+
+        public void SubscribeEvents()
+        {
+            if (_isSubscribed) return;
+            _isSubscribed = true;
+            EnemyAIController2D.OnAnyEnemyDied += HandleEnemyDied;
+            PlayerHealth2D.OnAnyPlayerDeath += HandlePlayerDiedOrRespawned;
+            PlayerHealth2D.OnAnyPlayerRespawn += HandlePlayerDiedOrRespawned;
+        }
+
+        public void UnsubscribeEvents()
+        {
+            if (!_isSubscribed) return;
+            _isSubscribed = false;
             EnemyAIController2D.OnAnyEnemyDied -= HandleEnemyDied;
+            PlayerHealth2D.OnAnyPlayerDeath -= HandlePlayerDiedOrRespawned;
+            PlayerHealth2D.OnAnyPlayerRespawn -= HandlePlayerDiedOrRespawned;
         }
 
         private void Update()
@@ -94,7 +116,35 @@ namespace LevelGeneration
                 if (remainingEnemiesCount == 0)
                 {
                     UnlockSector();
+                    return;
                 }
+
+                // Защитная проверка положения игрока: если игрок возродился или оказался снаружи перед входом
+                if (_playerTransform == null)
+                {
+                    var playerObj = GameObject.FindWithTag("Player") ?? GameObject.Find("Player");
+                    if (playerObj != null) _playerTransform = playerObj.transform;
+                }
+
+                if (_playerTransform != null && _playerTransform.position.x < _sectorEntryPos.x - 0.4f)
+                {
+                    HandlePlayerDiedOrRespawned();
+                }
+            }
+        }
+
+        private void HandlePlayerDiedOrRespawned()
+        {
+            if (isCleared) return;
+
+            // Игрок погиб или возродился: открываем входную дверь и активируем триггер входа заново
+            if (isLocked)
+            {
+                isLocked = false;
+                if (entranceDoor != null) entranceDoor.OpenDoor(instant: true);
+                if (_entryTriggerObject != null) _entryTriggerObject.SetActive(true);
+                ShowBanner($"[!] ВХОД НА АРЕНУ ОТКРЫТ (Осталось врагов: {remainingEnemiesCount})", new Color(1.0f, 0.65f, 0.2f, 1f), 3.0f);
+                Debug.Log("<color=yellow><b>[CombatSector]</b></color> Игрок погиб/возродился. Входная дверь открыта для повторного входа на арену.");
             }
         }
 
@@ -105,8 +155,10 @@ namespace LevelGeneration
         {
             entranceDoor = entrance;
             exitDoor = exit;
+            _sectorEntryPos = sectorEntryPos;
             isLocked = false;
             isCleared = false;
+            SubscribeEvents();
 
             _livingEnemies.Clear();
             if (spawnedEnemies != null)
@@ -144,7 +196,9 @@ namespace LevelGeneration
         {
             if (_entryTriggerObject != null)
             {
-                Destroy(_entryTriggerObject);
+                if (Application.isPlaying) Destroy(_entryTriggerObject);
+                else DestroyImmediate(_entryTriggerObject);
+                _entryTriggerObject = null;
             }
 
             _entryTriggerObject = new GameObject("[CombatSector_EntryTrigger]");
@@ -178,11 +232,6 @@ namespace LevelGeneration
 
             if (entranceDoor != null) entranceDoor.CloseDoor(instant: false);
             if (exitDoor != null) exitDoor.CloseDoor(instant: false);
-
-            if (_entryTriggerObject != null)
-            {
-                _entryTriggerObject.SetActive(false);
-            }
 
             ShowBanner($"[!] АРЕНА ЗАБЛОКИРОВАНА: УНИЧТОЖЬТЕ ВРАГОВ! (Осталось: {remainingEnemiesCount})", new Color(1.0f, 0.25f, 0.25f, 1f), 4.0f);
             Debug.Log($"<color=red><b>[CombatSector]</b></color> Игрок вошел в боевой сектор! Двери ЗАХЛОПНУТЫ. Врагов в секторе: {remainingEnemiesCount}");
@@ -275,7 +324,8 @@ namespace LevelGeneration
         {
             if (_entryTriggerObject != null)
             {
-                Destroy(_entryTriggerObject);
+                if (Application.isPlaying) Destroy(_entryTriggerObject);
+                else DestroyImmediate(_entryTriggerObject);
                 _entryTriggerObject = null;
             }
 
