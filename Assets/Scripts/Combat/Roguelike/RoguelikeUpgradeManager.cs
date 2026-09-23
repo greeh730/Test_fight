@@ -28,6 +28,19 @@ namespace Combat.Roguelike
         public float PlayerDamageMultiplier => playerDamageMultiplier;
         public float PlayerSpeedMultiplier => playerSpeedMultiplier;
 
+        [Header("--- 🔹 Карточки способностей Тактика (8 направлений) ---")]
+        [SerializeField] private List<UpgradeCardDefinition> tacticianCards = new List<UpgradeCardDefinition>();
+
+        [Header("--- 🟢 Каталог боевых баффов (Combat Buffs) ---")]
+        [SerializeField] private List<UpgradeCardDefinition> combatBuffs = new List<UpgradeCardDefinition>();
+
+        [Header("--- 🔴 Каталог перков риска и награды (Risk & Reward) ---")]
+        [SerializeField] private List<UpgradeCardDefinition> riskRewardPerks = new List<UpgradeCardDefinition>();
+
+        public List<UpgradeCardDefinition> TacticianCards => tacticianCards;
+        public List<UpgradeCardDefinition> CombatBuffs => combatBuffs;
+        public List<UpgradeCardDefinition> RiskRewardPerks => riskRewardPerks;
+
         public List<UpgradeCardDefinition> CurrentOffer { get; private set; } = new List<UpgradeCardDefinition>();
 
         public event Action<UpgradeCardDefinition> OnUpgradeSelected;
@@ -38,6 +51,11 @@ namespace Combat.Roguelike
         private PlayerStamina2D _playerStamina;
         private TacticianCombatController2D _tactician;
 
+        private void Reset()
+        {
+            EnsureDefaultCatalogs(force: true);
+        }
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -46,6 +64,7 @@ namespace Combat.Roguelike
                 return;
             }
             Instance = this;
+            EnsureDefaultCatalogs();
             ResolvePlayerReferences();
         }
 
@@ -76,10 +95,11 @@ namespace Combat.Roguelike
         public List<UpgradeCardDefinition> GenerateUpgradeOffer(int count = 3)
         {
             ResolvePlayerReferences();
+            EnsureDefaultCatalogs();
             var result = new List<UpgradeCardDefinition>();
             var usedIds = new HashSet<string>();
 
-            // 1. Собираем неразблокированные способности Тактика
+            // 1. Собираем неразблокированные способности Тактика из настраиваемого списка
             var availableAbilities = GetLockedTacticianCards();
 
             // Перемешиваем доступные способности
@@ -93,10 +113,22 @@ namespace Combat.Roguelike
                 usedIds.Add(availableAbilities[i].id);
             }
 
-            // 2. Собираем пул баффов и перков риска
+            // 2. Собираем пул баффов и перков риска из настраиваемых в Инспекторе списков
             var otherPool = new List<UpgradeCardDefinition>();
-            otherPool.AddRange(GetCombatBuffsCatalog());
-            otherPool.AddRange(GetRiskRewardCatalog());
+            if (combatBuffs != null)
+            {
+                foreach (var card in combatBuffs)
+                {
+                    if (card != null) otherPool.Add(card.Clone());
+                }
+            }
+            if (riskRewardPerks != null)
+            {
+                foreach (var card in riskRewardPerks)
+                {
+                    if (card != null) otherPool.Add(card.Clone());
+                }
+            }
             Shuffle(otherPool);
 
             // 3. Заполняем оставшиеся карточки
@@ -194,38 +226,58 @@ namespace Combat.Roguelike
             if (_tactician != null) _tactician.ResetAbilities();
         }
 
+        public void EnsureDefaultCatalogs(bool force = false)
+        {
+            if (force || tacticianCards == null || tacticianCards.Count == 0)
+            {
+                tacticianCards = GetDefaultTacticianCards();
+            }
+
+            if (force || combatBuffs == null || combatBuffs.Count == 0)
+            {
+                combatBuffs = GetDefaultCombatBuffs();
+            }
+
+            if (force || riskRewardPerks == null || riskRewardPerks.Count == 0)
+            {
+                riskRewardPerks = GetDefaultRiskRewardPerks();
+            }
+        }
+
         private List<UpgradeCardDefinition> GetLockedTacticianCards()
         {
+            EnsureDefaultCatalogs();
             var list = new List<UpgradeCardDefinition>();
 
-            var all = new (Direction8 dir, string id, string title, string icon, string desc, string pos)[]
+            foreach (var card in tacticianCards)
             {
-                (Direction8.Right, "tac_thrust", "Прощупывающий выпад", "➡️", "Быстрый колющий выпад вперед. Вешает метку уязвимости на врага (+35% урона на 7 сек).", "Разблокирует способность ➡️ в стойке Тактика"),
-                (Direction8.Down, "tac_trap", "Глубинная печать", "⬇️", "Устанавливает нажимную руническую мину под ногами. Наносит урон и парализует врага на 1.5 сек.", "Разблокирует способность ⬇️ в стойке Тактика"),
-                (Direction8.Up, "tac_anchor", "Гравитационный якорь", "⬆️", "Создает сферу искажения в воздухе. Подвешивает и лишает подвижности врагов на 2.5 сек.", "Разблокирует способность ⬆️ в стойке Тактика"),
-                (Direction8.Left, "tac_retreat", "Тактический отход", "⬅️", "Стремительный бэкдэш назад с густой дымовой завесой, ослепляющей врагов.", "Разблокирует способность ⬅️ в стойке Тактика"),
-                (Direction8.UpRight, "tac_launch", "Кинетический подброс", "↗️", "Водяной гейзер с авто-наведением на ближайшего врага. Запускает цель высоко в воздух.", "Разблокирует способность ↗️ в стойке Тактика"),
-                (Direction8.DownRight, "tac_spikes", "Направленные шипы", "↘️", "Волна каменных шипов, проносящаяся по платформе и сметающая толпы врагов.", "Разблокирует способность ↘️ в стойке Тактика"),
-                (Direction8.DownLeft, "tac_harpoon", "Магический гарпун", "↙️", "Спектральная цепь дальнего боя. Хватает врага на дистанции и рывком притягивает к вашим ногам.", "Разблокирует способность ↙️ в стойке Тактика"),
-                (Direction8.UpLeft, "tac_fan", "Веерная защита", "↖️", "Защитная дуга из спектральных клинков над головой. Сбивает прыгающих врагов на землю (Anti-Air).", "Разблокирует способность ↖️ в стойке Тактика")
-            };
-
-            foreach (var item in all)
-            {
-                if (_tactician == null || !_tactician.IsAbilityUnlocked(item.dir))
+                if (card == null || card.abilityDirection == Direction8.None) continue;
+                bool isUnlocked = (_tactician != null && _tactician.IsAbilityUnlocked(card.abilityDirection));
+                if (!isUnlocked)
                 {
-                    var card = new UpgradeCardDefinition(item.id, item.title, UpgradeCategory.TacticianAbility, item.icon, item.desc, item.pos)
-                    {
-                        abilityDirection = item.dir
-                    };
-                    list.Add(card);
+                    list.Add(card.Clone());
                 }
             }
 
             return list;
         }
 
-        private List<UpgradeCardDefinition> GetCombatBuffsCatalog()
+        public static List<UpgradeCardDefinition> GetDefaultTacticianCards()
+        {
+            return new List<UpgradeCardDefinition>
+            {
+                new UpgradeCardDefinition("tac_thrust", "Прощупывающий выпад", UpgradeCategory.TacticianAbility, "➡️", "Быстрый колющий выпад вперед. Вешает метку уязвимости на врага (+35% урона на 7 сек).", "Разблокирует способность ➡️ в стойке Тактика") { abilityDirection = Direction8.Right },
+                new UpgradeCardDefinition("tac_trap", "Глубинная печать", UpgradeCategory.TacticianAbility, "⬇️", "Устанавливает нажимную руническую мину под ногами. Наносит урон и парализует врага на 1.5 сек.", "Разблокирует способность ⬇️ в стойке Тактика") { abilityDirection = Direction8.Down },
+                new UpgradeCardDefinition("tac_anchor", "Гравитационный якорь", UpgradeCategory.TacticianAbility, "⬆️", "Создает сферу искажения в воздухе. Подвешивает и лишает подвижности врагов на 2.5 сек.", "Разблокирует способность ⬆️ в стойке Тактика") { abilityDirection = Direction8.Up },
+                new UpgradeCardDefinition("tac_retreat", "Тактический отход", UpgradeCategory.TacticianAbility, "⬅️", "Стремительный бэкдэш назад с густой дымовой завесой, ослепляющей врагов.", "Разблокирует способность ⬅️ в стойке Тактика") { abilityDirection = Direction8.Left },
+                new UpgradeCardDefinition("tac_launch", "Кинетический подброс", UpgradeCategory.TacticianAbility, "↗️", "Водяной гейзер с авто-наведением на ближайшего врага. Запускает цель высоко в воздух.", "Разблокирует способность ↗️ в стойке Тактика") { abilityDirection = Direction8.UpRight },
+                new UpgradeCardDefinition("tac_spikes", "Направленные шипы", UpgradeCategory.TacticianAbility, "↘️", "Волна каменных шипов, проносящаяся по платформе и сметающая толпы врагов.", "Разблокирует способность ↘️ в стойке Тактика") { abilityDirection = Direction8.DownRight },
+                new UpgradeCardDefinition("tac_harpoon", "Магический гарпун", UpgradeCategory.TacticianAbility, "↙️", "Спектральная цепь дальнего боя. Хватает врага на дистанции и рывком притягивает к вашим ногам.", "Разблокирует способность ↙️ в стойке Тактика") { abilityDirection = Direction8.DownLeft },
+                new UpgradeCardDefinition("tac_fan", "Веерная защита", UpgradeCategory.TacticianAbility, "↖️", "Защитная дуга из спектральных клинков над головой. Сбивает прыгающих врагов на землю (Anti-Air).", "Разблокирует способность ↖️ в стойке Тактика") { abilityDirection = Direction8.UpLeft }
+            };
+        }
+
+        public static List<UpgradeCardDefinition> GetDefaultCombatBuffs()
         {
             return new List<UpgradeCardDefinition>
             {
@@ -253,7 +305,7 @@ namespace Combat.Roguelike
             };
         }
 
-        private List<UpgradeCardDefinition> GetRiskRewardCatalog()
+        public static List<UpgradeCardDefinition> GetDefaultRiskRewardPerks()
         {
             return new List<UpgradeCardDefinition>
             {
@@ -289,6 +341,56 @@ namespace Combat.Roguelike
                 var temp = list[i];
                 list[i] = list[rnd];
                 list[rnd] = temp;
+            }
+        }
+
+        /// <summary>
+        /// Автоматически генерирует текст эффектов карточек на основе их числовых параметров.
+        /// </summary>
+        [ContextMenu("Обновить описания эффектов по текущим цифрам")]
+        public void SyncCardTextsFromStats()
+        {
+            if (combatBuffs != null)
+            {
+                foreach (var card in combatBuffs)
+                {
+                    if (card == null) continue;
+                    var posParts = new List<string>();
+                    if (card.playerHealthDelta != 0f) posParts.Add($"{(card.playerHealthDelta > 0 ? "+" : "")}{card.playerHealthDelta:F0} к Макс. HP");
+                    if (card.playerStaminaDelta != 0f) posParts.Add($"{(card.playerStaminaDelta > 0 ? "+" : "")}{card.playerStaminaDelta:F0} к Макс. Выносливости");
+                    if (card.playerStaminaRegenMult != 1.0f) posParts.Add($"{(card.playerStaminaRegenMult > 1f ? "+" : "")}{(card.playerStaminaRegenMult - 1f) * 100f:F0}% к регену стамины");
+                    if (card.playerDamageMult != 1.0f) posParts.Add($"{(card.playerDamageMult > 1f ? "+" : "")}{(card.playerDamageMult - 1f) * 100f:F0}% к урону атак");
+                    if (card.playerSpeedMult != 1.0f) posParts.Add($"{(card.playerSpeedMult > 1f ? "+" : "")}{(card.playerSpeedMult - 1f) * 100f:F0}% к скорости бега");
+                    if (posParts.Count > 0) card.positiveEffectText = string.Join(" и ", posParts);
+                }
+            }
+
+            if (riskRewardPerks != null)
+            {
+                foreach (var card in riskRewardPerks)
+                {
+                    if (card == null) continue;
+                    var posParts = new List<string>();
+                    var negParts = new List<string>();
+
+                    if (card.playerHealthDelta > 0f) posParts.Add($"+{card.playerHealthDelta:F0} к Макс. HP игрока");
+                    else if (card.playerHealthDelta < 0f) negParts.Add($"{card.playerHealthDelta:F0} к Макс. HP игрока");
+
+                    if (card.playerStaminaDelta > 0f) posParts.Add($"+{card.playerStaminaDelta:F0} к Выносливости");
+                    else if (card.playerStaminaDelta < 0f) negParts.Add($"{card.playerStaminaDelta:F0} к Выносливости");
+
+                    if (card.playerStaminaRegenMult > 1f) posParts.Add($"+{(card.playerStaminaRegenMult - 1f) * 100f:F0}% к регену выносливости");
+                    else if (card.playerStaminaRegenMult < 1f) negParts.Add($"-{(1f - card.playerStaminaRegenMult) * 100f:F0}% к скорости регена выносливости");
+
+                    if (card.playerDamageMult > 1f) posParts.Add($"+{(card.playerDamageMult - 1f) * 100f:F0}% к урону игрока");
+                    if (card.playerSpeedMult > 1f) posParts.Add($"+{(card.playerSpeedMult - 1f) * 100f:F0}% к скорости бега игрока");
+
+                    if (card.enemyHealthMult > 1f) negParts.Add($"Враги получают +{(card.enemyHealthMult - 1f) * 100f:F0}% к максимальному HP");
+                    if (card.enemySpeedMult > 1f) negParts.Add($"Враги атакуют и замахиваются на +{(card.enemySpeedMult - 1f) * 100f:F0}% быстрее");
+
+                    if (posParts.Count > 0) card.positiveEffectText = string.Join(" и ", posParts);
+                    if (negParts.Count > 0) card.negativeEffectText = string.Join(", ", negParts);
+                }
             }
         }
 
