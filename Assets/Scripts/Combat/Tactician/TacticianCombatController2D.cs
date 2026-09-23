@@ -154,6 +154,15 @@ namespace Combat.Tactician
             }
         }
 
+        public void LockAbility(Direction8 dir)
+        {
+            if (_unlockedAbilities.Remove(dir))
+            {
+                Debug.Log($"<color=orange><b>[ТАКТИК]</b></color> Способность <b>{GetAbilityName(dir)}</b> заблокирована!");
+                OnAbilitiesReset?.Invoke();
+            }
+        }
+
         public void ResetAbilities()
         {
             _unlockedAbilities.Clear();

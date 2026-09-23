@@ -28,6 +28,8 @@ namespace Combat.Roguelike
         public float PlayerDamageMultiplier => playerDamageMultiplier;
         public float PlayerSpeedMultiplier => playerSpeedMultiplier;
 
+        public List<UpgradeCardDefinition> CurrentOffer { get; private set; } = new List<UpgradeCardDefinition>();
+
         public event Action<UpgradeCardDefinition> OnUpgradeSelected;
 
         private PlayerController2D _playerMovement;
@@ -110,6 +112,7 @@ namespace Combat.Roguelike
 
             // Перемешиваем порядок 3 карточек перед показом игроку
             Shuffle(result);
+            CurrentOffer = result;
             return result;
         }
 
@@ -288,5 +291,124 @@ namespace Combat.Roguelike
                 list[rnd] = temp;
             }
         }
+
+        #region Inspector Test Helpers
+
+        [ContextMenu("Тест: Показать 3 карточки на экране")]
+        public void TestShowUpgradeScreen()
+        {
+            var ui = RoguelikeUpgradeUI.Instance ?? FindAnyObjectByType<RoguelikeUpgradeUI>();
+            if (ui != null)
+            {
+                var offer = GenerateUpgradeOffer(3);
+                ui.ShowSelection(offer, () =>
+                {
+                    Debug.Log("<color=#00FFAA>[TEST]</color> Выбор карточки завершен!");
+                });
+            }
+            else
+            {
+                Debug.LogWarning("[RoguelikeUpgradeManager] RoguelikeUpgradeUI не найден на сцене!");
+            }
+        }
+
+        [ContextMenu("Тест: Скрыть окно карточек")]
+        public void TestHideUpgradeScreen()
+        {
+            var ui = RoguelikeUpgradeUI.Instance ?? FindAnyObjectByType<RoguelikeUpgradeUI>();
+            if (ui != null)
+            {
+                ui.Hide();
+                Time.timeScale = 1.0f;
+            }
+        }
+
+        [ContextMenu("Тест: Выбрать карточку #1")]
+        public void TestPickCard1() => TestPickCard(0);
+
+        [ContextMenu("Тест: Выбрать карточку #2")]
+        public void TestPickCard2() => TestPickCard(1);
+
+        [ContextMenu("Тест: Выбрать карточку #3")]
+        public void TestPickCard3() => TestPickCard(2);
+
+        public void TestPickCard(int index)
+        {
+            if (CurrentOffer != null && index >= 0 && index < CurrentOffer.Count)
+            {
+                var card = CurrentOffer[index];
+                ApplyUpgrade(card);
+                var ui = RoguelikeUpgradeUI.Instance ?? FindAnyObjectByType<RoguelikeUpgradeUI>();
+                if (ui != null)
+                {
+                    ui.Hide();
+                    Time.timeScale = 1.0f;
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[RoguelikeUpgradeManager] Карточка с индексом {index} недоступна. Сначала откройте окно выбора карточек.");
+            }
+        }
+
+        public void ToggleTacticianAbility(Direction8 dir)
+        {
+            ResolvePlayerReferences();
+            if (_tactician == null) return;
+            if (_tactician.IsAbilityUnlocked(dir))
+            {
+                _tactician.LockAbility(dir);
+            }
+            else
+            {
+                _tactician.UnlockAbility(dir);
+            }
+        }
+
+        public bool IsTacticianAbilityUnlocked(Direction8 dir)
+        {
+            ResolvePlayerReferences();
+            return _tactician != null && _tactician.IsAbilityUnlocked(dir);
+        }
+
+        public void TestUnlockAllTactician()
+        {
+            ResolvePlayerReferences();
+            if (_tactician != null) _tactician.UnlockAllAbilities();
+        }
+
+        public void TestResetAllTactician()
+        {
+            ResolvePlayerReferences();
+            if (_tactician != null) _tactician.ResetAbilities();
+        }
+
+        public void TestAddHealth(float amount)
+        {
+            ResolvePlayerReferences();
+            if (_playerHealth != null) _playerHealth.ModifyMaxHealth(amount);
+        }
+
+        public void TestAddStamina(float amount)
+        {
+            ResolvePlayerReferences();
+            if (_playerStamina != null) _playerStamina.ModifyMaxStamina(amount);
+        }
+
+        public void TestAddDamage(float percent)
+        {
+            ResolvePlayerReferences();
+            playerDamageMultiplier *= (1f + percent / 100f);
+            if (_playerCombat != null) _playerCombat.AttackDamageMultiplier = playerDamageMultiplier;
+        }
+
+        public void TestAddSpeed(float percent)
+        {
+            ResolvePlayerReferences();
+            playerSpeedMultiplier *= (1f + percent / 100f);
+            if (_playerMovement != null) _playerMovement.MoveSpeedMultiplier = playerSpeedMultiplier;
+        }
+
+        #endregion
     }
 }
