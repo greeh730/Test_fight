@@ -364,11 +364,17 @@ namespace LevelGeneration
             int targetEnemyCount = Mathf.Clamp(baseEnemyCount + (currentCycle - 1) * enemiesPerCycle, 1, maxEnemies);
             int spawnCount = Mathf.Min(targetEnemyCount, candidatePoints.Count);
 
-            // Множители сложности
+            // Множители сложности (базовый рост круга + Roguelike-проклятия/баффы)
             float healthMult = 1.0f + (currentCycle - 1) * healthGrowthPerCycle;
             float staminaMult = 1.0f + (currentCycle - 1) * staminaGrowthPerCycle;
             float speedMult = 1.0f + (currentCycle - 1) * telegraphSpeedGrowthPerCycle;
             float styleMult = 1.0f + (currentCycle - 1) * styleGrowthPerCycle;
+
+            if (Combat.Roguelike.RoguelikeUpgradeManager.Instance != null)
+            {
+                healthMult *= Combat.Roguelike.RoguelikeUpgradeManager.Instance.EnemyHealthMultiplier;
+                speedMult *= Combat.Roguelike.RoguelikeUpgradeManager.Instance.EnemySpeedMultiplier;
+            }
 
             for (int i = 0; i < spawnCount; i++)
             {

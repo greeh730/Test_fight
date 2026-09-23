@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using Combat.Player;
+using Combat.Tactician;
+using Combat.Stances;
 
 namespace Combat.UI
 {
@@ -54,6 +57,9 @@ namespace Combat.UI
 
         [Header("--- Runtime Arrow Slots ---")]
         [SerializeField] private List<ArrowSlot> arrowSlots = new List<ArrowSlot>();
+
+        private PlayerCombatController2D _playerCombat;
+        private TacticianCombatController2D _tacticianController;
 
         private static readonly Direction8[] AllDirections = new Direction8[]
         {
@@ -119,6 +125,16 @@ namespace Combat.UI
             if (ringContainer == null)
             {
                 ringContainer = GetComponent<RectTransform>();
+            }
+
+            if (_playerCombat == null)
+            {
+                _playerCombat = FindAnyObjectByType<PlayerCombatController2D>();
+            }
+
+            if (_tacticianController == null && _playerCombat != null)
+            {
+                _tacticianController = _playerCombat.GetComponent<TacticianCombatController2D>() ?? FindAnyObjectByType<TacticianCombatController2D>();
             }
 
 #if UNITY_EDITOR
@@ -237,9 +253,28 @@ namespace Combat.UI
 
                 bool isActive = (slot.direction == activeDir && activeDir != Direction8.None);
 
+                // Проверка стойки Тактика и доступности способности
+                bool isTactician = (_playerCombat != null && _playerCombat.CurrentStance == CombatStance.Tactician);
+                bool isLockedAbility = false;
+                if (isTactician)
+                {
+                    if (_tacticianController == null && _playerCombat != null)
+                    {
+                        _tacticianController = _playerCombat.GetComponent<TacticianCombatController2D>() ?? FindAnyObjectByType<TacticianCombatController2D>();
+                    }
+                    if (_tacticianController != null && !_tacticianController.IsAbilityUnlocked(slot.direction))
+                    {
+                        isLockedAbility = true;
+                    }
+                }
+
                 // 1. Анимация масштаба
                 float targetScale = isActive ? activeScaleMultiplier : 1.0f;
-                if (isActive)
+                if (isLockedAbility)
+                {
+                    targetScale *= 0.85f;
+                }
+                else if (isActive)
                 {
                     targetScale += 0.08f * Mathf.Sin(Time.time * pulseSpeed);
                 }
@@ -261,8 +296,21 @@ namespace Combat.UI
                 slot.rectTransform.localScale = Vector3.one * totalScale;
 
                 // 2. Цвета и подсветка
-                Color baseCol = isActive ? (isParry ? parryActiveColor : activeColor) : idleColor;
-                baseCol.a = Mathf.Clamp01(baseCol.a * wheelAlpha);
+                Color baseCol;
+                if (isLockedAbility)
+                {
+                    baseCol = isActive ? new Color(0.6f, 0.25f, 0.25f, 0.35f * wheelAlpha) : new Color(0.35f, 0.40f, 0.45f, 0.18f * wheelAlpha);
+                }
+                else if (isTactician)
+                {
+                    baseCol = isActive ? new Color(0f, 1f, 1f, 1f) : new Color(0f, 0.85f, 1f, 0.55f);
+                    baseCol.a = Mathf.Clamp01(baseCol.a * wheelAlpha);
+                }
+                else
+                {
+                    baseCol = isActive ? (isParry ? parryActiveColor : activeColor) : idleColor;
+                    baseCol.a = Mathf.Clamp01(baseCol.a * wheelAlpha);
+                }
 
                 Color finalCol = Color.Lerp(baseCol, tokenFlashColor, slot.flashAmount);
                 slot.image.color = finalCol;

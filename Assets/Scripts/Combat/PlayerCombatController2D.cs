@@ -92,6 +92,7 @@ namespace Combat
         public int CurrentComboStep { get; private set; } = 1;
         public bool IsFinisher => CurrentComboStep >= maxComboSteps;
         public bool CanCancelIntoCombo => _canCancelIntoCombo;
+        public float AttackDamageMultiplier { get; set; } = 1.0f;
 
         private Coroutine _attackRoutine;
         private Coroutine _hitstopRoutine;
@@ -496,6 +497,17 @@ namespace Combat
             // В стойке Тактика свайп активирует способность арена-контроля
             if (currentStance == CombatStance.Tactician)
             {
+                if (tacticianController == null)
+                {
+                    tacticianController = GetComponent<TacticianCombatController2D>() ?? gameObject.AddComponent<TacticianCombatController2D>();
+                }
+
+                if (tacticianController != null && !tacticianController.IsAbilityUnlocked(dir))
+                {
+                    Debug.LogWarning($"<color=orange>[ТАКТИК]</color> Способность {TacticianCombatController2D.GetAbilityName(dir)} заблокирована! Соберите Кристалл Победы для открытия.");
+                    return;
+                }
+
                 if (_stamina != null && (_stamina.IsExhausted || !_stamina.CanAfford(18f)))
                 {
                     Debug.LogWarning("<color=orange>[СТАМИНА НА НУЛЕ]</color> Недостаточно выносливости для способности Тактика!");
@@ -506,10 +518,7 @@ namespace Combat
                 {
                     _stamina.ConsumeForAction($"Tactician_{dir}", 18f);
                 }
-                if (tacticianController == null)
-                {
-                    tacticianController = GetComponent<TacticianCombatController2D>() ?? gameObject.AddComponent<TacticianCombatController2D>();
-                }
+
                 if (tacticianController != null)
                 {
                     tacticianController.ExecuteAbility(dir);
@@ -629,7 +638,7 @@ namespace Combat
                 baseAttack.startupTime,
                 baseAttack.activeTime,
                 baseAttack.recoveryTime,
-                baseAttack.damage * dmgMult,
+                baseAttack.damage * dmgMult * AttackDamageMultiplier,
                 baseAttack.knockbackForce * kbMult,
                 boxColor,
                 launcher: seq.IsLauncher,

@@ -148,6 +148,7 @@ namespace Combat.Player
         private bool _isJumping;
         private int _airJumpsLeft;
 
+        public float MoveSpeedMultiplier { get; set; } = 1.0f;
         public bool IsHitstunned => _hitstunTimer > 0f;
 
         public void ApplyHitstun(float duration)
@@ -474,7 +475,7 @@ namespace Combat.Player
             {
                 _isDashing = false;
                 // Сохраняем приятную остаточную инерцию (carry-over)
-                _rb.linearVelocity = new Vector2(_dashDirection * moveSpeed * 1.15f * speedMult, 0f);
+                _rb.linearVelocity = new Vector2(_dashDirection * moveSpeed * MoveSpeedMultiplier * 1.15f * speedMult, 0f);
                 _rb.gravityScale = baseGravityScale;
             }
         }
@@ -593,7 +594,7 @@ namespace Combat.Player
 
         private void HandleHorizontalMovement()
         {
-            float speedMult = 1f;
+            float speedMult = MoveSpeedMultiplier;
 
             // Спринт при зажатии Shift на земле
             if (IsGrounded && _sprintHeld && Mathf.Abs(_horizontalInput) > 0.01f)

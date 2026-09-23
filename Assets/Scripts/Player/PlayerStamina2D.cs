@@ -211,5 +211,24 @@ namespace Combat.Player
 
             onStaminaChanged?.Invoke(currentStamina, maxStamina);
         }
+
+        public void ModifyMaxStamina(float deltaAmount)
+        {
+            maxStamina = Mathf.Max(20f, maxStamina + deltaAmount);
+            if (deltaAmount > 0f)
+            {
+                currentStamina = Mathf.Min(maxStamina, currentStamina + deltaAmount);
+            }
+            else
+            {
+                currentStamina = Mathf.Clamp(currentStamina, 0f, maxStamina);
+            }
+            onStaminaChanged?.Invoke(currentStamina, maxStamina);
+        }
+
+        public void ModifyRegenRate(float deltaMultiplier)
+        {
+            regenRate = Mathf.Max(5f, regenRate * deltaMultiplier);
+        }
     }
 }

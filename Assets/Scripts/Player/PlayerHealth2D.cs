@@ -339,6 +339,20 @@ namespace Combat.Player
             onHealthChanged?.Invoke(currentHealth, maxHealth);
         }
 
+        public void ModifyMaxHealth(float deltaAmount, bool healCurrent = true)
+        {
+            maxHealth = Mathf.Max(10f, maxHealth + deltaAmount);
+            if (healCurrent && deltaAmount > 0f)
+            {
+                currentHealth = Mathf.Min(maxHealth, currentHealth + deltaAmount);
+            }
+            else
+            {
+                currentHealth = Mathf.Clamp(currentHealth, 1f, maxHealth);
+            }
+            onHealthChanged?.Invoke(currentHealth, maxHealth);
+        }
+
         public void ResetHealth()
         {
             currentHealth = maxHealth;

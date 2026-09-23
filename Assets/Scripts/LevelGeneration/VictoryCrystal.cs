@@ -114,14 +114,47 @@ namespace LevelGeneration
         {
             _isTriggered = true;
 
-            // Перегенерация уровня через LevelSequenceGenerator
             var generator = LevelSequenceGenerator.Instance;
             if (generator == null)
             {
                 generator = Object.FindAnyObjectByType<LevelSequenceGenerator>();
             }
 
-            if (generator != null)
+            // Инициализация Roguelike менеджера и UI при их отсутствии
+            var upgradeManager = Combat.Roguelike.RoguelikeUpgradeManager.Instance;
+            if (upgradeManager == null)
+            {
+                upgradeManager = Object.FindAnyObjectByType<Combat.Roguelike.RoguelikeUpgradeManager>();
+                if (upgradeManager == null)
+                {
+                    var mgrGo = new GameObject("[Roguelike_UpgradeManager]", typeof(Combat.Roguelike.RoguelikeUpgradeManager));
+                    upgradeManager = mgrGo.GetComponent<Combat.Roguelike.RoguelikeUpgradeManager>();
+                }
+            }
+
+            var upgradeUI = Combat.Roguelike.RoguelikeUpgradeUI.Instance;
+            if (upgradeUI == null)
+            {
+                upgradeUI = Object.FindAnyObjectByType<Combat.Roguelike.RoguelikeUpgradeUI>();
+                if (upgradeUI == null)
+                {
+                    var uiGo = new GameObject("[Roguelike_UpgradeUI]", typeof(Combat.Roguelike.RoguelikeUpgradeUI));
+                    upgradeUI = uiGo.GetComponent<Combat.Roguelike.RoguelikeUpgradeUI>();
+                }
+            }
+
+            if (upgradeManager != null && upgradeUI != null)
+            {
+                var cards = upgradeManager.GenerateUpgradeOffer(3);
+                upgradeUI.ShowSelection(cards, () =>
+                {
+                    if (generator != null)
+                    {
+                        generator.AdvanceCycleAndRegenerate();
+                    }
+                });
+            }
+            else if (generator != null)
             {
                 generator.AdvanceCycleAndRegenerate();
             }

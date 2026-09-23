@@ -138,6 +138,57 @@ namespace Combat.Tactician
         private PlayerCombatController2D _playerCombat;
         private HitboxVisualizer2D _visualizer;
         private Coroutine _abilityRoutine;
+        private readonly HashSet<Direction8> _unlockedAbilities = new HashSet<Direction8>();
+
+        public event System.Action<Direction8> OnAbilityUnlocked;
+        public event System.Action OnAbilitiesReset;
+
+        public bool IsAbilityUnlocked(Direction8 dir) => _unlockedAbilities.Contains(dir);
+
+        public void UnlockAbility(Direction8 dir)
+        {
+            if (_unlockedAbilities.Add(dir))
+            {
+                Debug.Log($"<color=#00FFFF><b>[ТАКТИК]</b></color> Способность <b>{GetAbilityName(dir)}</b> разблокирована!");
+                OnAbilityUnlocked?.Invoke(dir);
+            }
+        }
+
+        public void ResetAbilities()
+        {
+            _unlockedAbilities.Clear();
+            OnAbilitiesReset?.Invoke();
+        }
+
+        public void UnlockAllAbilities()
+        {
+            foreach (Direction8 dir in System.Enum.GetValues(typeof(Direction8)))
+            {
+                if (dir != Direction8.None)
+                {
+                    _unlockedAbilities.Add(dir);
+                }
+            }
+            OnAbilitiesReset?.Invoke();
+        }
+
+        public IReadOnlyCollection<Direction8> UnlockedAbilities => _unlockedAbilities;
+
+        public static string GetAbilityName(Direction8 dir)
+        {
+            switch (dir)
+            {
+                case Direction8.Right: return "➡️ Прощупывающий выпад";
+                case Direction8.Down: return "⬇️ Глубинная печать";
+                case Direction8.Up: return "⬆️ Гравитационный якорь";
+                case Direction8.Left: return "⬅️ Тактический отход";
+                case Direction8.UpRight: return "↗️ Кинетический подброс";
+                case Direction8.DownRight: return "↘️ Направленные шипы";
+                case Direction8.DownLeft: return "↙️ Магический гарпун";
+                case Direction8.UpLeft: return "↖️ Веерная защита";
+                default: return dir.ToString();
+            }
+        }
 
         private void Awake()
         {
@@ -151,6 +202,12 @@ namespace Combat.Tactician
         /// </summary>
         public void ExecuteAbility(Direction8 dir)
         {
+            if (!IsAbilityUnlocked(dir))
+            {
+                Debug.LogWarning($"<color=orange>[ТАКТИК]</color> Способность {GetAbilityName(dir)} заблокирована! Соберите Кристалл Победы для открытия.");
+                return;
+            }
+
             if (_abilityRoutine != null)
             {
                 StopCoroutine(_abilityRoutine);
