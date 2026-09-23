@@ -91,6 +91,13 @@ namespace LevelGeneration
 
         [SerializeField] private Transform enemiesContainer;
 
+        [Header("--- Барьерные двери боевого сектора ---")]
+        [Tooltip("Автоматически ставить запирающиеся барьерные двери на входе и выходе боевой зоны")]
+        [SerializeField] private bool enableSectorDoors = true;
+
+        [Tooltip("Опциональный префаб барьерной двери (если не задан, создается процедурный объект)")]
+        [SerializeField] private SectorBarrierDoor2D barrierDoorPrefab;
+
         [Header("--- События ---")]
         public UnityEvent<List<LevelChunk>> onLevelGenerated;
 
@@ -101,6 +108,10 @@ namespace LevelGeneration
         // Список заспавненных врагов текущего цикла
         private readonly List<GameObject> _spawnedEnemies = new List<GameObject>();
         public IReadOnlyList<GameObject> SpawnedEnemies => _spawnedEnemies;
+
+        private SectorBarrierDoor2D _entranceDoorInstance;
+        private SectorBarrierDoor2D _exitDoorInstance;
+        private CombatSectorLock2D _combatLockInstance;
 
         public static LevelSequenceGenerator Instance { get; private set; }
 
@@ -232,6 +243,12 @@ namespace LevelGeneration
 
             // Процедурный спавн врагов по нарастающей сложности на платформах
             SpawnEnemiesForCurrentCycle(_spawnedChunks);
+
+            // Установка запирающихся барьерных дверей сектора
+            if (enableSectorDoors)
+            {
+                SetupSectorDoors(_spawnedChunks);
+            }
 
             Physics2D.SyncTransforms();
 
@@ -386,6 +403,7 @@ namespace LevelGeneration
                 if (enemyAI != null)
                 {
                     enemyAI.ApplyDifficultyScaling(healthMult, staminaMult, speedMult);
+                    enemyAI.RespawnOnDeath = false;
                 }
 
                 _spawnedEnemies.Add(enemyObj);
@@ -398,6 +416,48 @@ namespace LevelGeneration
             }
 
             Debug.Log($"<color=#FF5555><b>[SPAWN]</b></color> <b>Круг {currentCycle}</b>: Заспавнено {spawnCount} врагов на платформах! (HP: x{healthMult:F2}, Выносливость: x{staminaMult:F2}, Скорость замаха: x{speedMult:F2}, Стиль: x{styleMult:F2})");
+        }
+
+        private void SetupSectorDoors(List<LevelChunk> chunks)
+        {
+            if (chunks == null || chunks.Count < 2) return;
+
+            // Входной порог боевой зоны: стык между 0-м (стартовым) и 1-м (боевым) чанком
+            Vector3 entrancePos = chunks[0].ExitPoint.position;
+            // Выходной порог боевой зоны: вход в финальный чанк с кристаллом
+            Vector3 exitPos = chunks[chunks.Count - 1].EntryPoint.position;
+
+            _entranceDoorInstance = SpawnOrSetupDoor("[Entrance_Barrier_Door]", entrancePos);
+            _exitDoorInstance = SpawnOrSetupDoor("[Exit_Barrier_Door]", exitPos);
+
+            if (_combatLockInstance == null)
+            {
+                _combatLockInstance = GetComponent<CombatSectorLock2D>();
+                if (_combatLockInstance == null)
+                {
+                    _combatLockInstance = gameObject.AddComponent<CombatSectorLock2D>();
+                }
+            }
+
+            _combatLockInstance.InitializeSector(_entranceDoorInstance, _exitDoorInstance, entrancePos, _spawnedEnemies);
+        }
+
+        private SectorBarrierDoor2D SpawnOrSetupDoor(string doorName, Vector3 worldPos)
+        {
+            SectorBarrierDoor2D door;
+            if (barrierDoorPrefab != null)
+            {
+                door = Instantiate(barrierDoorPrefab, worldPos, Quaternion.identity, chunksContainer);
+            }
+            else
+            {
+                var go = new GameObject(doorName);
+                go.transform.SetParent(chunksContainer, false);
+                go.transform.position = worldPos;
+                door = go.AddComponent<SectorBarrierDoor2D>();
+            }
+            door.name = doorName;
+            return door;
         }
 
         private void ClearEnemies()
@@ -427,6 +487,25 @@ namespace LevelGeneration
         [ContextMenu("Очистить уровень (Clear Old Chunks)")]
         public void ClearOldChunks()
         {
+            if (_combatLockInstance != null)
+            {
+                _combatLockInstance.ClearSector();
+            }
+
+            if (_entranceDoorInstance != null)
+            {
+                if (Application.isPlaying) Destroy(_entranceDoorInstance.gameObject);
+                else DestroyImmediate(_entranceDoorInstance.gameObject);
+                _entranceDoorInstance = null;
+            }
+
+            if (_exitDoorInstance != null)
+            {
+                if (Application.isPlaying) Destroy(_exitDoorInstance.gameObject);
+                else DestroyImmediate(_exitDoorInstance.gameObject);
+                _exitDoorInstance = null;
+            }
+
             ClearEnemies();
             _spawnedChunks.Clear();
 

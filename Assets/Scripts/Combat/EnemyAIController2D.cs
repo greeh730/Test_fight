@@ -189,11 +189,14 @@ namespace Combat
         public float MaxHealth => maxHealth;
         public float FacingDirection { get; private set; } = -1f;
         public bool CanDie { get => canDie; set => canDie = value; }
+        public bool RespawnOnDeath { get => respawnOnDeath; set => respawnOnDeath = value; }
         public bool IsDead => CurrentState == EnemyState.Dead;
         public float MaxStamina => maxStamina;
         public float CurrentStamina => currentStamina;
         public Rigidbody2D Rigidbody => _rb;
         public EnemyTacticalRole TacticalRole { get; private set; } = EnemyTacticalRole.Solo;
+
+        public static event Action<EnemyAIController2D> OnAnyEnemyDied;
 
         private static readonly List<EnemyAIController2D> _activeEnemies = new List<EnemyAIController2D>();
         public static IReadOnlyList<EnemyAIController2D> ActiveEnemies => _activeEnemies;
@@ -1640,6 +1643,8 @@ namespace Combat
             {
                 Combat.Style.StyleManager.Instance.AddEnemyKill(this, wasCounter, transform.position);
             }
+
+            OnAnyEnemyDied?.Invoke(this);
 
             if (respawnOnDeath)
             {
