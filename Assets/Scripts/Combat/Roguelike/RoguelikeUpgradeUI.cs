@@ -1,16 +1,14 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.EventSystems;
 
 namespace Combat.Roguelike
 {
     /// <summary>
     /// Интерфейс выбора 3 карточек Roguelike-улучшений при прохождении уровня (Кристалл Победы).
-    /// Полностью автономен: при отсутствии настроенного в инспекторе префаба автоматически
-    /// генерирует стильный неоновый интерфейс на существующем Canvas.
+    /// Карточки имеют фиксированный, компактный размер и центрируются на экране,
+    /// идеально помещаясь при любом разрешении без вылезания за границы.
     /// </summary>
     [DisallowMultipleComponent]
     public class RoguelikeUpgradeUI : MonoBehaviour
@@ -19,9 +17,17 @@ namespace Combat.Roguelike
 
         [Header("--- Visual Colors ---")]
         [SerializeField] private Color tacticianColor = new Color(0f, 0.95f, 1f, 1f);      // Cyan
-        [SerializeField] private Color combatBuffColor = new Color(0.2f, 1f, 0.55f, 1f);   // Emerald / Gold
+        [SerializeField] private Color combatBuffColor = new Color(0.2f, 1f, 0.55f, 1f);   // Emerald / Green
         [SerializeField] private Color riskColor = new Color(1f, 0.25f, 0.35f, 1f);        // Crimson Red
-        [SerializeField] private Color panelBgColor = new Color(0.04f, 0.05f, 0.08f, 0.88f);
+        [SerializeField] private Color panelBgColor = new Color(0.03f, 0.04f, 0.06f, 0.90f);
+
+        [Header("--- Layout Dimensions ---")]
+        [Tooltip("Ширина каждой отдельной карточки")]
+        [SerializeField] private float cardWidth = 310f;
+        [Tooltip("Высота каждой отдельной карточки")]
+        [SerializeField] private float cardHeight = 450f;
+        [Tooltip("Отступ между карточками")]
+        [SerializeField] private float cardSpacing = 24f;
 
         [Header("--- UI Container Elements ---")]
         [SerializeField] private Canvas targetCanvas;
@@ -75,19 +81,16 @@ namespace Combat.Roguelike
                 targetCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
             }
 
-            if (modalRoot == null)
+            // Если модалка уже есть, удаляем старую чтобы гарантировать актуальные размеры
+            var existing = targetCanvas.transform.Find("RoguelikeUpgradeModal");
+            if (existing != null)
             {
-                var existing = targetCanvas.transform.Find("RoguelikeUpgradeModal");
-                if (existing != null)
-                {
-                    modalRoot = existing.gameObject;
-                    cardsContainer = modalRoot.transform.Find("CardsContainer");
-                }
-                else
-                {
-                    BuildUIHierarchy();
-                }
+                DestroyImmediate(existing.gameObject);
+                modalRoot = null;
+                cardsContainer = null;
             }
+
+            BuildUIHierarchy();
 
             if (modalRoot != null)
             {
@@ -97,7 +100,7 @@ namespace Combat.Roguelike
 
         private void BuildUIHierarchy()
         {
-            // Корневой оверлей
+            // 1. Полноэкранный темный оверлей
             modalRoot = new GameObject("RoguelikeUpgradeModal", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             modalRoot.transform.SetParent(targetCanvas.transform, false);
             var rootRt = modalRoot.GetComponent<RectTransform>();
@@ -110,50 +113,65 @@ namespace Combat.Roguelike
             bgImg.sprite = _whiteSprite;
             bgImg.color = panelBgColor;
 
-            // Заголовок
+            // 2. Центральная панель контента (фиксированная ширина и высота для предотвращения расползания)
+            var centerPanelObj = new GameObject("CenterDialog", typeof(RectTransform));
+            centerPanelObj.transform.SetParent(modalRoot.transform, false);
+            var panelRt = centerPanelObj.GetComponent<RectTransform>();
+            panelRt.anchorMin = new Vector2(0.5f, 0.5f);
+            panelRt.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRt.pivot = new Vector2(0.5f, 0.5f);
+            panelRt.sizeDelta = new Vector2(1040f, 620f);
+            panelRt.anchoredPosition = Vector2.zero;
+
+            // 3. Заголовок
             var headerObj = new GameObject("HeaderTitle", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
-            headerObj.transform.SetParent(modalRoot.transform, false);
+            headerObj.transform.SetParent(centerPanelObj.transform, false);
             var headerRt = headerObj.GetComponent<RectTransform>();
-            headerRt.anchorMin = new Vector2(0.1f, 0.82f);
-            headerRt.anchorMax = new Vector2(0.9f, 0.94f);
-            headerRt.offsetMin = Vector2.zero;
-            headerRt.offsetMax = Vector2.zero;
+            headerRt.anchorMin = new Vector2(0.5f, 1.0f);
+            headerRt.anchorMax = new Vector2(0.5f, 1.0f);
+            headerRt.pivot = new Vector2(0.5f, 1.0f);
+            headerRt.anchoredPosition = new Vector2(0f, -10f);
+            headerRt.sizeDelta = new Vector2(800f, 44f);
 
             var headerText = headerObj.GetComponent<Text>();
             headerText.font = _uiFont;
-            headerText.fontSize = 32;
+            headerText.fontSize = 28;
             headerText.fontStyle = FontStyle.Bold;
             headerText.alignment = TextAnchor.MiddleCenter;
-            headerText.color = new Color(0.9f, 0.95f, 1f, 1f);
+            headerText.color = new Color(0.95f, 0.98f, 1f, 1f);
             headerText.text = "РЕЗОНАНС КРИСТАЛЛА ПОБЕДЫ";
 
-            // Подзаголовок
+            // 4. Подзаголовок
             var subObj = new GameObject("Subtitle", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
-            subObj.transform.SetParent(modalRoot.transform, false);
+            subObj.transform.SetParent(centerPanelObj.transform, false);
             var subRt = subObj.GetComponent<RectTransform>();
-            subRt.anchorMin = new Vector2(0.1f, 0.77f);
-            subRt.anchorMax = new Vector2(0.9f, 0.83f);
-            subRt.offsetMin = Vector2.zero;
-            subRt.offsetMax = Vector2.zero;
+            subRt.anchorMin = new Vector2(0.5f, 1.0f);
+            subRt.anchorMax = new Vector2(0.5f, 1.0f);
+            subRt.pivot = new Vector2(0.5f, 1.0f);
+            subRt.anchoredPosition = new Vector2(0f, -54f);
+            subRt.sizeDelta = new Vector2(800f, 26f);
 
             var subText = subObj.GetComponent<Text>();
             subText.font = _uiFont;
-            subText.fontSize = 17;
+            subText.fontSize = 14;
             subText.alignment = TextAnchor.MiddleCenter;
-            subText.color = new Color(0.7f, 0.8f, 0.9f, 0.9f);
+            subText.color = new Color(0.68f, 0.78f, 0.88f, 0.95f);
             subText.text = "Выберите одно улучшение для усиления вашей боевой мощи в новом цикле:";
 
-            // Контейнер 3 карточек
+            // 5. Контейнер 3 карточек (компактный, выровнен по центру)
+            float totalWidth = 3f * cardWidth + 2f * cardSpacing;
             var containerObj = new GameObject("CardsContainer", typeof(RectTransform), typeof(HorizontalLayoutGroup));
-            containerObj.transform.SetParent(modalRoot.transform, false);
+            containerObj.transform.SetParent(centerPanelObj.transform, false);
             var cRt = containerObj.GetComponent<RectTransform>();
-            cRt.anchorMin = new Vector2(0.08f, 0.12f);
-            cRt.anchorMax = new Vector2(0.92f, 0.75f);
-            cRt.offsetMin = Vector2.zero;
-            cRt.offsetMax = Vector2.zero;
+            cRt.anchorMin = new Vector2(0.5f, 0f);
+            cRt.anchorMax = new Vector2(0.5f, 0f);
+            cRt.pivot = new Vector2(0.5f, 0f);
+            cRt.anchoredPosition = new Vector2(0f, 20f);
+            cRt.sizeDelta = new Vector2(totalWidth, cardHeight);
 
             var hlg = containerObj.GetComponent<HorizontalLayoutGroup>();
-            hlg.spacing = 30f;
+            hlg.spacing = cardSpacing;
+            hlg.childAlignment = TextAnchor.MiddleCenter;
             hlg.childControlWidth = true;
             hlg.childControlHeight = true;
             hlg.childForceExpandWidth = true;
@@ -187,7 +205,13 @@ namespace Combat.Roguelike
             modalRoot.SetActive(true);
             modalRoot.transform.SetAsLastSibling();
 
-            // Ставим игру на паузу
+            Canvas.ForceUpdateCanvases();
+            if (cardsContainer is RectTransform containerRt)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(containerRt);
+            }
+
+            // Пауза и курсор
             Time.timeScale = 0f;
             Cursor.visible = true;
             Cursor.lockState = CursorLockMode.None;
@@ -218,75 +242,89 @@ namespace Combat.Roguelike
                     break;
             }
 
-            // Card Panel Root
-            var cardObj = new GameObject($"Card_{index}_{card.id}", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Outline));
+            // 1. Корневой объект карточки (фиксированный размер внутри HorizontalLayoutGroup)
+            var cardObj = new GameObject($"Card_{index}_{card.id}", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Outline), typeof(LayoutElement));
             cardObj.transform.SetParent(cardsContainer, false);
+
+            var le = cardObj.GetComponent<LayoutElement>();
+            le.preferredWidth = cardWidth;
+            le.preferredHeight = cardHeight;
+            le.minWidth = cardWidth;
+            le.minHeight = cardHeight;
 
             var cardImg = cardObj.GetComponent<Image>();
             cardImg.sprite = _whiteSprite;
-            cardImg.color = new Color(0.08f, 0.10f, 0.15f, 0.95f);
+            cardImg.color = new Color(0.06f, 0.08f, 0.12f, 0.95f);
 
             var outline = cardObj.GetComponent<Outline>();
             outline.effectColor = themeColor;
-            outline.effectDistance = new Vector2(3f, 3f);
+            outline.effectDistance = new Vector2(2f, 2f);
 
-            // Вертикальный контейнер для содержимого карточки
-            var layout = cardObj.AddComponent<VerticalLayoutGroup>();
-            layout.padding = new RectOffset(20, 20, 24, 20);
-            layout.spacing = 14f;
+            // 2. Внутренний контейнер контента (занимает верхнюю часть карточки, оставляя снизу место под кнопку)
+            var contentContainer = new GameObject("Content", typeof(RectTransform), typeof(VerticalLayoutGroup));
+            contentContainer.transform.SetParent(cardObj.transform, false);
+            var contentRt = contentContainer.GetComponent<RectTransform>();
+            contentRt.anchorMin = Vector2.zero;
+            contentRt.anchorMax = Vector2.one;
+            // Снизу оставляем 64px для кнопки "ВЫБРАТЬ"
+            contentRt.offsetMin = new Vector2(16f, 62f);
+            contentRt.offsetMax = new Vector2(-16f, -14f);
+
+            var layout = contentContainer.GetComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(0, 0, 0, 0);
+            layout.spacing = 8f;
             layout.childControlWidth = true;
             layout.childControlHeight = false;
             layout.childForceExpandWidth = true;
             layout.childForceExpandHeight = false;
 
-            // 1. Бейдж категории
-            CreateTextElement(cardObj.transform, "CategoryBadge", categoryLabel, 13, FontStyle.Bold, themeColor, TextAnchor.MiddleCenter, 24f);
+            // А. Бейдж категории
+            CreateTextElement(contentContainer.transform, "CategoryBadge", categoryLabel, 11, FontStyle.Bold, themeColor, TextAnchor.MiddleCenter, 20f);
 
-            // 2. Иконка-символ
-            CreateTextElement(cardObj.transform, "Icon", card.iconSymbol, 44, FontStyle.Bold, Color.white, TextAnchor.MiddleCenter, 54f);
+            // Б. Иконка-символ
+            CreateTextElement(contentContainer.transform, "Icon", card.iconSymbol, 36, FontStyle.Bold, Color.white, TextAnchor.MiddleCenter, 42f);
 
-            // 3. Заголовок карточки
-            CreateTextElement(cardObj.transform, "Title", card.title, 20, FontStyle.Bold, Color.white, TextAnchor.MiddleCenter, 34f);
+            // В. Заголовок
+            CreateTextElement(contentContainer.transform, "Title", card.title, 17, FontStyle.Bold, Color.white, TextAnchor.MiddleCenter, 26f);
 
-            // 4. Описание
-            CreateTextElement(cardObj.transform, "Desc", card.description, 13, FontStyle.Normal, new Color(0.85f, 0.88f, 0.92f, 0.95f), TextAnchor.MiddleCenter, 58f);
+            // Г. Описание
+            CreateTextElement(contentContainer.transform, "Desc", card.description, 12, FontStyle.Normal, new Color(0.82f, 0.86f, 0.90f, 0.92f), TextAnchor.MiddleCenter, 52f);
 
-            // 5. Положительный эффект
+            // Д. Положительный эффект (зеленый / бирюзовый)
             if (!string.IsNullOrEmpty(card.positiveEffectText))
             {
-                CreateTextElement(cardObj.transform, "PositiveEffect", "✓ " + card.positiveEffectText, 14, FontStyle.Bold, new Color(0.3f, 1f, 0.6f, 1f), TextAnchor.MiddleCenter, 42f);
+                CreateTextElement(contentContainer.transform, "PositiveEffect", "✓ " + card.positiveEffectText, 12, FontStyle.Bold, new Color(0.25f, 1f, 0.55f, 1f), TextAnchor.MiddleCenter, 38f);
             }
 
-            // 6. Негативный эффект (если перк с риском)
+            // Е. Негативный эффект (красный / оранжевый)
             if (!string.IsNullOrEmpty(card.negativeEffectText))
             {
-                CreateTextElement(cardObj.transform, "NegativeEffect", "⚠ " + card.negativeEffectText, 13, FontStyle.Bold, new Color(1f, 0.35f, 0.35f, 1f), TextAnchor.MiddleCenter, 36f);
+                CreateTextElement(contentContainer.transform, "NegativeEffect", "⚠ " + card.negativeEffectText, 12, FontStyle.Bold, new Color(1f, 0.35f, 0.35f, 1f), TextAnchor.MiddleCenter, 34f);
             }
 
-            // Распорка (Spacer)
-            var spacer = new GameObject("Spacer", typeof(RectTransform), typeof(LayoutElement));
-            spacer.transform.SetParent(cardObj.transform, false);
-            var le = spacer.GetComponent<LayoutElement>();
-            le.flexibleHeight = 1f;
-
-            // 7. Кнопка "ВЫБРАТЬ"
-            var btnObj = new GameObject("SelectButton", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button), typeof(LayoutElement));
+            // 3. Кнопка "ВЫБРАТЬ" (ЖЕСТКО закреплена в самом низу карточки)
+            var btnObj = new GameObject("SelectButton", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
             btnObj.transform.SetParent(cardObj.transform, false);
-            var btnLe = btnObj.GetComponent<LayoutElement>();
-            btnLe.preferredHeight = 44f;
+
+            var btnRt = btnObj.GetComponent<RectTransform>();
+            btnRt.anchorMin = new Vector2(0.08f, 0f);
+            btnRt.anchorMax = new Vector2(0.92f, 0f);
+            btnRt.pivot = new Vector2(0.5f, 0f);
+            btnRt.anchoredPosition = new Vector2(0f, 12f);
+            btnRt.sizeDelta = new Vector2(0f, 38f);
 
             var btnImg = btnObj.GetComponent<Image>();
             btnImg.sprite = _whiteSprite;
-            btnImg.color = themeColor * 0.75f;
+            btnImg.color = themeColor * 0.82f;
 
             var btn = btnObj.GetComponent<Button>();
             var colors = btn.colors;
-            colors.normalColor = themeColor * 0.75f;
+            colors.normalColor = themeColor * 0.82f;
             colors.highlightedColor = themeColor;
             colors.pressedColor = Color.white;
             btn.colors = colors;
 
-            // Текст кнопки
+            // Текст внутри кнопки
             var btnTextObj = new GameObject("BtnText", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
             btnTextObj.transform.SetParent(btnObj.transform, false);
             var bRt = btnTextObj.GetComponent<RectTransform>();
@@ -297,7 +335,7 @@ namespace Combat.Roguelike
 
             var bText = btnTextObj.GetComponent<Text>();
             bText.font = _uiFont;
-            bText.fontSize = 15;
+            bText.fontSize = 14;
             bText.fontStyle = FontStyle.Bold;
             bText.alignment = TextAnchor.MiddleCenter;
             bText.color = Color.black;
@@ -316,6 +354,7 @@ namespace Combat.Roguelike
 
             var le = go.GetComponent<LayoutElement>();
             le.preferredHeight = preferredHeight;
+            le.minHeight = preferredHeight;
 
             var txt = go.GetComponent<Text>();
             txt.font = _uiFont;
