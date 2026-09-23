@@ -245,6 +245,7 @@ namespace Combat
         public NavTransitionState NavTransition => _navTransition;
         private float _jumpAirborneGraceTimer = 0f;
         private float _dropAirborneGraceTimer = 0f;
+        private float _jumpFlightElapsedTimer = 0f;
         private float _jumpMaxDurationTimer = 0f;
         private float _activeJumpForwardSpeed = 0f;
         private float _activeJumpTargetY = 0f;
@@ -758,7 +759,8 @@ namespace Combat
                             {
                                 _navTransition = NavTransitionState.Airborne;
                                 _jumpAirborneGraceTimer = 0.22f; // Первые 220мс игнорируем землю, чтобы дать боту взлететь
-                                _jumpMaxDurationTimer = step.FlightDuration + 0.75f;
+                                _jumpFlightElapsedTimer = 0f;    // Засекаем реальное время полета
+                                _jumpMaxDurationTimer = step.FlightDuration + 0.85f;
                                 _activeJumpForwardSpeed = step.ForwardSpeed;
                                 _activeJumpTargetY = step.LandingTarget.y;
                                 _jumpCooldownTimer = jumpCooldown * 1.15f;
@@ -769,24 +771,33 @@ namespace Combat
                         case NavTransitionState.Airborne:
                             dirX = 0f;
                             _desiredVelocityX = _activeJumpForwardSpeed;
+                            _jumpFlightElapsedTimer += Time.deltaTime;
 
-                            // Проверка приземления (только после отрыва от стартовой платформы)
-                            if (_jumpAirborneGraceTimer <= 0f && IsGrounded)
+                            // Проверяем завершение прыжка ТОЛЬКО когда:
+                            // 1. Прошло не менее 70% расчетного времени полета (исключает срыв в начале и на подъеме дуги)
+                            // 2. Бот опускается вниз или стабилизировался по вертикали (_rb.linearVelocity.y <= 0.35f)
+                            // 3. Бот коснулся твердой опоры (IsGrounded)
+                            bool flightDurationElapsed = _jumpFlightElapsedTimer >= (step.FlightDuration * 0.70f);
+                            bool isDescendingOrSettled = _rb != null && _rb.linearVelocity.y <= 0.35f;
+
+                            if (_jumpAirborneGraceTimer <= 0f && flightDurationElapsed && isDescendingOrSettled && IsGrounded)
                             {
                                 bool landedOnTarget = false;
                                 if (step.ToSegment != null && PlatformNavGraph2D.Instance != null)
                                 {
-                                    landedOnTarget = PlatformNavGraph2D.Instance.IsPositionOnSegment(step.ToSegment, transform.position);
+                                    // Проверяем, что бот действительно приземлился на поверхность целевой платформы (не задел стену сбоку)
+                                    landedOnTarget = PlatformNavGraph2D.Instance.IsPositionOnSegment(step.ToSegment, transform.position)
+                                                     && transform.position.y >= (step.ToSegment.YTop - 0.35f);
                                 }
                                 else
                                 {
-                                    landedOnTarget = Mathf.Abs(transform.position.y - step.LandingTarget.y) < 0.75f &&
-                                                     Mathf.Abs(transform.position.x - step.LandingTarget.x) < 2.2f;
+                                    landedOnTarget = Mathf.Abs(transform.position.y - step.LandingTarget.y) < 0.65f &&
+                                                     Mathf.Abs(transform.position.x - step.LandingTarget.x) < 2.0f;
                                 }
 
                                 if (landedOnTarget)
                                 {
-                                    // Успешная посадка на нужную платформу!
+                                    // Прыжок ПОЛНОСТЬЮ выполнен, бот приземлился на целевую платформу!
                                     _navTransition = NavTransitionState.Landed;
                                     _currentPathIndex++;
                                     _navTransition = NavTransitionState.None;
@@ -802,7 +813,7 @@ namespace Combat
                             }
                             else if (_jumpMaxDurationTimer <= 0f)
                             {
-                                // Таймаут прыжка
+                                // Таймаут прыжка (застрял или сорвался)
                                 _navTransition = NavTransitionState.Failed;
                                 _currentNavPath.Clear();
                                 _pathRecalculateTimer = 0f;
@@ -834,18 +845,26 @@ namespace Combat
                         case NavTransitionState.Launch:
                             _navTransition = NavTransitionState.Airborne;
                             _dropAirborneGraceTimer = 0.22f; // Первые 220мс игнорируем землю исходной платформы
+                            _jumpFlightElapsedTimer = 0f;
                             _activeJumpForwardSpeed = step.ForwardSpeed;
                             _desiredVelocityX = step.ForwardSpeed;
                             break;
 
                         case NavTransitionState.Airborne:
+                            dirX = 0f;
                             _desiredVelocityX = _activeJumpForwardSpeed;
-                            if (_dropAirborneGraceTimer <= 0f && IsGrounded)
+                            _jumpFlightElapsedTimer += Time.deltaTime;
+
+                            bool dropTimeElapsed = _jumpFlightElapsedTimer >= (step.FlightDuration * 0.70f);
+                            bool dropDescending = _rb != null && _rb.linearVelocity.y <= 0.2f;
+
+                            if (_dropAirborneGraceTimer <= 0f && dropTimeElapsed && dropDescending && IsGrounded)
                             {
                                 bool landedOnTarget = false;
                                 if (step.ToSegment != null && PlatformNavGraph2D.Instance != null)
                                 {
-                                    landedOnTarget = PlatformNavGraph2D.Instance.IsPositionOnSegment(step.ToSegment, transform.position);
+                                    landedOnTarget = PlatformNavGraph2D.Instance.IsPositionOnSegment(step.ToSegment, transform.position)
+                                                     && transform.position.y >= (step.ToSegment.YTop - 0.35f);
                                 }
                                 else
                                 {

@@ -224,6 +224,12 @@ namespace LevelGeneration
 
             Physics2D.SyncTransforms();
 
+            // Автоматически перестраиваем граф навигации платформ под новую геометрию сгенерированных комнат
+            if (Combat.Navigation.PlatformNavGraph2D.Instance != null)
+            {
+                Combat.Navigation.PlatformNavGraph2D.Instance.BuildNavGraph();
+            }
+
             // Процедурный спавн врагов по нарастающей сложности на платформах
             SpawnEnemiesForCurrentCycle(_spawnedChunks);
 
