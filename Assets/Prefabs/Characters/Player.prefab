@@ -19,10 +19,10 @@ GameObject:
   - component: {fileID: 5521885841028506410}
   - component: {fileID: 678814505128052338}
   - component: {fileID: 7423464582729471053}
-  - component: {fileID: 1655941003253126017}
-  - component: {fileID: 8387951953166490895}
   - component: {fileID: 9130126875328064896}
-  - component: {fileID: -1359402926991656634}
+  - component: {fileID: 8585465651835709706}
+  - component: {fileID: 1660577626118555687}
+  - component: {fileID: 4505969943193177868}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -122,7 +122,7 @@ Rigidbody2D:
   m_LinearDamping: 0
   m_AngularDamping: 0.05
   m_GravityScale: 3.5
-  m_Material: {fileID: 0}
+  m_Material: {fileID: 6200000, guid: 83ce98459896b2e419d2011af6b27809, type: 2}
   m_IncludeLayers:
     serializedVersion: 2
     m_Bits: 0
@@ -145,11 +145,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: aedee49f601a6f648b3d82bf3ef0da53, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Combat.Player.PlayerController2D
-  moveSpeed: 8.5
+  moveSpeed: 3
   groundAcceleration: 65
   groundDeceleration: 75
   turnDeceleration: 38
-  sprintMultiplier: 1.4
+  sprintMultiplier: 2.5
   friction: 1
   slopeDownSnapDistance: 0.35
   airAcceleration: 35
@@ -163,6 +163,9 @@ MonoBehaviour:
   maxFallSpeed: 22
   maxAirJumps: 1
   airJumpForceMultiplier: 0.92
+  jumpStaminaPercent: 25
+  separateAirJumpStamina: 0
+  airJumpStaminaPercent: 25
   enableApexHang: 1
   apexVelocityThreshold: 2.6
   apexGravityMultiplier: 0.35
@@ -178,6 +181,10 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   groundCheckDistance: 0.08
+  enableEdgeSlip: 1
+  edgeSlipSpeed: 3.5
+  enableCornerRounding: 1
+  cornerNudgeDistance: 0.28
   enableJuiceSquashStretch: 1
   squashStretchSpeed: 12
   faceTransform: {fileID: 2049131354317258528}
@@ -419,50 +426,6 @@ MonoBehaviour:
   onParryWhiff:
     m_PersistentCalls:
       m_Calls: []
---- !u!95 &1655941003253126017
-Animator:
-  serializedVersion: 7
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1693687927268177281}
-  m_Enabled: 1
-  m_Avatar: {fileID: 0}
-  m_Controller: {fileID: 9100000, guid: 2e8649a1b73f7f24cae51b9684765dd7, type: 2}
-  m_CullingMode: 0
-  m_UpdateMode: 0
-  m_ApplyRootMotion: 0
-  m_LinearVelocityBlending: 0
-  m_StabilizeFeet: 0
-  m_AnimatePhysics: 0
-  m_WarningMessage: 
-  m_HasTransformHierarchy: 1
-  m_AllowConstantClipSamplingOptimization: 1
-  m_KeepAnimatorStateOnDisable: 0
-  m_WriteDefaultValuesOnDisable: 0
---- !u!114 &8387951953166490895
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1693687927268177281}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 48e4ba3ea06d48d41a2fe9b7d260afef, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Combat.Player.PlayerAnimationController2D
-  animator: {fileID: 0}
-  animatorControllerAsset: {fileID: 0}
-  attackWindupHoldFrame: 2
-  attackFrameRate: 12
-  windupSpeed: 1.8
-  playerController: {fileID: 0}
-  playerCombat: {fileID: 0}
-  playerBlockParry: {fileID: 0}
-  vectorWheel: {fileID: 0}
-  faceTransform: {fileID: 0}
 --- !u!70 &9130126875328064896
 CapsuleCollider2D:
   m_ObjectHideFlags: 0
@@ -473,7 +436,7 @@ CapsuleCollider2D:
   m_Enabled: 1
   serializedVersion: 3
   m_Density: 1
-  m_Material: {fileID: 0}
+  m_Material: {fileID: 6200000, guid: 83ce98459896b2e419d2011af6b27809, type: 2}
   m_IncludeLayers:
     serializedVersion: 2
     m_Bits: 0
@@ -497,10 +460,54 @@ CapsuleCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0.02, y: -0.3}
-  m_Size: {x: 0.5, y: 0.9}
+  m_Offset: {x: 0.02000001, y: -0.6674851}
+  m_Size: {x: 0.5, y: 1.6349702}
   m_Direction: 0
---- !u!114 &-1359402926991656634
+--- !u!95 &8585465651835709706
+Animator:
+  serializedVersion: 7
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1693687927268177281}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: 2e8649a1b73f7f24cae51b9684765dd7, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_AnimatePhysics: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &1660577626118555687
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1693687927268177281}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 48e4ba3ea06d48d41a2fe9b7d260afef, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Combat.Player.PlayerAnimationController2D
+  animator: {fileID: 0}
+  animatorControllerAsset: {fileID: 0}
+  attackWindupHoldFrame: 2
+  attackFrameRate: 12
+  windupSpeed: 1.8
+  playerController: {fileID: 0}
+  playerCombat: {fileID: 0}
+  playerBlockParry: {fileID: 0}
+  vectorWheel: {fileID: 0}
+  faceTransform: {fileID: 0}
+--- !u!114 &4505969943193177868
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

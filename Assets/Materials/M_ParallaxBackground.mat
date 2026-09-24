@@ -30,16 +30,18 @@ Material:
     m_Ints: []
     m_Floats:
     - _AmbientPulse: 0.5
-    - _AmbientPulseIntensity: 0.05
-    - _VignetteStrength: 0.4
+    - _AmbientPulseIntensity: 0.03
+    - _BottomFadeHeight: 0.38
+    - _FadeSmoothness: 1
+    - _SideFadeWidth: 0.12
+    - _TopFadeHeight: 0.42
+    - _VignetteStrength: 0.3
     m_Colors:
-    - _BottomTint: {r: 0.45, g: 0.48, b: 0.55, a: 1}
-    - _FarTint: {r: 0.95, g: 0.95, b: 1, a: 1}
-    - _MidTint: {r: 0.6, g: 0.7, b: 0.85, a: 0.25}
+    - _Offset: {r: 0, g: 0, b: 0, a: 0}
     - _Offset1: {r: 0, g: 0, b: 0, a: 0}
-    - _Offset2: {r: 0, g: 0, b: 0, a: 0}
-    - _TileScale1: {r: 1, g: 1, b: 0, a: 0}
-    - _TileScale2: {r: 2.2, g: 1.8, b: 0, a: 0}
-    - _TopTint: {r: 0.75, g: 0.82, b: 0.95, a: 1}
+    - _TileScale: {r: 1.2, g: 1, b: 0, a: 0}
+    - _VoidBottomColor: {r: 0.02, g: 0.02, b: 0.04, a: 1}
+    - _VoidTopColor: {r: 0.09, g: 0.09, b: 0.14, a: 1}
+    - _WallTint: {r: 0.95, g: 0.95, b: 1, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

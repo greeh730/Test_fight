@@ -31,19 +31,18 @@ namespace Combat.Background
         [Header("--- Материал фона ---")]
         [SerializeField] private Material backgroundMaterial;
 
-        [Header("--- Параллакс глубокого слоя (Far Layer) ---")]
-        [Tooltip("Коэффициент параллакса дальнего слоя (чем меньше, тем дальше кажется)")]
-        [SerializeField] private Vector2 farParallaxFactor = new Vector2(0.06f, 0.04f);
+        [Header("--- Параллакс стены (Wall Parallax) ---")]
+        [Tooltip("Коэффициент параллакса стены фона при движении камеры")]
+        [SerializeField] private Vector2 parallaxFactor = new Vector2(0.12f, 0.05f);
 
-        [Tooltip("Скорость непрерывного дрейфа дальнего слоя")]
-        [SerializeField] private Vector2 farDriftSpeed = new Vector2(-0.010f, 0.002f);
+        [Tooltip("Скорость непрерывного дрейфа (для кирпичной стены по умолчанию 0)")]
+        [SerializeField] private Vector2 driftSpeed = Vector2.zero;
 
-        [Header("--- Параллакс среднего слоя (Mid Layer) ---")]
-        [Tooltip("Коэффициент параллакса среднего слоя")]
-        [SerializeField] private Vector2 midParallaxFactor = new Vector2(0.16f, 0.10f);
-
-        [Tooltip("Скорость непрерывного дрейфа среднего слоя")]
-        [SerializeField] private Vector2 midDriftSpeed = new Vector2(-0.022f, 0.005f);
+        // Сохранение обратной совместимости сериализации
+        [SerializeField, HideInInspector] private Vector2 farParallaxFactor = new Vector2(0.12f, 0.05f);
+        [SerializeField, HideInInspector] private Vector2 farDriftSpeed = Vector2.zero;
+        [SerializeField, HideInInspector] private Vector2 midParallaxFactor = new Vector2(0.12f, 0.05f);
+        [SerializeField, HideInInspector] private Vector2 midDriftSpeed = Vector2.zero;
 
         [Header("--- Сортировка 2D ---")]
         [SerializeField] private string sortingLayerName = "Default";
@@ -60,10 +59,10 @@ namespace Combat.Background
         private MeshFilter _meshFilter;
         private MeshRenderer _meshRenderer;
         private MaterialPropertyBlock _propBlock;
-        private Vector2 _accumulatedDriftFar = Vector2.zero;
-        private Vector2 _accumulatedDriftMid = Vector2.zero;
+        private Vector2 _accumulatedDrift = Vector2.zero;
         private float _lastTime = 0f;
 
+        private static readonly int PropOffset = Shader.PropertyToID("_Offset");
         private static readonly int PropOffset1 = Shader.PropertyToID("_Offset1");
         private static readonly int PropOffset2 = Shader.PropertyToID("_Offset2");
 
@@ -264,19 +263,12 @@ namespace Combat.Background
             }
             _lastTime = currentTime;
 
-            _accumulatedDriftFar += farDriftSpeed * deltaTime;
-            _accumulatedDriftMid += midDriftSpeed * deltaTime;
+            _accumulatedDrift += driftSpeed * deltaTime;
 
-            // 3. Вычисление смещений UV для слоев параллакса
-            Vector4 offset1 = new Vector4(
-                camPos.x * farParallaxFactor.x + _accumulatedDriftFar.x,
-                camPos.y * farParallaxFactor.y + _accumulatedDriftFar.y,
-                0f, 0f
-            );
-
-            Vector4 offset2 = new Vector4(
-                camPos.x * midParallaxFactor.x + _accumulatedDriftMid.x,
-                camPos.y * midParallaxFactor.y + _accumulatedDriftMid.y,
+            // 3. Вычисление смещений UV для стены фона
+            Vector4 offset = new Vector4(
+                camPos.x * parallaxFactor.x + _accumulatedDrift.x,
+                camPos.y * parallaxFactor.y + _accumulatedDrift.y,
                 0f, 0f
             );
 
@@ -284,8 +276,8 @@ namespace Combat.Background
             if (_meshRenderer != null)
             {
                 _meshRenderer.GetPropertyBlock(_propBlock);
-                _propBlock.SetVector(PropOffset1, offset1);
-                _propBlock.SetVector(PropOffset2, offset2);
+                _propBlock.SetVector(PropOffset, offset);
+                _propBlock.SetVector(PropOffset1, offset);
                 _meshRenderer.SetPropertyBlock(_propBlock);
             }
         }

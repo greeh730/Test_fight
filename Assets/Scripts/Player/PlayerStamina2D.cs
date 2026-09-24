@@ -139,6 +139,31 @@ namespace Combat.Player
             return finalCost;
         }
 
+        /// <summary>
+        /// Списывает фиксированное количество стамины без анти-спам множителей (например, за прыжок).
+        /// </summary>
+        public float ConsumeFlat(float amount)
+        {
+            _lastActionTime = Time.time;
+            currentStamina = Mathf.Max(0f, currentStamina - amount);
+            onStaminaChanged?.Invoke(currentStamina, maxStamina);
+
+            if (currentStamina <= 0f && !IsExhausted)
+            {
+                TriggerExhaustion();
+            }
+
+            return amount;
+        }
+
+        /// <summary>
+        /// Списывает процент от максимальной выносливости (например, 0.25f = 25%).
+        /// </summary>
+        public float ConsumePercent(float percent)
+        {
+            return ConsumeFlat(maxStamina * Mathf.Clamp01(percent));
+        }
+
         private void TriggerExhaustion()
         {
             IsExhausted = true;
