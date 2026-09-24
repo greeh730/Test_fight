@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 using Combat.Save;
 
 namespace Combat.UI
@@ -21,9 +22,9 @@ namespace Combat.UI
 
         [Header("--- Hotkeys ---")]
         [Tooltip("Основная клавиша вызова паузы")]
-        [SerializeField] private KeyCode pauseKey = KeyCode.Tab;
+        [SerializeField] private KeyCode pauseKey = KeyCode.Escape;
 
-        [Tooltip("Дополнительная клавиша вызова паузы (по умолчанию None, можно включить Escape)")]
+        [Tooltip("Дополнительная клавиша вызова паузы (по умолчанию None)")]
         [SerializeField] private KeyCode alternativeKey = KeyCode.None;
 
         [Header("--- UI References ---")]
@@ -33,6 +34,7 @@ namespace Combat.UI
         [SerializeField] private Button quickSaveButton;
         [SerializeField] private Button quickLoadButton;
         [SerializeField] private Button settingsButton;
+        [SerializeField] private Button mainMenuButton;
         [SerializeField] private Text feedbackText;
         [SerializeField] private CombatSettingsUI settingsUI;
 
@@ -109,6 +111,11 @@ namespace Combat.UI
             if (settingsButton != null)
             {
                 settingsButton.onClick.AddListener(OnSettingsClicked);
+            }
+
+            if (mainMenuButton != null)
+            {
+                mainMenuButton.onClick.AddListener(OnMainMenuClicked);
             }
         }
 
@@ -249,6 +256,14 @@ namespace Combat.UI
             {
                 ShowFeedback("Меню настроек недоступно");
             }
+        }
+
+        private void OnMainMenuClicked()
+        {
+            Time.timeScale = 1.0f;
+            IsPaused = false;
+            OnPauseToggled?.Invoke(false);
+            SceneManager.LoadScene("MainMenu");
         }
 
         private void SetPanelVisible(bool visible, bool instant)

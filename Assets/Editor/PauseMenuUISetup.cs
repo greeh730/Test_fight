@@ -95,7 +95,7 @@ namespace Combat.Editor
             winRt.anchorMax = new Vector2(0.5f, 0.5f);
             winRt.pivot = new Vector2(0.5f, 0.5f);
             winRt.anchoredPosition = Vector2.zero;
-            winRt.sizeDelta = new Vector2(380f, 440f);
+            winRt.sizeDelta = new Vector2(380f, 490f);
 
             var winImg = winObj.GetComponent<Image>();
             winImg.sprite = s_Resources.background;
@@ -153,14 +153,14 @@ namespace Combat.Editor
             btnContainer.transform.SetParent(parent, false);
 
             var crt = btnContainer.GetComponent<RectTransform>();
-            crt.anchorMin = new Vector2(0.08f, 0.18f);
-            crt.anchorMax = new Vector2(0.92f, 0.82f);
+            crt.anchorMin = new Vector2(0.08f, 0.15f);
+            crt.anchorMax = new Vector2(0.92f, 0.84f);
             crt.offsetMin = Vector2.zero;
             crt.offsetMax = Vector2.zero;
 
             float yPos = 0f;
-            float btnHeight = 44f;
-            float btnGap = 12f;
+            float btnHeight = 42f;
+            float btnGap = 10f;
 
             // 1. Продолжить (акцентная кнопка)
             CreateMenuButton("ResumeButton", btnContainer.transform, "ПРОДОЛЖИТЬ", new Color(0.85f, 0.15f, 0.25f, 1f), ref yPos, btnHeight, btnGap, isPrimary: true);
@@ -173,6 +173,9 @@ namespace Combat.Editor
 
             // 4. Настройки
             CreateMenuButton("SettingsButton", btnContainer.transform, "НАСТРОЙКИ", new Color(0.14f, 0.18f, 0.25f, 1f), ref yPos, btnHeight, btnGap, isPrimary: false);
+
+            // 5. В главное меню
+            CreateMenuButton("MainMenuButton", btnContainer.transform, "В ГЛАВНОЕ МЕНЮ", new Color(0.18f, 0.12f, 0.14f, 1f), ref yPos, btnHeight, btnGap, isPrimary: false);
         }
 
         private static void CreateMenuButton(string name, Transform parent, string label, Color bgColor, ref float yPos, float height, float gap, bool isPrimary)
@@ -233,7 +236,7 @@ namespace Combat.Editor
             fbrt.offsetMax = Vector2.zero;
 
             // Подсказка горячей клавиши
-            var hintTextObj = CreateText("HintText", footerObj.transform, "[ TAB — вернуться в игру ]", 10, FontStyle.Normal, new Color(0.45f, 0.52f, 0.62f, 1f));
+            var hintTextObj = CreateText("HintText", footerObj.transform, "[ ESC — вернуться в игру ]", 10, FontStyle.Normal, new Color(0.45f, 0.52f, 0.62f, 1f));
             var hrt = hintTextObj.GetComponent<RectTransform>();
             hrt.anchorMin = new Vector2(0f, 0f);
             hrt.anchorMax = new Vector2(1f, 0.5f);
@@ -264,6 +267,12 @@ namespace Combat.Editor
             so.FindProperty("pausePanel").objectReferenceValue = panelObj;
             so.FindProperty("panelCanvasGroup").objectReferenceValue = panelObj.GetComponent<CanvasGroup>();
 
+            var pKeyProp = so.FindProperty("pauseKey");
+            if (pKeyProp != null)
+            {
+                pKeyProp.intValue = (int)KeyCode.Escape;
+            }
+
             var btnContainer = panelObj.transform.Find("PauseWindow/ButtonsContainer");
             if (btnContainer != null)
             {
@@ -278,6 +287,9 @@ namespace Combat.Editor
 
                 var setBtn = btnContainer.Find("SettingsButton");
                 if (setBtn != null) so.FindProperty("settingsButton").objectReferenceValue = setBtn.GetComponent<Button>();
+
+                var mainBtn = btnContainer.Find("MainMenuButton");
+                if (mainBtn != null) so.FindProperty("mainMenuButton").objectReferenceValue = mainBtn.GetComponent<Button>();
             }
 
             var fbText = panelObj.transform.Find("PauseWindow/Footer/FeedbackText");

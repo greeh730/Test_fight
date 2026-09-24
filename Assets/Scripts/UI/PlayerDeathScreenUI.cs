@@ -181,10 +181,10 @@ namespace Combat.UI
             var btnGo = new GameObject("RestartButton");
             btnGo.transform.SetParent(contentRect, false);
             var btnRect = btnGo.AddComponent<RectTransform>();
-            btnRect.anchorMin = new Vector2(0.5f, 0.16f);
-            btnRect.anchorMax = new Vector2(0.5f, 0.16f);
+            btnRect.anchorMin = new Vector2(0.5f, 0.20f);
+            btnRect.anchorMax = new Vector2(0.5f, 0.20f);
             btnRect.pivot = new Vector2(0.5f, 0.5f);
-            btnRect.sizeDelta = new Vector2(320f, 62f);
+            btnRect.sizeDelta = new Vector2(320f, 54f);
 
             var btnImage = btnGo.AddComponent<Image>();
             btnImage.sprite = _whiteSprite;
@@ -207,11 +207,47 @@ namespace Combat.UI
 
             var btnText = btnTextGo.AddComponent<Text>();
             btnText.font = _uiFont;
-            btnText.fontSize = 20;
+            btnText.fontSize = 18;
             btnText.fontStyle = FontStyle.Bold;
             btnText.alignment = TextAnchor.MiddleCenter;
             btnText.text = "НАЧАТЬ ЗАНОВО [ R ]";
             btnText.color = Color.white;
+
+            // 8. Кнопка "В главное меню"
+            var menuBtnGo = new GameObject("MainMenuButton");
+            menuBtnGo.transform.SetParent(contentRect, false);
+            var menuBtnRect = menuBtnGo.AddComponent<RectTransform>();
+            menuBtnRect.anchorMin = new Vector2(0.5f, 0.10f);
+            menuBtnRect.anchorMax = new Vector2(0.5f, 0.10f);
+            menuBtnRect.pivot = new Vector2(0.5f, 0.5f);
+            menuBtnRect.sizeDelta = new Vector2(320f, 44f);
+
+            var menuBtnImage = menuBtnGo.AddComponent<Image>();
+            menuBtnImage.sprite = _whiteSprite;
+            menuBtnImage.color = new Color(0.10f, 0.12f, 0.18f, 0.95f);
+
+            var menuBtn = menuBtnGo.AddComponent<Button>();
+            var menuColors = menuBtn.colors;
+            menuColors.normalColor = new Color(0.10f, 0.12f, 0.18f, 0.95f);
+            menuColors.highlightedColor = new Color(0.18f, 0.22f, 0.32f, 1.0f);
+            menuColors.pressedColor = new Color(0.06f, 0.08f, 0.12f, 1f);
+            menuBtn.colors = menuColors;
+            menuBtn.onClick.AddListener(ReturnToMainMenu);
+
+            var menuBtnTextGo = new GameObject("MenuBtnText");
+            menuBtnTextGo.transform.SetParent(menuBtnGo.transform, false);
+            var menuBtnTextRect = menuBtnTextGo.AddComponent<RectTransform>();
+            menuBtnTextRect.anchorMin = Vector2.zero;
+            menuBtnTextRect.anchorMax = Vector2.one;
+            menuBtnTextRect.sizeDelta = Vector2.zero;
+
+            var menuBtnText = menuBtnTextGo.AddComponent<Text>();
+            menuBtnText.font = _uiFont;
+            menuBtnText.fontSize = 14;
+            menuBtnText.fontStyle = FontStyle.Bold;
+            menuBtnText.alignment = TextAnchor.MiddleCenter;
+            menuBtnText.text = "В ГЛАВНОЕ МЕНЮ [ ESC ]";
+            menuBtnText.color = new Color(0.85f, 0.88f, 0.94f, 0.9f);
         }
 
         private void Update()
@@ -227,8 +263,9 @@ namespace Combat.UI
                 _subtitleText.color = c;
             }
 
-            // Обработка клавиш перезапуска
+            // Обработка клавиш перезапуска и выхода в меню
             bool restartTriggered = false;
+            bool menuTriggered = false;
 
 #if ENABLE_INPUT_SYSTEM
             var kb = UnityEngine.InputSystem.Keyboard.current;
@@ -238,6 +275,10 @@ namespace Combat.UI
                 {
                     restartTriggered = true;
                 }
+                if (kb.escapeKey.wasPressedThisFrame)
+                {
+                    menuTriggered = true;
+                }
             }
 #endif
             try
@@ -246,6 +287,10 @@ namespace Combat.UI
                 {
                     restartTriggered = true;
                 }
+                if (!menuTriggered && Input.GetKeyDown(KeyCode.Escape))
+                {
+                    menuTriggered = true;
+                }
             }
             catch { }
 
@@ -253,6 +298,17 @@ namespace Combat.UI
             {
                 RestartGame();
             }
+            else if (menuTriggered)
+            {
+                ReturnToMainMenu();
+            }
+        }
+
+        public static void ReturnToMainMenu()
+        {
+            Debug.Log("<color=#4EE2EC><b>[DEATH SCREEN]</b></color> Возврат в главное меню...");
+            Time.timeScale = 1.0f;
+            SceneManager.LoadScene("MainMenu");
         }
 
         /// <summary>
