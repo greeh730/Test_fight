@@ -94,14 +94,14 @@ namespace Combat.UI
         {
             return dir switch
             {
-                Direction8.Right => "⮕",
-                Direction8.UpRight => "⬈",
-                Direction8.Up => "⬆",
-                Direction8.UpLeft => "⬉",
-                Direction8.Left => "⬅",
-                Direction8.DownLeft => "⬋",
-                Direction8.Down => "⬇",
-                Direction8.DownRight => "⬊",
+                Direction8.Right => "→",
+                Direction8.UpRight => "↗",
+                Direction8.Up => "↑",
+                Direction8.UpLeft => "↖",
+                Direction8.Left => "←",
+                Direction8.DownLeft => "↙",
+                Direction8.Down => "↓",
+                Direction8.DownRight => "↘",
                 _ => "•"
             };
         }
