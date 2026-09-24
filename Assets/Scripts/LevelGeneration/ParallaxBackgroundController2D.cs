@@ -52,6 +52,8 @@ namespace Combat.Background
         [Header("--- Атмосферные частицы пыли ---")]
         [Tooltip("Создавать ли плавающие частицы пыли/спор в воздухе")]
         [SerializeField] private bool enableAmbientDust = true;
+        [Tooltip("Физический ассет материала для частиц пыли бездны (URP Particles/Unlit)")]
+        [SerializeField] private Material dustParticleMaterial;
         [SerializeField] private ParticleSystem dustParticleSystem;
 
         // Внутреннее состояние
@@ -132,6 +134,20 @@ namespace Combat.Background
             return mesh;
         }
 
+        private void EnsureDustMaterial()
+        {
+            if (dustParticleMaterial == null)
+            {
+                dustParticleMaterial = Resources.Load<Material>("M_AmbientDustParticle");
+#if UNITY_EDITOR
+                if (dustParticleMaterial == null)
+                {
+                    dustParticleMaterial = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/M_AmbientDustParticle.mat");
+                }
+#endif
+            }
+        }
+
         private void EnsureDustParticles()
         {
             if (!enableAmbientDust)
@@ -142,6 +158,8 @@ namespace Combat.Background
                 }
                 return;
             }
+
+            EnsureDustMaterial();
 
             if (dustParticleSystem == null)
             {
@@ -160,6 +178,11 @@ namespace Combat.Background
 
             if (dustParticleSystem != null)
             {
+                var psr = dustParticleSystem.GetComponent<ParticleSystemRenderer>();
+                if (psr != null && dustParticleMaterial != null && psr.sharedMaterial != dustParticleMaterial)
+                {
+                    psr.sharedMaterial = dustParticleMaterial;
+                }
                 dustParticleSystem.gameObject.SetActive(true);
             }
         }
@@ -172,13 +195,10 @@ namespace Combat.Background
             psr.sortingLayerName = sortingLayerName;
             psr.sortingOrder = sortingOrder + 10; // прямо перед фоном, позади платформ
             
-            // Используем стандартный Sprite-Unlit материал или Default-Particle
-            var particleShader = Shader.Find("Universal Render Pipeline/2D/Sprite-Unlit-Default") ?? Shader.Find("Sprites/Default");
-            if (particleShader != null)
+            EnsureDustMaterial();
+            if (dustParticleMaterial != null)
             {
-                var pMat = new Material(particleShader);
-                pMat.color = new Color(0.4f, 0.75f, 1.0f, 0.35f);
-                psr.sharedMaterial = pMat;
+                psr.sharedMaterial = dustParticleMaterial;
             }
 
             var main = ps.main;
@@ -187,10 +207,10 @@ namespace Combat.Background
             main.maxParticles = 60;
             main.startLifetime = new ParticleSystem.MinMaxCurve(6f, 12f);
             main.startSpeed = new ParticleSystem.MinMaxCurve(0.1f, 0.4f);
-            main.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.16f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.12f, 0.35f);
             main.startColor = new ParticleSystem.MinMaxGradient(
-                new Color(0.25f, 0.6f, 0.9f, 0.25f),
-                new Color(0.5f, 0.85f, 1.0f, 0.45f)
+                new Color(0.4f, 0.7f, 1.0f, 0.45f),
+                new Color(0.7f, 0.9f, 1.0f, 0.75f)
             );
             main.simulationSpace = ParticleSystemSimulationSpace.World;
 

@@ -50,13 +50,28 @@ namespace Combat
 
         private void Awake()
         {
-            if (Instance == null)
+            if (Instance == null || Instance == this)
             {
                 Instance = this;
             }
             else if (Instance != this)
             {
-                Destroy(this);
+                if (gameObject.name == "VectorWheel")
+                {
+                    Instance = this;
+                }
+                else
+                {
+                    Destroy(this);
+                }
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (Instance == this)
+            {
+                Instance = null;
             }
         }
 

@@ -195,6 +195,9 @@ namespace Combat
         public float CurrentStamina => currentStamina;
         public Rigidbody2D Rigidbody => _rb;
         public EnemyTacticalRole TacticalRole { get; private set; } = EnemyTacticalRole.Solo;
+        public AirJuggleReceiver2D AirJuggle => _airJuggle;
+
+        private AirJuggleReceiver2D _airJuggle;
 
         public static event Action<EnemyAIController2D> OnAnyEnemyDied;
 
@@ -331,6 +334,12 @@ namespace Combat
             }
             staminaBar.Initialize(maxStamina);
 
+            if (_airJuggle == null)
+            {
+                _airJuggle = GetComponent<AirJuggleReceiver2D>();
+                if (_airJuggle == null) _airJuggle = gameObject.AddComponent<AirJuggleReceiver2D>();
+            }
+
             _playerFilter = new ContactFilter2D();
             _playerFilter.useTriggers = true;
             _playerFilter.SetLayerMask(~0);
@@ -436,7 +445,7 @@ namespace Combat
                 ExecuteJumpPhysics(_jumpCommandForce, _jumpCommandForwardSpeed);
             }
 
-            if (_isGravitySuspended)
+            if (_isGravitySuspended || (_airJuggle != null && _airJuggle.IsFrozen))
             {
                 if (_rb != null) _rb.linearVelocity = Vector2.zero;
                 return;
@@ -1395,7 +1404,15 @@ namespace Combat
                 Combat.Common.CombatFloatingText.ShowAdaptation(transform.position);
             }
 
-            if (attack != null && _rb != null)
+            // 1. Попадание по цели в воздухе (в пике зависания или во время воздушного джаггла)
+            if (_airJuggle != null && (_airJuggle.IsFrozen || _airJuggle.IsAirborne))
+            {
+                _airJuggle.OnAirHit(attack, false);
+                _hitstunTimer = 0.65f;
+                _stunRemaining = Mathf.Max(_stunRemaining, 2.0f);
+                CurrentState = EnemyState.Stunned;
+            }
+            else if (attack != null && _rb != null)
             {
                 Vector2 rawKb = new Vector2(awayDir * attack.knockbackForce.x, attack.knockbackForce.y);
                 Vector2 effectiveKb = CalculateEffectiveKnockback(rawKb);
@@ -1420,15 +1437,24 @@ namespace Combat
                 return;
             }
 
-            // Лаунчер: если стамина на нуле (0), враг подлетает высоко в воздух для джаггл-комбо!
-            if (isLauncher && currentStamina <= 0f)
+            // Лаунчер: подбрасывает врага в воздух для джаггл-комбо!
+            if (isLauncher)
             {
-                if (_rb != null) _rb.linearVelocity = new Vector2(awayDir * 2.8f, 13.5f);
-                _hitstunTimer = 0.7f;
-                Combat.Common.CombatFloatingText.ShowLauncher(transform.position);
+                Vector2 launchVel = new Vector2(awayDir * 2.8f, 13.5f);
+                if (_airJuggle != null)
+                {
+                    _airJuggle.Launch(launchVel);
+                }
+                else if (_rb != null)
+                {
+                    _rb.linearVelocity = launchVel;
+                }
+
+                _hitstunTimer = 0.8f;
+                _stunRemaining = 2.8f;
                 CurrentState = EnemyState.Stunned;
                 if (_stateRoutine != null) StopCoroutine(_stateRoutine);
-                _stateRoutine = StartCoroutine(StunRoutine(2.5f, replenishStaminaAfter: false));
+                _stateRoutine = StartCoroutine(StunRoutine(2.8f, replenishStaminaAfter: false));
                 return;
             }
 

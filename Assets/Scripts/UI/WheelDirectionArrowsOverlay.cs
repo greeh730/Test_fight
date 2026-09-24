@@ -119,7 +119,7 @@ namespace Combat.UI
                 }
                 if (sequenceRecognizer == null)
                 {
-                    sequenceRecognizer = FindAnyObjectByType<DirectionSequenceRecognizer>();
+                    sequenceRecognizer = DirectionSequenceRecognizer.Instance ?? FindAnyObjectByType<DirectionSequenceRecognizer>();
                 }
             }
 
@@ -228,6 +228,11 @@ namespace Combat.UI
         {
             if (arrowSlots == null || arrowSlots.Count == 0) return;
 
+            if (wheelController == null || sequenceRecognizer == null)
+            {
+                ResolveReferences();
+            }
+
             Direction8 activeDir = Direction8.None;
             bool isParry = false;
             float wheelAlpha = 0.5f;
@@ -245,15 +250,43 @@ namespace Combat.UI
                 {
                     wheelAlpha = Mathf.Max(wheelAlpha, 0.85f);
                 }
+                else
+                {
+                    // В режиме покоя: проверяем наведение мыши на сектор колеса
+                    Vector2 mousePos = GetMousePosition();
+                    Vector2 center = wheelController.GetCenterScreenPoint();
+                    Vector2 delta = mousePos - center;
+                    float dist = delta.magnitude;
+                    if (dist >= 16f && dist <= (ringRadius + 50f))
+                    {
+                        float angle = Mathf.Repeat(Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg, 360f);
+                        activeDir = Direction8Extensions.FromAngle(angle);
+                        wheelAlpha = Mathf.Max(wheelAlpha, 0.70f);
+                    }
+                }
             }
 
             // Feature 3: Combo Compass — вычисляем доступные продолжения текущей связки
             HashSet<Direction8> nextPossibleDirs = null;
-            if (wheelController != null && wheelController.IsDragging && wheelController.ActiveGestureButton == WheelGestureButton.LMB
-                && sequenceRecognizer != null && sequenceRecognizer.CurrentBuffer.Count > 0
-                && (_playerCombat == null || _playerCombat.CurrentStance == CombatStance.Normal))
+            if (_playerCombat == null || _playerCombat.CurrentStance == CombatStance.Normal)
             {
-                nextPossibleDirs = CombatSequenceLibrary.Instance.GetPossibleNextDirections(sequenceRecognizer.CurrentBuffer, sequenceRecognizer.CurrentBuffer.Count);
+                if (CombatSequenceLibrary.Instance != null)
+                {
+                    // 1. Если ведется ввод жеста и в буфере уже есть направления:
+                    if (sequenceRecognizer != null && sequenceRecognizer.CurrentBuffer.Count > 0)
+                    {
+                        nextPossibleDirs = CombatSequenceLibrary.Instance.GetPossibleNextDirections(
+                            sequenceRecognizer.CurrentBuffer, 
+                            sequenceRecognizer.CurrentBuffer.Count
+                        );
+                    }
+                    // 2. ИЛИ если игрок навелся/выбрал направление (activeDir != Direction8.None)
+                    else if (activeDir != Direction8.None)
+                    {
+                        var startList = new List<Direction8>(1) { activeDir };
+                        nextPossibleDirs = CombatSequenceLibrary.Instance.GetPossibleNextDirections(startList, 1);
+                    }
+                }
             }
 
             for (int i = 0; i < arrowSlots.Count; i++)
@@ -280,7 +313,7 @@ namespace Combat.UI
                 }
 
                 // 1. Анимация масштаба
-                float targetScale = isActive ? activeScaleMultiplier : (isPossibleNext ? 1.15f : 1.0f);
+                float targetScale = isActive ? activeScaleMultiplier : (isPossibleNext ? 1.25f : 1.0f);
                 if (isLockedAbility)
                 {
                     targetScale *= 0.85f;
@@ -291,7 +324,7 @@ namespace Combat.UI
                 }
                 else if (isPossibleNext)
                 {
-                    targetScale += 0.05f * Mathf.Sin(Time.time * 6f);
+                    targetScale += 0.08f * Mathf.Sin(Time.time * 6.5f);
                 }
 
                 if (Application.isPlaying)
@@ -326,23 +359,37 @@ namespace Combat.UI
                     if (isActive)
                     {
                         baseCol = isParry ? parryActiveColor : activeColor;
+                        baseCol.a = Mathf.Clamp01(baseCol.a * wheelAlpha);
                     }
                     else if (isPossibleNext)
                     {
-                        // Feature 3: Combo Compass — подсветка доступных следующих шагов комбо тёплым неоново-золотистым свечением
-                        float pulse = 0.75f + 0.25f * Mathf.Sin(Time.time * 6f);
-                        baseCol = new Color(1.0f, 0.82f, 0.25f, 0.85f * pulse);
+                        // Feature 3: Combo Compass — яркая неоново-золотистая пульсация стрелок-подсказок
+                        float pulse = 0.80f + 0.20f * Mathf.Sin(Time.time * 6.5f);
+                        baseCol = new Color(1.0f, 0.85f, 0.22f, 1.0f);
+                        // Подсказка всегда должна быть четко видна игроку!
+                        baseCol.a = Mathf.Clamp(0.92f * pulse, 0.70f, 1.0f);
                     }
                     else
                     {
                         baseCol = idleColor;
+                        baseCol.a = Mathf.Clamp01(baseCol.a * wheelAlpha);
                     }
-                    baseCol.a = Mathf.Clamp01(baseCol.a * wheelAlpha);
                 }
 
                 Color finalCol = Color.Lerp(baseCol, tokenFlashColor, slot.flashAmount);
                 slot.image.color = finalCol;
             }
+        }
+
+        private static Vector2 GetMousePosition()
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (UnityEngine.InputSystem.Mouse.current != null)
+            {
+                return UnityEngine.InputSystem.Mouse.current.position.ReadValue();
+            }
+#endif
+            try { return Input.mousePosition; } catch { return Vector2.zero; }
         }
 
         private void HandleRawTokenAdded(Direction8 rawDir)

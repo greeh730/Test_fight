@@ -30,6 +30,7 @@ namespace Combat.UI
         private Canvas _canvas;
         private CanvasGroup _canvasGroup;
         private GameObject _screenRoot;
+        private Text _titleText;
         private Text _subtitleText;
         private bool _isShowing = false;
         private Font _uiFont;
@@ -145,13 +146,13 @@ namespace Combat.UI
             titleRect.pivot = new Vector2(0.5f, 0.5f);
             titleRect.sizeDelta = new Vector2(900f, 130f);
 
-            var titleText = titleGo.AddComponent<Text>();
-            titleText.font = _uiFont;
-            titleText.fontSize = 72;
-            titleText.fontStyle = FontStyle.Bold;
-            titleText.alignment = TextAnchor.MiddleCenter;
-            titleText.text = "ВЫ УМЕРЛИ";
-            titleText.color = titleColor;
+            _titleText = titleGo.AddComponent<Text>();
+            _titleText.font = _uiFont;
+            _titleText.fontSize = 72;
+            _titleText.fontStyle = FontStyle.Bold;
+            _titleText.alignment = TextAnchor.MiddleCenter;
+            _titleText.text = "ВЫ УМЕРЛИ";
+            _titleText.color = titleColor;
 
             var titleShadow = titleGo.AddComponent<Shadow>();
             titleShadow.effectColor = new Color(0f, 0f, 0f, 0.85f);
@@ -313,7 +314,8 @@ namespace Combat.UI
 
         /// <summary>
         /// Показать экран гибели с плавным появлением
-        public static void ShowDeathScreen()
+        /// </summary>
+        public static void ShowDeathScreen(string customTitle = null, string customSubtitle = null)
         {
             var tutorial = FindAnyObjectByType<Combat.Tutorial.TutorialController2D>();
             if (tutorial != null && tutorial.CurrentStage == Combat.Tutorial.TutorialStage.Completed)
@@ -333,6 +335,18 @@ namespace Combat.UI
                     var go = new GameObject("[Player_DeathScreen_UI]");
                     Instance = go.AddComponent<PlayerDeathScreenUI>();
                 }
+            }
+
+            Instance.EnsureAssets();
+            Instance.EnsureUIBuilt();
+
+            if (!string.IsNullOrEmpty(customTitle) && Instance._titleText != null)
+            {
+                Instance._titleText.text = customTitle;
+            }
+            if (!string.IsNullOrEmpty(customSubtitle) && Instance._subtitleText != null)
+            {
+                Instance._subtitleText.text = customSubtitle;
             }
 
             Instance.TriggerShow();

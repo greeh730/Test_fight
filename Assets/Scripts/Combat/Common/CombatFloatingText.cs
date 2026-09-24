@@ -73,6 +73,17 @@ namespace Combat.Common
             Spawn(pos + new Vector3(0f, 1.4f, 0f), "В ВОЗДУХ! ⚡", new Color(0.95f, 0.3f, 0.95f, 1f), 1.2f, 1.3f, 0.088f, 44, 76);
         }
 
+        public static void ShowApexHang(Vector3 pos)
+        {
+            Spawn(pos + new Vector3(0f, 1.3f, 0f), "В ПИКЕ! ⚡", new Color(1f, 0.9f, 0.25f, 1f), 0.85f, 0.9f, 0.082f, 42, 78);
+        }
+
+        public static void ShowAirJuggle(Vector3 pos, int hitCount)
+        {
+            Color juggleColor = hitCount >= 3 ? new Color(1f, 0.3f, 0.8f, 1f) : new Color(0.2f, 0.85f, 1f, 1f);
+            Spawn(pos + new Vector3(0f, 1.3f, 0f), $"ВОЗДУШНОЕ КОМБО! x{hitCount}", juggleColor, 0.9f, 1.0f, 0.085f, 44, 80);
+        }
+
         private class FloatingTextRunner : MonoBehaviour
         {
             private TextMesh _tm;

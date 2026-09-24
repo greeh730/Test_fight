@@ -13,6 +13,7 @@ namespace Combat.Common
         GameObject gameObject { get; }
         bool IsDead { get; }
         float CurrentHealth { get; }
+        AirJuggleReceiver2D AirJuggle { get; }
 
         void ApplyVulnerabilityMark(float duration, float multiplier);
         void ApplyRoot(float duration);

@@ -115,6 +115,8 @@ namespace Combat
         private SpriteRenderer _sr;
         private PlayerStamina2D _stamina;
         private PlayerBlockAndParry2D _blockParry;
+        private Player.PlayerController2D _playerController;
+        private Coroutine _airStallRoutine;
 
         private void Awake()
         {
@@ -122,6 +124,7 @@ namespace Combat
             _sr = GetComponent<SpriteRenderer>();
             _stamina = GetComponent<PlayerStamina2D>();
             _blockParry = GetComponent<PlayerBlockAndParry2D>();
+            _playerController = GetComponent<Player.PlayerController2D>();
 
             _contactFilter = new ContactFilter2D();
             _contactFilter.SetLayerMask(targetLayers);
@@ -998,7 +1001,47 @@ namespace Combat
                 float hitstop = isCharged ? 0.10f : (isFinisher ? hitstopDuration * 1.8f : hitstopDuration);
                 TriggerHitstop(hitstop);
                 onAttackHit?.Invoke();
+
+                // Air Stall: если игрок наносит удар в воздухе, притормаживаем его падение для джаггл-комбо
+                if (_playerController != null && !_playerController.IsGrounded)
+                {
+                    ApplyPlayerAirStall(0.24f);
+                }
             }
+        }
+
+        public void ApplyPlayerAirStall(float duration = 0.24f)
+        {
+            if (_airStallRoutine != null) StopCoroutine(_airStallRoutine);
+            _airStallRoutine = StartCoroutine(AirStallRoutine(duration));
+        }
+
+        private IEnumerator AirStallRoutine(float duration)
+        {
+            if (_rb == null) _rb = GetComponent<Rigidbody2D>();
+            if (_rb == null) yield break;
+
+            float origGravity = _rb.gravityScale;
+            _rb.gravityScale = 0f;
+            // Сглаживаем и приподнимаем вертикальную скорость
+            _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, Mathf.Max(0.4f, _rb.linearVelocity.y * 0.1f));
+
+            float el = 0f;
+            while (el < duration)
+            {
+                el += Time.deltaTime;
+                if (_rb != null && _rb.linearVelocity.y < 0f)
+                {
+                    _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, 0f);
+                }
+                yield return null;
+            }
+
+            if (_rb != null)
+            {
+                _rb.gravityScale = origGravity;
+            }
+            _airStallRoutine = null;
         }
 
         public Vector2 GetHitboxCenter(AttackConfig attack, float horizontalSign)

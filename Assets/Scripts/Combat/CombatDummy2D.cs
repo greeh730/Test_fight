@@ -66,6 +66,9 @@ namespace Combat
         }
         public bool IsDead { get; private set; }
         public Rigidbody2D Rigidbody => _rb;
+        public AirJuggleReceiver2D AirJuggle => _airJuggle;
+
+        private AirJuggleReceiver2D _airJuggle;
 
         private void OnEnable()
         {
@@ -98,6 +101,12 @@ namespace Combat
             if (_rb != null)
             {
                 _originalGravityScale = _rb.gravityScale;
+            }
+
+            _airJuggle = GetComponent<AirJuggleReceiver2D>();
+            if (_airJuggle == null)
+            {
+                _airJuggle = gameObject.AddComponent<AirJuggleReceiver2D>();
             }
 
             _spawnPosition = transform.position;
@@ -217,8 +226,21 @@ namespace Combat
             }
             _lastHitTime = Time.time;
 
-            // Применяем физический импульс отталкивания
-            if (_rb != null && attack != null)
+            // 1. Проверяем лаунчер (подкидывание в воздух) или джаггл в воздухе
+            bool isLauncher = attack != null && (attack.isLauncher || attack.knockbackForce.y >= 9f);
+            if (isLauncher && _airJuggle != null)
+            {
+                Vector2 launchVel = new Vector2(
+                    knockbackDirection.x * Mathf.Max(2.5f, attack.knockbackForce.x),
+                    Mathf.Max(12.5f, attack.knockbackForce.y)
+                );
+                _airJuggle.Launch(launchVel);
+            }
+            else if (_airJuggle != null && (_airJuggle.IsFrozen || _airJuggle.IsAirborne))
+            {
+                _airJuggle.OnAirHit(attack, false);
+            }
+            else if (_rb != null && attack != null)
             {
                 Vector2 force = new Vector2(
                     knockbackDirection.x * attack.knockbackForce.x,

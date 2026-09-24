@@ -130,6 +130,22 @@ namespace Combat.UI
         public Color HighlightColor => highlightColor;
         public WheelSettingsData CurrentSettings => _currentSettings;
 
+        public Vector2 GetCenterScreenPoint()
+        {
+            if (wheelRect == null) wheelRect = GetComponent<RectTransform>();
+            if (_parentCanvas == null) _parentCanvas = GetComponentInParent<Canvas>();
+            if (_parentCanvas != null && _parentCanvas.renderMode != RenderMode.ScreenSpaceOverlay && _canvasCamera == null)
+            {
+                _canvasCamera = _parentCanvas.worldCamera != null ? _parentCanvas.worldCamera : Camera.main;
+            }
+
+            if (_parentCanvas != null && _parentCanvas.renderMode == RenderMode.ScreenSpaceOverlay)
+            {
+                return (Vector2)wheelRect.position;
+            }
+            return (Vector2)RectTransformUtility.WorldToScreenPoint(_canvasCamera, wheelRect != null ? wheelRect.position : Vector3.zero);
+        }
+
         // Legacy Charge stubs
         public float DirectionHoldTimer => 0f;
         public bool IsChargeReady => false;
@@ -197,6 +213,15 @@ namespace Combat.UI
 
         private void OnEnable()
         {
+            if (sequenceRecognizer == null)
+            {
+                sequenceRecognizer = GetComponent<DirectionSequenceRecognizer>() ?? FindAnyObjectByType<DirectionSequenceRecognizer>();
+                if (sequenceRecognizer == null)
+                {
+                    sequenceRecognizer = gameObject.AddComponent<DirectionSequenceRecognizer>();
+                }
+            }
+
             CombatSettingsManager.OnSettingsChanged += ApplySettings;
             if (CombatSettingsManager.Instance != null)
             {
@@ -666,10 +691,18 @@ namespace Combat.UI
         private Direction8 EvaluateDirection(float angleDeg)
         {
             ICollection<Direction8> favoredDirs = null;
-            if (ActiveGestureButton == WheelGestureButton.LMB && sequenceRecognizer != null && sequenceRecognizer.CurrentBuffer.Count > 0
-                && (playerCombat == null || playerCombat.CurrentStance == CombatStance.Normal))
+            if (ActiveGestureButton == WheelGestureButton.LMB && (playerCombat == null || playerCombat.CurrentStance == CombatStance.Normal))
             {
-                favoredDirs = CombatSequenceLibrary.Instance.GetPossibleNextDirections(sequenceRecognizer.CurrentBuffer, sequenceRecognizer.CurrentBuffer.Count);
+                if (sequenceRecognizer != null && sequenceRecognizer.CurrentBuffer.Count > 0)
+                {
+                    favoredDirs = CombatSequenceLibrary.Instance != null
+                        ? CombatSequenceLibrary.Instance.GetPossibleNextDirections(sequenceRecognizer.CurrentBuffer, sequenceRecognizer.CurrentBuffer.Count)
+                        : null;
+                }
+                else if (CurrentDirection != Direction8.None && CombatSequenceLibrary.Instance != null)
+                {
+                    favoredDirs = CombatSequenceLibrary.Instance.GetPossibleNextDirections(new List<Direction8> { CurrentDirection }, 1);
+                }
             }
 
             return Direction8Extensions.FromAngleWithMagnetism(angleDeg, favoredDirs);

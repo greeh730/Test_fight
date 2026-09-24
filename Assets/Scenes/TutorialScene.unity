@@ -2569,19 +2569,51 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 8267374510365409490, guid: 50c8c43fa6b36894986730bc18af60f7, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1204068951}
   m_SourcePrefab: {fileID: 100100000, guid: 50c8c43fa6b36894986730bc18af60f7, type: 3}
 --- !u!114 &1204068949 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 8567788891443196670, guid: 50c8c43fa6b36894986730bc18af60f7, type: 3}
   m_PrefabInstance: {fileID: 1204068948}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_GameObject: {fileID: 1204068950}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f6ec1ba86e5f0fd43a847c64c2a4f955, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Combat.EnemyAIController2D
+--- !u!1 &1204068950 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 8267374510365409490, guid: 50c8c43fa6b36894986730bc18af60f7, type: 3}
+  m_PrefabInstance: {fileID: 1204068948}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1204068951
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1204068950}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2642b704afccc5e46befd73a406f4886, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Combat.AirJuggleReceiver2D
+  apexFreezeDuration: 0.45
+  apexVelocityThreshold: 0.6
+  minLaunchVelocityY: 5
+  airJuggleFreezeDuration: 0.68
+  juggleLiftPerHit: 1.6
+  maxJuggleHits: 5
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  enableHoverBob: 1
+  hoverBobFrequency: 14
+  hoverBobAmplitude: 0.05
 --- !u!1 &1270220629
 GameObject:
   m_ObjectHideFlags: 0
@@ -2795,19 +2827,51 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 1289160035612553048, guid: bdcd9a88de614b94eb797d4920a1c905, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1397006705}
   m_SourcePrefab: {fileID: 100100000, guid: bdcd9a88de614b94eb797d4920a1c905, type: 3}
 --- !u!114 &1397006703 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 5993612520064429718, guid: bdcd9a88de614b94eb797d4920a1c905, type: 3}
   m_PrefabInstance: {fileID: 1397006702}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_GameObject: {fileID: 1397006704}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 390a1c343981b534ea3d253376c75a3b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Combat.CombatDummy2D
+--- !u!1 &1397006704 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1289160035612553048, guid: bdcd9a88de614b94eb797d4920a1c905, type: 3}
+  m_PrefabInstance: {fileID: 1397006702}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1397006705
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1397006704}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2642b704afccc5e46befd73a406f4886, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Combat.AirJuggleReceiver2D
+  apexFreezeDuration: 0.45
+  apexVelocityThreshold: 0.6
+  minLaunchVelocityY: 5
+  airJuggleFreezeDuration: 0.68
+  juggleLiftPerHit: 1.6
+  maxJuggleHits: 5
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  enableHoverBob: 1
+  hoverBobFrequency: 14
+  hoverBobAmplitude: 0.05
 --- !u!1 &1422242444
 GameObject:
   m_ObjectHideFlags: 0
@@ -3247,6 +3311,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: '[ParallaxBackground]'
       objectReference: {fileID: 0}
+    - target: {fileID: 4173948849092675584, guid: 856185189d9dda0458b7595ddd0b3dc6, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 4ca5cad761e260248b9a3a5b64cf2cfc, type: 2}
     - target: {fileID: 5002963340520102357, guid: 856185189d9dda0458b7595ddd0b3dc6, type: 3}
       propertyPath: m_LocalScale.x
       value: 24.96

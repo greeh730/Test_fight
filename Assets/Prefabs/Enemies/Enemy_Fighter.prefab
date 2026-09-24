@@ -106,6 +106,7 @@ GameObject:
   - component: {fileID: 4295764612044065273}
   - component: {fileID: 4212556780491059504}
   - component: {fileID: 8567788891443196670}
+  - component: {fileID: 7546991885098454110}
   m_Layer: 0
   m_Name: Enemy_Fighter
   m_TagString: Untagged
@@ -346,3 +347,27 @@ MonoBehaviour:
   flashColor: {r: 1, g: 1, b: 1, a: 1}
   faceTransform: {fileID: 768153362492686656}
   telegraphVisualizer: {fileID: 0}
+--- !u!114 &7546991885098454110
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8267374510365409490}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2642b704afccc5e46befd73a406f4886, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Combat.AirJuggleReceiver2D
+  apexFreezeDuration: 0.45
+  apexVelocityThreshold: 0.6
+  minLaunchVelocityY: 5
+  airJuggleFreezeDuration: 0.68
+  juggleLiftPerHit: 1.6
+  maxJuggleHits: 5
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  enableHoverBob: 1
+  hoverBobFrequency: 14
+  hoverBobAmplitude: 0.05
