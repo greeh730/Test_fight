@@ -84,6 +84,8 @@ namespace Combat
 
         [Header("--- Combo Events ---")]
         public ComboStepEvent onComboStepChanged;
+        public event System.Action<ComboSequenceDefinition> onSequenceExecuted;
+        public event System.Action onAttackHit;
 
         // Runtime State
         public CombatState CurrentState { get; private set; } = CombatState.Idle;
@@ -589,6 +591,7 @@ namespace Combat
             }
 
             _lastAttackStartTime = Time.time;
+            onSequenceExecuted?.Invoke(seq);
             _attackRoutine = StartCoroutine(SequenceAttackRoutine(seq, isStale, strikeSign));
             return true;
         }
@@ -804,6 +807,7 @@ namespace Combat
                 _canCancelIntoCombo = true;
                 float hitstop = isCharged ? 0.10f : (isFinisher ? hitstopDuration * 1.8f : hitstopDuration);
                 TriggerHitstop(hitstop);
+                onAttackHit?.Invoke();
             }
         }
 

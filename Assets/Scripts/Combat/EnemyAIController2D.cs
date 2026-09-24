@@ -198,6 +198,15 @@ namespace Combat
 
         public static event Action<EnemyAIController2D> OnAnyEnemyDied;
 
+        // Events for tutorial and external scripts
+        public event System.Action OnTelegraphStarted;
+        public event System.Action OnActiveStrike;
+
+        public void ForceTelegraphAttack()
+        {
+            StartTelegraphAttack();
+        }
+
         private static readonly List<EnemyAIController2D> _activeEnemies = new List<EnemyAIController2D>();
         public static IReadOnlyList<EnemyAIController2D> ActiveEnemies => _activeEnemies;
 
@@ -1197,6 +1206,7 @@ namespace Combat
 
             // 1. ФАЗА ТЕЛЕГРАФА (WINDUP)
             CurrentState = EnemyState.TelegraphWindup;
+            OnTelegraphStarted?.Invoke();
             float timer = 0f;
 
             while (timer < telegraphDuration)
@@ -1214,6 +1224,7 @@ namespace Combat
 
             // 2. АКТИВНАЯ ФАЗА УДАРА (ACTIVE STRIKE)
             CurrentState = EnemyState.ActiveStrike;
+            OnActiveStrike?.Invoke();
             Vector2 strikeCenter = GetHitboxCenter(chosenOffset);
             telegraphVisualizer.ShowActiveStrike(strikeCenter, chosenSize);
 

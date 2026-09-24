@@ -132,6 +132,10 @@ namespace Combat.Player
         public float HorizontalInput => _horizontalInput;
         public bool HasMoveInput => Mathf.Abs(_horizontalInput) > 0.01f;
 
+        // Events for tutorial and external systems
+        public event System.Action OnDashStarted;
+        public event System.Action OnJumpStarted;
+
         private float _horizontalInput;
         private bool _jumpPressed;
         private bool _jumpHeld;
@@ -449,6 +453,7 @@ namespace Combat.Player
             float speedMult = _stamina != null ? _stamina.ActionSpeedMultiplier : 1.0f;
             _dashTimer = dashDuration / speedMult;
             _dashCooldownTimer = dashCooldown / speedMult;
+            OnDashStarted?.Invoke();
 
             if (!IsGrounded)
             {
@@ -734,6 +739,7 @@ namespace Combat.Player
             _jumpBufferTimer = 0f;
             _coyoteTimer = 0f;
             _isJumping = true;
+            OnJumpStarted?.Invoke();
 
             // Эффект stretch при прыжке
             if (enableJuiceSquashStretch)
@@ -749,6 +755,7 @@ namespace Combat.Player
             _jumpBufferTimer = 0f;
             _coyoteTimer = 0f;
             _isJumping = true;
+            OnJumpStarted?.Invoke();
 
             // Эффект stretch при двойном прыжке
             if (enableJuiceSquashStretch)

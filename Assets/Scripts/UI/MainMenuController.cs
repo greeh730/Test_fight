@@ -15,6 +15,13 @@ namespace Combat.UI
         [Tooltip("Имя сцены игрового процесса для загрузки")]
         [SerializeField] private string gameSceneName = "SampleScene";
 
+        [Tooltip("Имя сцены интерактивного обучения")]
+        [SerializeField] private string tutorialSceneName = "TutorialScene";
+
+        [Header("--- Tutorial Settings ---")]
+        [Tooltip("Чекбокс отключения обучения")]
+        [SerializeField] private Toggle disableTutorialToggle;
+
         [Header("--- UI References ---")]
         [SerializeField] private Button startButton;
         [SerializeField] private Button controlsButton;
@@ -68,10 +75,24 @@ namespace Combat.UI
                 basicsTabButton.onClick.AddListener(ShowBasicsTab);
             }
 
+            if (disableTutorialToggle != null)
+            {
+                bool isTutorialDisabled = PlayerPrefs.GetInt("DisableTutorial", 0) == 1;
+                disableTutorialToggle.isOn = isTutorialDisabled;
+                disableTutorialToggle.onValueChanged.AddListener(OnDisableTutorialToggleChanged);
+            }
+
             if (controlsPanel != null)
             {
                 controlsPanel.SetActive(false);
             }
+        }
+
+        private void OnDisableTutorialToggleChanged(bool isDisabled)
+        {
+            PlayerPrefs.SetInt("DisableTutorial", isDisabled ? 1 : 0);
+            PlayerPrefs.Save();
+            Debug.Log($"<color=#4EE2EC>[MainMenuController] Отключение обучения: {isDisabled} (сохранено в PlayerPrefs)</color>");
         }
 
         private void Start()
@@ -123,9 +144,16 @@ namespace Combat.UI
                 fadeOverlay.alpha = 1f;
             }
 
-            if (!string.IsNullOrEmpty(gameSceneName))
+            bool isTutorialDisabled = disableTutorialToggle != null
+                ? disableTutorialToggle.isOn
+                : (PlayerPrefs.GetInt("DisableTutorial", 0) == 1);
+
+            string targetScene = isTutorialDisabled ? gameSceneName : tutorialSceneName;
+            Debug.Log($"<color=#4EE2EC>[MainMenuController] Запуск игры: цель = '{targetScene}' (Обучение отключено: {isTutorialDisabled})</color>");
+
+            if (!string.IsNullOrEmpty(targetScene))
             {
-                SceneManager.LoadScene(gameSceneName);
+                SceneManager.LoadScene(targetScene);
             }
             else
             {

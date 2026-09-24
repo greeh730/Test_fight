@@ -75,7 +75,10 @@ namespace Combat.Editor
             // Г. Нижняя подсказка управления (Controls Quick Strip)
             CreateBottomControlsStrip(canvasObj.transform);
 
-            // Д. Модальное окно управления (Controls Modal Panel с вкладками приёмов и базы)
+            // Д. Галочка отключения обучения в углу (Tutorial Toggle)
+            var tutorialToggle = CreateTutorialToggle(canvasObj.transform);
+
+            // Е. Модальное окно управления (Controls Modal Panel с вкладками приёмов и базы)
             var controlsPanelObj = CreateControlsModal(canvasObj.transform, 
                 out Button closeControlsBtn, 
                 out Button movesTabBtn, 
@@ -83,7 +86,7 @@ namespace Combat.Editor
                 out GameObject movesContent, 
                 out GameObject basicsContent);
 
-            // Е. Fade Overlay (для плавного перехода в игру)
+            // Ж. Fade Overlay (для плавного перехода в игру)
             var fadeOverlayObj = new GameObject("FadeOverlay", typeof(RectTransform), typeof(Image), typeof(CanvasGroup));
             fadeOverlayObj.transform.SetParent(canvasObj.transform, false);
             var fadeRt = fadeOverlayObj.GetComponent<RectTransform>();
@@ -99,6 +102,8 @@ namespace Combat.Editor
             // 7. Настраиваем связи контроллера
             var so = new SerializedObject(controller);
             so.FindProperty("gameSceneName").stringValue = "SampleScene";
+            so.FindProperty("tutorialSceneName").stringValue = "TutorialScene";
+            so.FindProperty("disableTutorialToggle").objectReferenceValue = tutorialToggle;
             so.FindProperty("startButton").objectReferenceValue = startBtn;
             so.FindProperty("controlsButton").objectReferenceValue = controlsBtn;
             so.FindProperty("quitButton").objectReferenceValue = quitBtn;
@@ -266,12 +271,12 @@ namespace Combat.Editor
 
             var rt = stripObj.GetComponent<RectTransform>();
             rt.anchorMin = new Vector2(0.12f, 0.08f);
-            rt.anchorMax = new Vector2(0.88f, 0.16f);
+            rt.anchorMax = new Vector2(0.66f, 0.16f);
             rt.offsetMin = Vector2.zero;
             rt.offsetMax = Vector2.zero;
 
-            string cheatsheet = "[ ЛКМ ] Свайпы атак и комбо    •    [ ПКМ ] Направленное парирование    •    [ L-CTRL ] Смена стойки    •    [ ESC ] Пауза";
-            var textObj = CreateText("CheatsheetText", stripObj.transform, cheatsheet, 13, FontStyle.Normal, new Color(0.55f, 0.62f, 0.72f, 0.85f));
+            string cheatsheet = "[ ЛКМ ] Свайпы атак    •    [ ПКМ ] Парирование    •    [ L-CTRL ] Стойка    •    [ ESC ] Пауза";
+            var textObj = CreateText("CheatsheetText", stripObj.transform, cheatsheet, 12, FontStyle.Normal, new Color(0.55f, 0.62f, 0.72f, 0.85f));
             var trt = textObj.GetComponent<RectTransform>();
             trt.anchorMin = Vector2.zero;
             trt.anchorMax = Vector2.one;
@@ -279,6 +284,53 @@ namespace Combat.Editor
             trt.offsetMax = Vector2.zero;
             var txt = textObj.GetComponent<Text>();
             txt.alignment = TextAnchor.MiddleLeft;
+        }
+
+        private static Toggle CreateTutorialToggle(Transform parent)
+        {
+            var rootObj = new GameObject("TutorialTogglePanel", typeof(RectTransform), typeof(Image));
+            rootObj.transform.SetParent(parent, false);
+
+            var rt = rootObj.GetComponent<RectTransform>();
+            rt.anchorMin = new Vector2(0.68f, 0.08f);
+            rt.anchorMax = new Vector2(0.92f, 0.16f);
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+
+            var panelImg = rootObj.GetComponent<Image>();
+            panelImg.color = new Color(0.06f, 0.09f, 0.14f, 0.85f);
+
+            var toggleObj = DefaultControls.CreateToggle(s_Resources);
+            toggleObj.name = "DisableTutorialToggle";
+            toggleObj.transform.SetParent(rootObj.transform, false);
+
+            var trt = toggleObj.GetComponent<RectTransform>();
+            trt.anchorMin = new Vector2(0.06f, 0.15f);
+            trt.anchorMax = new Vector2(0.96f, 0.85f);
+            trt.offsetMin = Vector2.zero;
+            trt.offsetMax = Vector2.zero;
+
+            var toggle = toggleObj.GetComponent<Toggle>();
+            toggle.isOn = PlayerPrefs.GetInt("DisableTutorial", 0) == 1;
+
+            var checkmark = toggle.graphic as Image;
+            if (checkmark != null)
+            {
+                checkmark.color = new Color(0.2f, 0.95f, 1f, 1f); // Neon Cyan
+            }
+
+            var label = toggleObj.GetComponentInChildren<Text>();
+            if (label != null)
+            {
+                label.text = "Отключить обучение";
+                label.font = s_Font;
+                label.fontSize = 13;
+                label.fontStyle = FontStyle.Bold;
+                label.color = new Color(0.88f, 0.92f, 0.98f, 1f);
+                label.alignment = TextAnchor.MiddleLeft;
+            }
+
+            return toggle;
         }
 
         private static GameObject CreateControlsModal(
@@ -460,11 +512,14 @@ namespace Combat.Editor
             var scenes = new List<EditorBuildSettingsScene>();
             scenes.Add(new EditorBuildSettingsScene(mainMenuScenePath, true));
 
+            string tutorialScenePath = "Assets/Scenes/TutorialScene.unity";
+            scenes.Add(new EditorBuildSettingsScene(tutorialScenePath, true));
+
             string sampleScenePath = "Assets/Scenes/SampleScene.unity";
             scenes.Add(new EditorBuildSettingsScene(sampleScenePath, true));
 
             EditorBuildSettings.scenes = scenes.ToArray();
-            Debug.Log($"<color=#4EE2EC>[MainMenuSceneBuilder] Build Settings обновлены: 0: {mainMenuScenePath}, 1: {sampleScenePath}</color>");
+            Debug.Log($"<color=#4EE2EC>[MainMenuSceneBuilder] Build Settings обновлены: 0: {mainMenuScenePath}, 1: {tutorialScenePath}, 2: {sampleScenePath}</color>");
         }
     }
 }

@@ -141,6 +141,7 @@ namespace Combat.Tactician
         private readonly HashSet<Direction8> _unlockedAbilities = new HashSet<Direction8>();
 
         public event System.Action<Direction8> OnAbilityUnlocked;
+        public event System.Action<Direction8> OnAbilityExecuted;
         public event System.Action OnAbilitiesReset;
 
         public bool IsAbilityUnlocked(Direction8 dir) => _unlockedAbilities.Contains(dir);
@@ -222,6 +223,8 @@ namespace Combat.Tactician
                 StopCoroutine(_abilityRoutine);
                 _abilityRoutine = null;
             }
+
+            OnAbilityExecuted?.Invoke(dir);
 
             switch (dir)
             {
