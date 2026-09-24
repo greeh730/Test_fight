@@ -7,6 +7,8 @@ namespace LevelGeneration.Editor
     [CustomEditor(typeof(LevelSequenceGenerator))]
     public class LevelSequenceGeneratorEditor : UnityEditor.Editor
     {
+        private bool _showTiersQuickTest = true;
+
         public override void OnInspectorGUI()
         {
             var gen = (LevelSequenceGenerator)target;
@@ -16,34 +18,31 @@ namespace LevelGeneration.Editor
             int chunkCount = container != null ? container.childCount : 0;
 
             EditorGUILayout.Space(6);
-            EditorGUILayout.LabelField("🎮 ПРЕДПРОСМОТР ЛОКАЦИЙ В SCENE VIEW", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("🎮 ПАНЕЛЬ УПРАВЛЕНИЯ И ТЕСТИРОВАНИЯ УРОВНЕЙ", EditorStyles.boldLabel);
 
-            // Информационный баннер о статусе уровня
-            if (chunkCount == 0)
-            {
-                EditorGUILayout.HelpBox(
-                    "⚠️ Уровень сейчас НЕ сгенерирован в сцене.\n" +
-                    "Окно Scene показывает старую тестовую арену или пустоту.\n" +
-                    "Нажмите кнопку ниже, чтобы сгенерировать локации прямо в сцене без запуска игры!",
-                    MessageType.Warning
-                );
-            }
-            else
-            {
-                EditorGUILayout.HelpBox(
-                    $"✅ Уровень сгенерирован в сцене (активно секций: {chunkCount}).\n" +
-                    "Вы можете осматривать, настраивать платформы и тестировать навигацию прямо в Scene View!",
-                    MessageType.Info
-                );
-            }
+            // Информационный дашборд о статусе уровня и прогрессии
+            int activeTierIdx = gen.GetActiveTierIndex();
+            string activeTierName = (gen.DifficultyTiers != null && activeTierIdx >= 0 && activeTierIdx < gen.DifficultyTiers.Count)
+                ? gen.DifficultyTiers[activeTierIdx].tierName
+                : $"Тир {activeTierIdx + 1}";
+
+            string statusMsg = chunkCount == 0
+                ? "⚠️ Уровень сейчас НЕ сгенерирован в сцене.\n"
+                : $"✅ Уровень активен в сцене (секций: {chunkCount}).\n";
+
+            statusMsg += $"💎 Собрано Кристаллов Победы: {gen.CrystalsCollected}  |  🏃 Забег: #{gen.CurrentRun}\n" +
+                         $"📊 Активный уровень сложности: {activeTierName}\n" +
+                         $"⚙️ Режим выбора: {gen.ActiveTierOverrideMode}";
+
+            EditorGUILayout.HelpBox(statusMsg, chunkCount == 0 ? MessageType.Warning : MessageType.Info);
 
             EditorGUILayout.Space(4);
 
-            // Кнопки главного управления
+            // Кнопки главного управления (Сгенерировать / Очистить)
             EditorGUILayout.BeginHorizontal();
 
             GUI.backgroundColor = chunkCount == 0 ? new Color(0.2f, 0.9f, 0.4f) : new Color(0.3f, 0.7f, 1.0f);
-            if (GUILayout.Button(chunkCount == 0 ? "▶ Сгенерировать уровень в сцене" : "🔄 Перегенерировать в сцене", GUILayout.Height(34)))
+            if (GUILayout.Button(chunkCount == 0 ? "▶ Сгенерировать уровень" : "🔄 Перегенерировать", GUILayout.Height(34)))
             {
                 GenerateInScene(gen);
             }
@@ -59,49 +58,140 @@ namespace LevelGeneration.Editor
 
             EditorGUILayout.Space(6);
 
-            // Переключатель конкретных комнат (Варианты A, B, C, D)
-            EditorGUILayout.LabelField("Переключить боевую комнату для предпросмотра:", EditorStyles.miniBoldLabel);
-
+            // Секция быстрого переключения тиров сложности
+            EditorGUILayout.LabelField("Быстрое переключение сложности для тестов:", EditorStyles.miniBoldLabel);
             EditorGUILayout.BeginHorizontal();
-            GUI.backgroundColor = gen.ForcePreviewCombatVariantIndex == 0 ? new Color(1f, 0.85f, 0.2f) : Color.white;
-            if (GUILayout.Button("Вариант A\n(CombatArena)", GUILayout.Height(32)))
+
+            bool isTier1 = gen.ActiveTierOverrideMode == TierOverrideMode.ForceTier1 || (gen.ActiveTierOverrideMode == TierOverrideMode.AutoByProgress && activeTierIdx == 0);
+            GUI.backgroundColor = isTier1 ? new Color(0.35f, 0.85f, 1.0f) : Color.white;
+            if (GUILayout.Button("⭐ Тир 1\n(1-3 забег)", GUILayout.Height(36)))
             {
-                SwitchVariant(gen, 0);
+                SwitchTier(gen, 0);
             }
 
-            GUI.backgroundColor = gen.ForcePreviewCombatVariantIndex == 1 ? new Color(1f, 0.85f, 0.2f) : Color.white;
-            if (GUILayout.Button("Вариант B\n(TwoTier)", GUILayout.Height(32)))
+            bool isTier2 = gen.ActiveTierOverrideMode == TierOverrideMode.ForceTier2 || (gen.ActiveTierOverrideMode == TierOverrideMode.AutoByProgress && activeTierIdx == 1);
+            GUI.backgroundColor = isTier2 ? new Color(1f, 0.85f, 0.2f) : Color.white;
+            if (GUILayout.Button("⚡ Тир 2\n(4-5 забег)", GUILayout.Height(36)))
             {
-                SwitchVariant(gen, 1);
+                SwitchTier(gen, 1);
             }
 
-            GUI.backgroundColor = gen.ForcePreviewCombatVariantIndex == 2 ? new Color(1f, 0.85f, 0.2f) : Color.white;
-            if (GUILayout.Button("Вариант C\n(SplitPath)", GUILayout.Height(32)))
+            bool isTier3 = gen.ActiveTierOverrideMode == TierOverrideMode.ForceTier3 || (gen.ActiveTierOverrideMode == TierOverrideMode.AutoByProgress && activeTierIdx == 2);
+            GUI.backgroundColor = isTier3 ? new Color(1f, 0.45f, 0.45f) : Color.white;
+            if (GUILayout.Button("💀 Тир 3\n(6+ забег)", GUILayout.Height(36)))
             {
-                SwitchVariant(gen, 2);
+                SwitchTier(gen, 2);
             }
 
-            GUI.backgroundColor = gen.ForcePreviewCombatVariantIndex == 3 ? new Color(1f, 0.85f, 0.2f) : Color.white;
-            if (GUILayout.Button("Вариант D\n(Chucn_varint_D)", GUILayout.Height(32)))
+            bool isAuto = gen.ActiveTierOverrideMode == TierOverrideMode.AutoByProgress;
+            GUI.backgroundColor = isAuto ? new Color(0.4f, 0.95f, 0.65f) : Color.white;
+            if (GUILayout.Button("🎲 Авто\n(по кристаллам)", GUILayout.Height(36), GUILayout.Width(100)))
             {
-                SwitchVariant(gen, 3);
-            }
-
-            GUI.backgroundColor = gen.ForcePreviewCombatVariantIndex == -1 ? new Color(0.4f, 0.9f, 0.7f) : Color.white;
-            if (GUILayout.Button("🎲 Случайно", GUILayout.Height(32), GUILayout.Width(75)))
-            {
-                SwitchVariant(gen, -1);
+                Undo.RecordObject(gen, "Auto Progress Mode");
+                gen.ActiveTierOverrideMode = TierOverrideMode.AutoByProgress;
+                gen.DebugSpecificPrefab = null;
+                gen.DebugPrefabIndexInTier = -1;
+                gen.GenerateLevel();
+                MarkDirty(gen);
             }
             GUI.backgroundColor = Color.white;
 
             EditorGUILayout.EndHorizontal();
 
-            EditorGUILayout.Space(4);
+            EditorGUILayout.Space(8);
 
-            if (GUILayout.Button("🔍 Сфокусировать камеру Scene View на всем уровне", GUILayout.Height(26)))
+            // Интерактивный выбор конкретных комнат по тирам в 1 клик
+            _showTiersQuickTest = EditorGUILayout.Foldout(_showTiersQuickTest, "🎯 Мгновенный тест конкретных комнат (в 1 клик):", true, EditorStyles.foldoutHeader);
+            if (_showTiersQuickTest && gen.DifficultyTiers != null)
+            {
+                for (int t = 0; t < gen.DifficultyTiers.Count; t++)
+                {
+                    var tier = gen.DifficultyTiers[t];
+                    if (tier == null) continue;
+
+                    string tierTitle = string.IsNullOrEmpty(tier.tierName) ? $"Тир {t + 1}" : tier.tierName;
+                    EditorGUILayout.LabelField($"• {tierTitle} (Забеги: {tier.minRun}..{tier.maxRun}):", EditorStyles.boldLabel);
+
+                    if (tier.chunkPool == null || tier.chunkPool.Count == 0)
+                    {
+                        EditorGUILayout.LabelField("   (Пул пуст, добавьте префабы в инспекторе ниже)", EditorStyles.miniLabel);
+                        continue;
+                    }
+
+                    EditorGUILayout.BeginHorizontal();
+                    for (int p = 0; p < tier.chunkPool.Count; p++)
+                    {
+                        var prefab = tier.chunkPool[p];
+                        if (prefab == null) continue;
+
+                        string btnName = prefab.name;
+                        // Укорачиваем длинные технические имена префабов для компактности кнопок
+                        btnName = btnName.Replace("Chunk_Variant_", "").Replace("Chunk_", "").Replace(".prefab", "");
+
+                        bool isSelected = gen.ActiveTierOverrideMode == TierOverrideMode.ForceSpecificPrefab && gen.DebugSpecificPrefab == prefab;
+                        GUI.backgroundColor = isSelected ? new Color(0.2f, 1f, 0.6f) : Color.white;
+
+                        if (GUILayout.Button(btnName, GUILayout.Height(28)))
+                        {
+                            Undo.RecordObject(gen, $"Test Prefab {prefab.name}");
+                            gen.SetTestPrefab(prefab);
+                            MarkDirty(gen);
+                        }
+
+                        if ((p + 1) % 3 == 0 && p < tier.chunkPool.Count - 1)
+                        {
+                            EditorGUILayout.EndHorizontal();
+                            EditorGUILayout.BeginHorizontal();
+                        }
+                    }
+                    GUI.backgroundColor = Color.white;
+                    EditorGUILayout.EndHorizontal();
+                    EditorGUILayout.Space(2);
+                }
+            }
+
+            EditorGUILayout.Space(6);
+
+            // Drag & Drop слот произвольного префаба
+            EditorGUILayout.LabelField("Тестирование произвольного внешнего префаба:", EditorStyles.miniBoldLabel);
+            EditorGUILayout.BeginHorizontal();
+            var newDebugPrefab = (LevelChunk)EditorGUILayout.ObjectField(gen.DebugSpecificPrefab, typeof(LevelChunk), false);
+            if (newDebugPrefab != gen.DebugSpecificPrefab)
+            {
+                Undo.RecordObject(gen, "Change Debug Prefab");
+                gen.DebugSpecificPrefab = newDebugPrefab;
+                MarkDirty(gen);
+            }
+
+            GUI.enabled = gen.DebugSpecificPrefab != null;
+            GUI.backgroundColor = new Color(0.3f, 0.9f, 0.9f);
+            if (GUILayout.Button("▶ Тестировать", GUILayout.Width(100)))
+            {
+                Undo.RecordObject(gen, "Test Specific Prefab");
+                gen.SetTestPrefab(gen.DebugSpecificPrefab);
+                MarkDirty(gen);
+            }
+            GUI.backgroundColor = Color.white;
+            GUI.enabled = true;
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.Space(8);
+
+            // Кнопка автозаполнения префабов по умолчанию из папок
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("🔄 Авто-заполнить тиры из папок по умолчанию", GUILayout.Height(24)))
+            {
+                Undo.RecordObject(gen, "Populate Default Tiers");
+                gen.PopulateDefaultTiers();
+                gen.GenerateLevel();
+                MarkDirty(gen);
+            }
+
+            if (GUILayout.Button("🔍 Камера на весь уровень", GUILayout.Height(24), GUILayout.Width(170)))
             {
                 FocusSceneViewOnLevel(gen);
             }
+            EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.Space(10);
             EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
@@ -114,25 +204,25 @@ namespace LevelGeneration.Editor
         {
             Undo.RecordObject(gen, "Generate Level Preview");
             gen.GenerateLevel();
-            EditorUtility.SetDirty(gen.gameObject);
-            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gen.gameObject.scene);
-            SceneView.RepaintAll();
+            MarkDirty(gen);
         }
 
         private void ClearInScene(LevelSequenceGenerator gen)
         {
             Undo.RecordObject(gen, "Clear Level Preview");
             gen.ClearOldChunks();
-            EditorUtility.SetDirty(gen.gameObject);
-            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gen.gameObject.scene);
-            SceneView.RepaintAll();
+            MarkDirty(gen);
         }
 
-        private void SwitchVariant(LevelSequenceGenerator gen, int variantIndex)
+        private void SwitchTier(LevelSequenceGenerator gen, int tierIndex)
         {
-            Undo.RecordObject(gen, "Switch Level Variant");
-            gen.ForcePreviewCombatVariantIndex = variantIndex;
-            gen.GenerateLevel();
+            Undo.RecordObject(gen, $"Switch to Tier {tierIndex + 1}");
+            gen.SetTestTier(tierIndex);
+            MarkDirty(gen);
+        }
+
+        private void MarkDirty(LevelSequenceGenerator gen)
+        {
             EditorUtility.SetDirty(gen.gameObject);
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gen.gameObject.scene);
             SceneView.RepaintAll();

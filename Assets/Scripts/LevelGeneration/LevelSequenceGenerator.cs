@@ -14,6 +14,49 @@ namespace LevelGeneration
         RandomFromPool = 1
     }
 
+    public enum TierOverrideMode
+    {
+        [Tooltip("Автоматически по количеству собранных кристаллов / номеру прохождения")]
+        AutoByProgress = 0,
+
+        [Tooltip("Принудительно 1-й уровень сложности (1-3 прохождения)")]
+        ForceTier1 = 1,
+
+        [Tooltip("Принудительно 2-й уровень сложности (4-5 прохождений)")]
+        ForceTier2 = 2,
+
+        [Tooltip("Принудительно 3-й уровень сложности (6+ прохождений)")]
+        ForceTier3 = 3,
+
+        [Tooltip("Принудительно выбранный конкретный префаб")]
+        ForceSpecificPrefab = 4
+    }
+
+    public enum TierSelectionMode
+    {
+        [Tooltip("Случайный выбор без повторения одного и того же уровня дважды подряд")]
+        RandomAvoidRepeat = 0,
+
+        [Tooltip("Последовательный выбор по номеру прохождения")]
+        SequentialByRun = 1,
+
+        [Tooltip("Полностью случайный выбор из пула")]
+        RandomFromPool = 2
+    }
+
+    [Serializable]
+    public class LevelDifficultyTier
+    {
+        public string tierName = "Уровень 1 (1-3 прохождения)";
+        [Tooltip("Минимальный номер прохождения (Run) для этого тира")]
+        public int minRun = 1;
+        [Tooltip("Максимальный номер прохождения (Run) для этого тира")]
+        public int maxRun = 3;
+
+        [Tooltip("Пул префабов комнат для данного тира сложности")]
+        public List<LevelChunk> chunkPool = new List<LevelChunk>();
+    }
+
     [Serializable]
     public class LevelSegmentStep
     {
@@ -68,7 +111,100 @@ namespace LevelGeneration
             set => spawnEnemiesInEditorPreview = value;
         }
 
-        [Header("--- Последовательность шагов уровня ---")]
+        [Header("--- Система генерации по Тирам (Winning Crystals & Tiers) ---")]
+        [Tooltip("Включить генерацию по 3 уровням сложности в зависимости от собранных кристаллов победы")]
+        [SerializeField] private bool useDifficultyTiers = true;
+
+        [Tooltip("Количество собранных Кристаллов Победы (wining crystall)")]
+        [SerializeField] private int crystalsCollected = 0;
+
+        [Tooltip("Текущий номер прохождения/забега (1..3 = Тир 1, 4..5 = Тир 2, 6+ = Тир 3)")]
+        [SerializeField] private int currentRun = 1;
+
+        [Header("--- Стартовый и Финальный чанки ---")]
+        [Tooltip("Стартовый чанк с точкой спавна игрока")]
+        [SerializeField] private LevelChunk startChunkPrefab;
+
+        [Tooltip("Финальный чанк с Кристаллом Победы (Victory Crystal)")]
+        [SerializeField] private LevelChunk endChunkPrefab;
+
+        [Header("--- Уровни сложности (3 Тира) ---")]
+        [SerializeField] private List<LevelDifficultyTier> difficultyTiers = new List<LevelDifficultyTier>();
+
+        [Tooltip("Алгоритм выбора комнаты внутри активного тира")]
+        [SerializeField] private TierSelectionMode tierSelectionMode = TierSelectionMode.RandomAvoidRepeat;
+
+        [Header("--- Панель тестирования в Инспекторе (Editor Testing & Override) ---")]
+        [Tooltip("Принудительный выбор тира сложности или префаба для тестов")]
+        [SerializeField] private TierOverrideMode tierOverrideMode = TierOverrideMode.AutoByProgress;
+
+        [Tooltip("Принудительный префаб для мгновенного теста (если задан и выбран ForceSpecificPrefab)")]
+        [SerializeField] private LevelChunk debugSpecificPrefab;
+
+        [Tooltip("Индекс конкретного префаба из активного тира (-1 = по режиму выбора)")]
+        [SerializeField] private int debugPrefabIndexInTier = -1;
+
+        public bool UseDifficultyTiers
+        {
+            get => useDifficultyTiers;
+            set => useDifficultyTiers = value;
+        }
+
+        public int CrystalsCollected
+        {
+            get => crystalsCollected;
+            set
+            {
+                crystalsCollected = Mathf.Max(0, value);
+                currentRun = crystalsCollected + 1;
+                currentCycle = currentRun;
+            }
+        }
+
+        public int CurrentRun
+        {
+            get => currentRun;
+            set
+            {
+                currentRun = Mathf.Max(1, value);
+                crystalsCollected = currentRun - 1;
+                currentCycle = currentRun;
+            }
+        }
+
+        public TierOverrideMode ActiveTierOverrideMode
+        {
+            get => tierOverrideMode;
+            set => tierOverrideMode = value;
+        }
+
+        public LevelChunk DebugSpecificPrefab
+        {
+            get => debugSpecificPrefab;
+            set => debugSpecificPrefab = value;
+        }
+
+        public int DebugPrefabIndexInTier
+        {
+            get => debugPrefabIndexInTier;
+            set => debugPrefabIndexInTier = value;
+        }
+
+        public LevelChunk StartChunkPrefab
+        {
+            get => startChunkPrefab;
+            set => startChunkPrefab = value;
+        }
+
+        public LevelChunk EndChunkPrefab
+        {
+            get => endChunkPrefab;
+            set => endChunkPrefab = value;
+        }
+
+        public List<LevelDifficultyTier> DifficultyTiers => difficultyTiers;
+
+        [Header("--- Последовательность шагов уровня (Legacy) ---")]
         [SerializeField] private List<LevelSegmentStep> levelSteps = new List<LevelSegmentStep>();
 
         [Header("--- Контейнер сгенерированных объектов ---")]
@@ -150,6 +286,9 @@ namespace LevelGeneration
             if (resetForceVariantOnPlay)
             {
                 forcePreviewCombatVariantIndex = -1;
+                debugPrefabIndexInTier = -1;
+                tierOverrideMode = TierOverrideMode.AutoByProgress;
+                debugSpecificPrefab = null;
             }
         }
 
@@ -194,6 +333,203 @@ namespace LevelGeneration
             }
         }
 
+        public int GetActiveTierIndex()
+        {
+            if (tierOverrideMode == TierOverrideMode.ForceTier1) return 0;
+            if (tierOverrideMode == TierOverrideMode.ForceTier2) return 1;
+            if (tierOverrideMode == TierOverrideMode.ForceTier3) return 2;
+
+            if (difficultyTiers == null || difficultyTiers.Count == 0) return 0;
+
+            int run = currentRun;
+            for (int i = 0; i < difficultyTiers.Count; i++)
+            {
+                var tier = difficultyTiers[i];
+                if (tier != null && run >= tier.minRun && run <= tier.maxRun)
+                {
+                    return i;
+                }
+            }
+
+            // Если превышает все пороги (6+), возвращаем последний тир
+            return difficultyTiers.Count - 1;
+        }
+
+        public LevelDifficultyTier GetActiveTier()
+        {
+            int idx = GetActiveTierIndex();
+            if (difficultyTiers != null && idx >= 0 && idx < difficultyTiers.Count)
+            {
+                return difficultyTiers[idx];
+            }
+            return null;
+        }
+
+        private LevelChunk _lastPickedTierChunk = null;
+
+        public LevelChunk PickPrefabForActiveTier()
+        {
+            if (tierOverrideMode == TierOverrideMode.ForceSpecificPrefab && debugSpecificPrefab != null)
+            {
+                return debugSpecificPrefab;
+            }
+
+            var tier = GetActiveTier();
+            if (tier == null || tier.chunkPool == null || tier.chunkPool.Count == 0)
+            {
+                return null;
+            }
+
+            var validPool = tier.chunkPool.FindAll(c => c != null);
+            if (validPool.Count == 0) return null;
+
+            if (debugPrefabIndexInTier >= 0)
+            {
+                int safeIdx = Mathf.Clamp(debugPrefabIndexInTier, 0, validPool.Count - 1);
+                return validPool[safeIdx];
+            }
+
+            if (tierSelectionMode == TierSelectionMode.SequentialByRun)
+            {
+                int seqIdx = Mathf.Abs(currentRun - tier.minRun) % validPool.Count;
+                _lastPickedTierChunk = validPool[seqIdx];
+                return _lastPickedTierChunk;
+            }
+            else if (tierSelectionMode == TierSelectionMode.RandomAvoidRepeat && validPool.Count > 1)
+            {
+                var filtered = validPool.FindAll(c => c != _lastPickedTierChunk);
+                if (filtered.Count > 0)
+                {
+                    _lastPickedTierChunk = filtered[UnityEngine.Random.Range(0, filtered.Count)];
+                    return _lastPickedTierChunk;
+                }
+            }
+
+            _lastPickedTierChunk = validPool[UnityEngine.Random.Range(0, validPool.Count)];
+            return _lastPickedTierChunk;
+        }
+
+        public void SetTestRun(int runNumber)
+        {
+            CurrentRun = runNumber;
+            tierOverrideMode = TierOverrideMode.AutoByProgress;
+            debugSpecificPrefab = null;
+            debugPrefabIndexInTier = -1;
+            GenerateLevel();
+        }
+
+        public void SetTestTier(int tierIndex)
+        {
+            if (tierIndex == 0)
+            {
+                tierOverrideMode = TierOverrideMode.ForceTier1;
+                CurrentRun = 1;
+            }
+            else if (tierIndex == 1)
+            {
+                tierOverrideMode = TierOverrideMode.ForceTier2;
+                CurrentRun = 4;
+            }
+            else if (tierIndex == 2)
+            {
+                tierOverrideMode = TierOverrideMode.ForceTier3;
+                CurrentRun = 6;
+            }
+            debugSpecificPrefab = null;
+            debugPrefabIndexInTier = -1;
+            GenerateLevel();
+        }
+
+        public void SetTestPrefab(LevelChunk prefab)
+        {
+            if (prefab == null) return;
+            debugSpecificPrefab = prefab;
+            tierOverrideMode = TierOverrideMode.ForceSpecificPrefab;
+            debugPrefabIndexInTier = -1;
+            GenerateLevel();
+        }
+
+        private LevelChunk SpawnChunkInstance(LevelChunk prefab, string instanceName)
+        {
+            LevelChunk chunkInstance = null;
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+            {
+                chunkInstance = (LevelChunk)UnityEditor.PrefabUtility.InstantiatePrefab(prefab, chunksContainer);
+                if (chunkInstance != null)
+                {
+                    UnityEditor.Undo.RegisterCreatedObjectUndo(chunkInstance.gameObject, "Generate Level Preview");
+                }
+            }
+#endif
+            if (chunkInstance == null)
+            {
+                chunkInstance = Instantiate(prefab, Vector3.zero, Quaternion.identity, chunksContainer);
+            }
+            chunkInstance.name = instanceName;
+            return chunkInstance;
+        }
+
+#if UNITY_EDITOR
+        [ContextMenu("Автозаполнить тиры по умолчанию из папок")]
+        public void PopulateDefaultTiers()
+        {
+            useDifficultyTiers = true;
+
+            startChunkPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>("Assets/Prefabs/LevelChunks/Starn and end/Chunk_Start_Intro.prefab");
+            endChunkPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>("Assets/Prefabs/LevelChunks/Starn and end/Chunk_End_Outro.prefab");
+
+            difficultyTiers.Clear();
+
+            // Тир 1: 1-3 прохождения
+            var tier1 = new LevelDifficultyTier
+            {
+                tierName = "Уровень 1 (1-3 прохождения)",
+                minRun = 1,
+                maxRun = 3,
+                chunkPool = new List<LevelChunk>
+                {
+                    UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>("Assets/Prefabs/LevelChunks/1rd level/First_Level.prefab"),
+                    UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>("Assets/Prefabs/LevelChunks/1rd level/Second_Level.prefab"),
+                    UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>("Assets/Prefabs/LevelChunks/1rd level/Third_level.prefab")
+                }
+            };
+            difficultyTiers.Add(tier1);
+
+            // Тир 2: 4-5 прохождений
+            var tier2 = new LevelDifficultyTier
+            {
+                tierName = "Уровень 2 (4-5 прохождений)",
+                minRun = 4,
+                maxRun = 5,
+                chunkPool = new List<LevelChunk>
+                {
+                    UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>("Assets/Prefabs/LevelChunks/2rd level/First_Level.prefab")
+                }
+            };
+            difficultyTiers.Add(tier2);
+
+            // Тир 3: 6+ прохождений
+            var tier3 = new LevelDifficultyTier
+            {
+                tierName = "Уровень 3 (6+ прохождений)",
+                minRun = 6,
+                maxRun = 9999,
+                chunkPool = new List<LevelChunk>
+                {
+                    UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>("Assets/Prefabs/LevelChunks/3rd level/Chunk_Variant_A_CombatArena.prefab"),
+                    UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>("Assets/Prefabs/LevelChunks/3rd level/Chunk_Variant_B_TwoTierElevation.prefab"),
+                    UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>("Assets/Prefabs/LevelChunks/3rd level/Chunk_Variant_C_SplitPath.prefab"),
+                    UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>("Assets/Prefabs/LevelChunks/3rd level/Chucn_varint_D.prefab")
+                }
+            };
+            difficultyTiers.Add(tier3);
+
+            UnityEditor.EditorUtility.SetDirty(this);
+            Debug.Log("<color=#00FFAA><b>[LevelGen]</b></color> Тиры сложности успешно заполнены по умолчанию из папок ассетов!");
+        }
+#endif
+
         /// <summary>
         /// Главный метод сборки уровня
         /// </summary>
@@ -222,48 +558,86 @@ namespace LevelGeneration
             Vector3 currentExitSocket = startOrigin;
             Transform firstSpawnPoint = null;
 
-            for (int i = 0; i < levelSteps.Count; i++)
+            if (useDifficultyTiers)
             {
-                var step = levelSteps[i];
-                LevelChunk prefabToSpawn = PickPrefabForStep(step);
+                var chunksToSpawn = new List<KeyValuePair<string, LevelChunk>>();
 
-                if (prefabToSpawn == null)
+                LevelChunk startPrefab = startChunkPrefab;
+                if (startPrefab == null && levelSteps != null && levelSteps.Count > 0)
                 {
-                    Debug.LogWarning($"[LevelGen] Пропуск шага {i} '{step.segmentName}': не найден подходящий префаб!");
-                    continue;
+                    startPrefab = levelSteps[0].fixedChunkPrefab;
                 }
 
-                // 1. Создаем экземпляр префаба
-                LevelChunk chunkInstance = null;
-#if UNITY_EDITOR
-                if (!Application.isPlaying)
+                if (startPrefab != null)
                 {
-                    chunkInstance = (LevelChunk)UnityEditor.PrefabUtility.InstantiatePrefab(prefabToSpawn, chunksContainer);
-                    if (chunkInstance != null)
+                    chunksToSpawn.Add(new KeyValuePair<string, LevelChunk>("00_Start", startPrefab));
+                }
+
+                LevelChunk combatPrefab = PickPrefabForActiveTier();
+                if (combatPrefab == null && levelSteps != null && levelSteps.Count > 1)
+                {
+                    combatPrefab = PickPrefabForStep(levelSteps[1]);
+                }
+
+                if (combatPrefab != null)
+                {
+                    int activeTierIdx = GetActiveTierIndex();
+                    chunksToSpawn.Add(new KeyValuePair<string, LevelChunk>($"01_Tier{activeTierIdx + 1}", combatPrefab));
+                }
+
+                LevelChunk endPrefab = endChunkPrefab;
+                if (endPrefab == null && levelSteps != null && levelSteps.Count > 2)
+                {
+                    endPrefab = levelSteps[2].fixedChunkPrefab;
+                }
+
+                if (endPrefab != null)
+                {
+                    chunksToSpawn.Add(new KeyValuePair<string, LevelChunk>("02_End", endPrefab));
+                }
+
+                for (int i = 0; i < chunksToSpawn.Count; i++)
+                {
+                    var pair = chunksToSpawn[i];
+                    LevelChunk prefab = pair.Value;
+                    if (prefab == null) continue;
+
+                    LevelChunk chunkInstance = SpawnChunkInstance(prefab, $"[{pair.Key}]_{prefab.name}");
+                    chunkInstance.SnapEntryTo(currentExitSocket);
+                    currentExitSocket = chunkInstance.ExitPoint.position;
+
+                    if (firstSpawnPoint == null && chunkInstance.PlayerSpawnPoint != null)
                     {
-                        UnityEditor.Undo.RegisterCreatedObjectUndo(chunkInstance.gameObject, "Generate Level Preview");
+                        firstSpawnPoint = chunkInstance.PlayerSpawnPoint;
                     }
+
+                    _spawnedChunks.Add(chunkInstance);
                 }
-#endif
-                if (chunkInstance == null)
+            }
+            else
+            {
+                for (int i = 0; i < levelSteps.Count; i++)
                 {
-                    chunkInstance = Instantiate(prefabToSpawn, Vector3.zero, Quaternion.identity, chunksContainer);
+                    var step = levelSteps[i];
+                    LevelChunk prefabToSpawn = PickPrefabForStep(step);
+
+                    if (prefabToSpawn == null)
+                    {
+                        Debug.LogWarning($"[LevelGen] Пропуск шага {i} '{step.segmentName}': не найден подходящий префаб!");
+                        continue;
+                    }
+
+                    LevelChunk chunkInstance = SpawnChunkInstance(prefabToSpawn, $"[{i:D2}]_{step.segmentName}_{prefabToSpawn.name}");
+                    chunkInstance.SnapEntryTo(currentExitSocket);
+                    currentExitSocket = chunkInstance.ExitPoint.position;
+
+                    if (firstSpawnPoint == null && chunkInstance.PlayerSpawnPoint != null)
+                    {
+                        firstSpawnPoint = chunkInstance.PlayerSpawnPoint;
+                    }
+
+                    _spawnedChunks.Add(chunkInstance);
                 }
-                chunkInstance.name = $"[{i:D2}]_{step.segmentName}_{prefabToSpawn.name}";
-
-                // 2. Бесшовно состыковываем вход нового чанка с выходом предыдущего
-                chunkInstance.SnapEntryTo(currentExitSocket);
-
-                // 3. Запоминаем выход текущего чанка для следующей секции
-                currentExitSocket = chunkInstance.ExitPoint.position;
-
-                // 4. Запоминаем спавн игрока, если это первая найденная точка
-                if (firstSpawnPoint == null && chunkInstance.PlayerSpawnPoint != null)
-                {
-                    firstSpawnPoint = chunkInstance.PlayerSpawnPoint;
-                }
-
-                _spawnedChunks.Add(chunkInstance);
             }
 
             // Перемещаем игрока на стартовую позицию уровня
@@ -291,7 +665,8 @@ namespace LevelGeneration
 
             Physics2D.SyncTransforms();
 
-            Debug.Log($"<color=#00FFAA><b>[LevelGen]</b></color> Уровень успешно сгенерирован! Секций: {_spawnedChunks.Count}. Конечная точка X={currentExitSocket.x:F1}, Y={currentExitSocket.y:F2}");
+            int tierNum = GetActiveTierIndex() + 1;
+            Debug.Log($"<color=#00FFAA><b>[LevelGen]</b></color> Уровень успешно сгенерирован! Тир: {tierNum} (Забег #{currentRun}, Кристаллов: {crystalsCollected}). Секций: {_spawnedChunks.Count}. Конечная точка X={currentExitSocket.x:F1}, Y={currentExitSocket.y:F2}");
             onLevelGenerated?.Invoke(_spawnedChunks);
         }
 
@@ -353,8 +728,13 @@ namespace LevelGeneration
         [ContextMenu("Следующий круг сложности (Advance Cycle)")]
         public void AdvanceCycleAndRegenerate()
         {
-            currentCycle++;
-            Debug.Log($"<color=#FF5555><b>[LevelGen]</b></color> Переход на <b>Круг {currentCycle}</b>! Сложность и стиль повышены.");
+            crystalsCollected++;
+            currentRun++;
+            currentCycle = currentRun;
+
+            int tierIdx = GetActiveTierIndex();
+            string tierName = (difficultyTiers != null && tierIdx >= 0 && tierIdx < difficultyTiers.Count) ? difficultyTiers[tierIdx].tierName : $"Тир {tierIdx + 1}";
+            Debug.Log($"<color=#FF5555><b>[LevelGen]</b></color> 💎 <b>Кристалл Победы собран!</b> Всего кристаллов: <b>{crystalsCollected}</b>. Переход на забег <b>#{currentRun}</b> -> <b>{tierName}</b>!");
             GenerateLevel();
         }
 
