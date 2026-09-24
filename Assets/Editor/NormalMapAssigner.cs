@@ -1,3 +1,4 @@
+#if UNITY_EDITOR
 using UnityEngine;
 using UnityEditor;
 using System.IO;
@@ -10,22 +11,20 @@ public class NormalMapAssignerWindow : EditorWindow
     [MenuItem("Tools/2D/Folder Normal Map Assigner")]
     public static void ShowWindow()
     {
-        // Создаем и показываем кастомное окно
         EditorWindow.GetWindow(typeof(NormalMapAssignerWindow), false, "Assign Normals");
     }
 
     private void OnGUI()
     {
-        GUILayout.Label("Настройка папок", EditorStyles.boldLabel);
+        GUILayout.Label("Settings", EditorStyles.boldLabel);
         EditorGUILayout.Space();
 
-        // Поля для перетаскивания папок
-        mainTexturesFolder = (DefaultAsset)EditorGUILayout.ObjectField("Папка с текстурами", mainTexturesFolder, typeof(DefaultAsset), false);
-        normalMapsFolder = (DefaultAsset)EditorGUILayout.ObjectField("Папка с нормалями", normalMapsFolder, typeof(DefaultAsset), false);
+        mainTexturesFolder = (DefaultAsset)EditorGUILayout.ObjectField("Main Textures Folder", mainTexturesFolder, typeof(DefaultAsset), false);
+        normalMapsFolder = (DefaultAsset)EditorGUILayout.ObjectField("Normal Maps Folder", normalMapsFolder, typeof(DefaultAsset), false);
 
         EditorGUILayout.Space();
 
-        if (GUILayout.Button("Связать текстуры и нормали", GUILayout.Height(40)))
+        if (GUILayout.Button("Assign Normals", GUILayout.Height(40)))
         {
             AssignNormalsByFolder();
         }
@@ -35,14 +34,13 @@ public class NormalMapAssignerWindow : EditorWindow
     {
         if (mainTexturesFolder == null || normalMapsFolder == null)
         {
-            Debug.LogError("Пожалуйста, укажите обе папки в окне скрипта!");
+            Debug.LogError("Please specify both folders in the window!");
             return;
         }
 
         string mainFolderPath = AssetDatabase.GetAssetPath(mainTexturesFolder);
         string normalFolderPath = AssetDatabase.GetAssetPath(normalMapsFolder);
 
-        // Получаем все файлы в папке с текстурами (игнорируем мета-файлы)
         string[] mainFiles = Directory.GetFiles(mainFolderPath);
         int processedCount = 0;
 
@@ -50,10 +48,7 @@ public class NormalMapAssignerWindow : EditorWindow
         {
             if (mainFilePath.EndsWith(".meta")) continue;
 
-            // Получаем точное имя файла с расширением (например, "Frame_001.png")
             string fileName = Path.GetFileName(mainFilePath);
-
-            // Формируем путь, где должен лежать такой же файл в папке с нормалями
             string expectedNormalPath = normalFolderPath + "/" + fileName;
 
             Texture2D normalMap = AssetDatabase.LoadAssetAtPath<Texture2D>(expectedNormalPath);
@@ -65,7 +60,6 @@ public class NormalMapAssignerWindow : EditorWindow
                 if (mainImporter != null)
                 {
                     SecondarySpriteTexture[] secondaryTextures = new SecondarySpriteTexture[1];
-                    // Строгое системное имя для 2D URP Lit шейдера
                     secondaryTextures[0].name = "_NormalMap";
                     secondaryTextures[0].texture = normalMap;
 
@@ -77,10 +71,11 @@ public class NormalMapAssignerWindow : EditorWindow
             }
             else
             {
-                Debug.LogWarning("Для текстуры " + fileName + " не найдена нормаль с таким же именем в папке нормалей!");
+                Debug.LogWarning("Normal map not found for: " + fileName);
             }
         }
 
-        Debug.Log("Готово! Связано нормалей: " + processedCount);
+        Debug.Log("Done! Processed normal maps: " + processedCount);
     }
 }
+#endif
