@@ -153,7 +153,7 @@ namespace Combat
         [SerializeField] private float strikeLungeForce = 2.8f;
 
         [Tooltip("Смещение хитбокса прямого среднего удара")]
-        [SerializeField] private Vector2 hitboxOffset = new Vector2(1.15f, 0.0f);
+        [SerializeField] private Vector2 hitboxOffset = new Vector2(1.15f, -0.40f);
 
         [Tooltip("Размер хитбокса прямого среднего удара")]
         [SerializeField] private Vector2 hitboxSize = new Vector2(1.5f, 0.85f);
@@ -163,28 +163,30 @@ namespace Combat
         [SerializeField] [Range(0f, 1f)] private float lowSweepChance = 0.35f;
 
         [Tooltip("Смещение хитбокса удара вверх над собой (Anti-Air)")]
-        [SerializeField] private Vector2 upHitboxOffset = new Vector2(0.0f, 1.35f);
+        [SerializeField] private Vector2 upHitboxOffset = new Vector2(0.50f, 0.40f);
 
         [Tooltip("Размер хитбокса удара вверх над собой (Anti-Air)")]
         [SerializeField] private Vector2 upHitboxSize = new Vector2(1.6f, 1.35f);
 
         [Tooltip("Смещение хитбокса нижней подсечки по ногам (Low Sweep)")]
-        [SerializeField] private Vector2 lowHitboxOffset = new Vector2(1.15f, -0.45f);
+        [SerializeField] private Vector2 lowHitboxOffset = new Vector2(1.15f, -1.10f);
 
         [Tooltip("Размер хитбокса нижней подсечки по ногам (Low Sweep)")]
         [SerializeField] private Vector2 lowHitboxSize = new Vector2(1.5f, 0.6f);
 
         [Header("--- Visuals & Face ---")]
-        [SerializeField] private Color normalColor = new Color(0.72f, 0.15f, 0.15f, 1f); // Темно-красный кубик
+        [SerializeField] private Color normalColor = Color.white; // Чистый белый для детального спрайта
         [SerializeField] private Color stunColor = new Color(1f, 0.88f, 0.25f, 1f);     // Желто-золотой при стане
         [SerializeField] private Color flashColor = new Color(1f, 1f, 1f, 1f);
         [SerializeField] private Transform faceTransform;
 
         [Header("--- Components & Visualizer ---")]
         [SerializeField] private EnemyTelegraphVisualizer2D telegraphVisualizer;
+        [SerializeField] private EnemyAnimationController2D animationController;
 
         // State
         public EnemyState CurrentState { get; private set; } = EnemyState.Idle;
+        public EnemyAnimationController2D AnimationController => animationController;
         public float CurrentHealth => currentHealth;
         public float MaxHealth => maxHealth;
         public float FacingDirection { get; private set; } = -1f;
@@ -319,6 +321,13 @@ namespace Combat
             {
                 _faceBaseLocalPos = faceTransform.localPosition;
                 _faceBaseLocalScale = faceTransform.localScale;
+                faceTransform.gameObject.SetActive(false);
+            }
+
+            if (animationController == null)
+            {
+                animationController = GetComponent<EnemyAnimationController2D>();
+                if (animationController == null) animationController = gameObject.AddComponent<EnemyAnimationController2D>();
             }
 
             if (telegraphVisualizer == null)
@@ -1216,6 +1225,10 @@ namespace Combat
             // 1. ФАЗА ТЕЛЕГРАФА (WINDUP)
             CurrentState = EnemyState.TelegraphWindup;
             OnTelegraphStarted?.Invoke();
+            if (animationController != null)
+            {
+                animationController.StartAttackAnimation(chosenZone, telegraphDuration, activeStrikeDuration, recoveryDuration);
+            }
             float timer = 0f;
 
             while (timer < telegraphDuration)
@@ -1234,6 +1247,10 @@ namespace Combat
             // 2. АКТИВНАЯ ФАЗА УДАРА (ACTIVE STRIKE)
             CurrentState = EnemyState.ActiveStrike;
             OnActiveStrike?.Invoke();
+            if (animationController != null)
+            {
+                animationController.TriggerActiveStrike(chosenZone, activeStrikeDuration, recoveryDuration);
+            }
             Vector2 strikeCenter = GetHitboxCenter(chosenOffset);
             telegraphVisualizer.ShowActiveStrike(strikeCenter, chosenSize);
 
@@ -1257,6 +1274,11 @@ namespace Combat
             }
 
             yield return new WaitForSeconds(recoveryDuration);
+
+            if (animationController != null)
+            {
+                animationController.EndAttack();
+            }
 
             CurrentState = EnemyState.Chasing;
             _stateRoutine = null;
@@ -1353,6 +1375,7 @@ namespace Combat
             {
                 if (_stateRoutine != null) { StopCoroutine(_stateRoutine); _stateRoutine = null; }
                 if (telegraphVisualizer != null) telegraphVisualizer.HideHitbox();
+                if (animationController != null) animationController.CancelAttack();
                 CurrentState = EnemyState.Chasing;
             }
 
@@ -1428,6 +1451,11 @@ namespace Combat
             if (_flashRoutine != null) StopCoroutine(_flashRoutine);
             _flashRoutine = StartCoroutine(FlashRoutine(normalColor, flashColor, 0.12f));
 
+            if (animationController != null && CurrentState != EnemyState.Dead && !isLauncher && (wasAboveZero || currentStamina > 0f))
+            {
+                animationController.PlayHit(0.25f);
+            }
+
             Debug.Log($"[ENEMY HIT] Получен удар: {dmg:F1} HP | Stale: {isStale} | HP: {currentHealth:F0}/{maxHealth:F0} | Стамина: {currentStamina:F0}/{maxStamina:F0}");
 
             // Проверка гибели от удара
@@ -1497,6 +1525,7 @@ namespace Combat
             if (_stateRoutine != null) { StopCoroutine(_stateRoutine); _stateRoutine = null; }
             if (_flashRoutine != null) { StopCoroutine(_flashRoutine); _flashRoutine = null; }
             if (telegraphVisualizer != null) telegraphVisualizer.HideHitbox();
+            if (animationController != null) animationController.CancelAttack();
 
             if (CurrentState == EnemyState.TelegraphWindup || CurrentState == EnemyState.ActiveStrike || CurrentState == EnemyState.Recovery)
             {
@@ -1515,6 +1544,7 @@ namespace Combat
             if (_stateRoutine != null) { StopCoroutine(_stateRoutine); _stateRoutine = null; }
             if (_flashRoutine != null) { StopCoroutine(_flashRoutine); _flashRoutine = null; }
             if (telegraphVisualizer != null) telegraphVisualizer.HideHitbox();
+            if (animationController != null) animationController.CancelAttack();
 
             if (_rb != null) _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
 
@@ -1596,6 +1626,7 @@ namespace Combat
             {
                 if (_stateRoutine != null) { StopCoroutine(_stateRoutine); _stateRoutine = null; }
                 if (telegraphVisualizer != null) telegraphVisualizer.HideHitbox();
+                if (animationController != null) animationController.CancelAttack();
                 CurrentState = EnemyState.Idle;
             }
 
@@ -1667,6 +1698,8 @@ namespace Combat
             if (_stateRoutine != null) { StopCoroutine(_stateRoutine); _stateRoutine = null; }
             if (_flashRoutine != null) { StopCoroutine(_flashRoutine); _flashRoutine = null; }
 
+            if (animationController != null) animationController.PlayDeath();
+
             if (telegraphVisualizer != null)
             {
                 telegraphVisualizer.HideHitbox();
@@ -1727,6 +1760,7 @@ namespace Combat
 
             SetFacing(-1f);
             CurrentState = EnemyState.Idle;
+            if (animationController != null) animationController.PlayIdle();
 
             Debug.Log("<color=green><b>[ENEMY RESPAWNED]</b></color> Враг возродился на исходной позиции со 100% HP и стамины!");
         }
@@ -1784,6 +1818,8 @@ namespace Combat
                     telegraphVisualizer.HideHitbox();
                 }
 
+                if (animationController != null) animationController.PlayIdle();
+
                 SetFacing(facing != 0f ? Mathf.Sign(facing) : -1f);
             }
         }
@@ -1797,6 +1833,7 @@ namespace Combat
 
         private IEnumerator StunRoutine(float duration, bool replenishStaminaAfter = false)
         {
+            if (animationController != null) animationController.PlayStun();
             if (_sr != null) _sr.color = stunColor;
 
             _stunRemaining = duration;

@@ -273,35 +273,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 2513600879569059135, guid: 77c924a2853e0d34490cd82c79ab36d1, type: 3}
   m_PrefabInstance: {fileID: 111739907}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &119198021 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 8267374510365409490, guid: 50c8c43fa6b36894986730bc18af60f7, type: 3}
-  m_PrefabInstance: {fileID: 6081655611253673181}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &119198028
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 119198021}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2642b704afccc5e46befd73a406f4886, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Combat.AirJuggleReceiver2D
-  apexFreezeDuration: 0.45
-  apexVelocityThreshold: 0.6
-  minLaunchVelocityY: 5
-  airJuggleFreezeDuration: 0.68
-  juggleLiftPerHit: 1.6
-  maxJuggleHits: 5
-  groundLayer:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  enableHoverBob: 1
-  hoverBobFrequency: 14
-  hoverBobAmplitude: 0.05
 --- !u!1 &133004950
 GameObject:
   m_ObjectHideFlags: 0
@@ -711,7 +682,7 @@ Sprite:
       height: 1
     textureRectOffset: {x: 0, y: 0}
     atlasRectOffset: {x: -1, y: -1}
-    settingsRaw: 64
+    settingsRaw: 3136
     uvTransform: {x: 1, y: 0.5, z: 1, w: 0}
     downscaleMultiplier: 1
   m_AtlasRD:
@@ -4365,6 +4336,18 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 3117422897687077040, guid: cf7f706139acba147a49bfc5035508fd, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3117422897687077040, guid: cf7f706139acba147a49bfc5035508fd, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3117422897687077040, guid: cf7f706139acba147a49bfc5035508fd, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 3183196632605885620, guid: cf7f706139acba147a49bfc5035508fd, type: 3}
       propertyPath: m_Pivot.x
       value: 0
@@ -4453,6 +4436,42 @@ PrefabInstance:
       propertyPath: playerCombat
       value: 
       objectReference: {fileID: 8430200140167579319}
+    - target: {fileID: 4755454188934096086, guid: cf7f706139acba147a49bfc5035508fd, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4755454188934096086, guid: cf7f706139acba147a49bfc5035508fd, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4755454188934096086, guid: cf7f706139acba147a49bfc5035508fd, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6289760382037615657, guid: cf7f706139acba147a49bfc5035508fd, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6289760382037615657, guid: cf7f706139acba147a49bfc5035508fd, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6289760382037615657, guid: cf7f706139acba147a49bfc5035508fd, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8879434319243483508, guid: cf7f706139acba147a49bfc5035508fd, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8879434319243483508, guid: cf7f706139acba147a49bfc5035508fd, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8879434319243483508, guid: cf7f706139acba147a49bfc5035508fd, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -4594,17 +4613,9 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
-    - target: {fileID: 4295764612044065273, guid: 50c8c43fa6b36894986730bc18af60f7, type: 3}
-      propertyPath: m_Material
-      value: 
-      objectReference: {fileID: 1226075780}
     - target: {fileID: 8267374510365409490, guid: 50c8c43fa6b36894986730bc18af60f7, type: 3}
       propertyPath: m_Name
       value: Enemy_Fighter
-      objectReference: {fileID: 0}
-    - target: {fileID: 8267374510365409490, guid: 50c8c43fa6b36894986730bc18af60f7, type: 3}
-      propertyPath: m_IsActive
-      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8430291152831818949, guid: 50c8c43fa6b36894986730bc18af60f7, type: 3}
       propertyPath: m_LocalPosition.x
@@ -4646,25 +4657,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 8567788891443196670, guid: 50c8c43fa6b36894986730bc18af60f7, type: 3}
-      propertyPath: canDie
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 8567788891443196670, guid: 50c8c43fa6b36894986730bc18af60f7, type: 3}
-      propertyPath: maxHealth
-      value: 120
-      objectReference: {fileID: 0}
-    - target: {fileID: 8567788891443196670, guid: 50c8c43fa6b36894986730bc18af60f7, type: 3}
-      propertyPath: respawnOnDeath
-      value: 0
-      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 8267374510365409490, guid: 50c8c43fa6b36894986730bc18af60f7, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 119198028}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 50c8c43fa6b36894986730bc18af60f7, type: 3}
 --- !u!1001 &6970111000722754028
 PrefabInstance:
