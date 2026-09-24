@@ -75,8 +75,13 @@ namespace Combat.Editor
             // Г. Нижняя подсказка управления (Controls Quick Strip)
             CreateBottomControlsStrip(canvasObj.transform);
 
-            // Д. Модальное окно управления (Controls Modal Panel)
-            var controlsPanelObj = CreateControlsModal(canvasObj.transform, out Button closeControlsBtn);
+            // Д. Модальное окно управления (Controls Modal Panel с вкладками приёмов и базы)
+            var controlsPanelObj = CreateControlsModal(canvasObj.transform, 
+                out Button closeControlsBtn, 
+                out Button movesTabBtn, 
+                out Button basicsTabBtn, 
+                out GameObject movesContent, 
+                out GameObject basicsContent);
 
             // Е. Fade Overlay (для плавного перехода в игру)
             var fadeOverlayObj = new GameObject("FadeOverlay", typeof(RectTransform), typeof(Image), typeof(CanvasGroup));
@@ -99,6 +104,10 @@ namespace Combat.Editor
             so.FindProperty("quitButton").objectReferenceValue = quitBtn;
             so.FindProperty("controlsPanel").objectReferenceValue = controlsPanelObj;
             so.FindProperty("closeControlsButton").objectReferenceValue = closeControlsBtn;
+            so.FindProperty("movesTabButton").objectReferenceValue = movesTabBtn;
+            so.FindProperty("basicsTabButton").objectReferenceValue = basicsTabBtn;
+            so.FindProperty("movesTabContent").objectReferenceValue = movesContent;
+            so.FindProperty("basicsTabContent").objectReferenceValue = basicsContent;
             so.FindProperty("fadeOverlay").objectReferenceValue = fadeCg;
             so.ApplyModifiedProperties();
 
@@ -272,7 +281,13 @@ namespace Combat.Editor
             txt.alignment = TextAnchor.MiddleLeft;
         }
 
-        private static GameObject CreateControlsModal(Transform parent, out Button closeBtn)
+        private static GameObject CreateControlsModal(
+            Transform parent, 
+            out Button closeBtn, 
+            out Button movesTabBtn, 
+            out Button basicsTabBtn, 
+            out GameObject movesContent, 
+            out GameObject basicsContent)
         {
             // Полупрозрачный оверлей
             var modalRoot = new GameObject("ControlsModalPanel", typeof(RectTransform), typeof(Image));
@@ -284,9 +299,9 @@ namespace Combat.Editor
             mrt.sizeDelta = Vector2.zero;
 
             var mimg = modalRoot.GetComponent<Image>();
-            mimg.color = new Color(0.02f, 0.03f, 0.05f, 0.88f);
+            mimg.color = new Color(0.02f, 0.03f, 0.05f, 0.90f);
 
-            // Окно управления
+            // Окно управления (расширенный размер под список приёмов)
             var winObj = new GameObject("ControlsWindow", typeof(RectTransform), typeof(Image));
             winObj.transform.SetParent(modalRoot.transform, false);
 
@@ -294,53 +309,137 @@ namespace Combat.Editor
             winRt.anchorMin = new Vector2(0.5f, 0.5f);
             winRt.anchorMax = new Vector2(0.5f, 0.5f);
             winRt.pivot = new Vector2(0.5f, 0.5f);
-            winRt.sizeDelta = new Vector2(720f, 520f);
+            winRt.sizeDelta = new Vector2(980f, 680f);
 
             var winImg = winObj.GetComponent<Image>();
             winImg.sprite = s_Resources.background;
             winImg.type = Image.Type.Sliced;
-            winImg.color = new Color(0.08f, 0.10f, 0.15f, 0.98f);
+            winImg.color = new Color(0.07f, 0.09f, 0.14f, 0.98f);
 
-            // Заголовок окна
-            var header = CreateText("Header", winObj.transform, "//  У П Р А В Л Е Н И Е   Б О Е М", 20, FontStyle.Bold, new Color(0.2f, 0.95f, 1f, 1f));
+            // 1. Заголовок окна
+            var header = CreateText("Header", winObj.transform, "//  Б О Е В О Е   Р У К О В О Д С Т В О", 20, FontStyle.Bold, new Color(0.2f, 0.95f, 1f, 1f));
             var hrt = header.GetComponent<RectTransform>();
-            hrt.anchorMin = new Vector2(0.05f, 0.86f);
-            hrt.anchorMax = new Vector2(0.95f, 0.96f);
+            hrt.anchorMin = new Vector2(0.05f, 0.92f);
+            hrt.anchorMax = new Vector2(0.95f, 0.98f);
             hrt.offsetMin = Vector2.zero;
             hrt.offsetMax = Vector2.zero;
             header.GetComponent<Text>().alignment = TextAnchor.MiddleCenter;
 
-            // Список клавиш и описаний
-            string infoContent =
-                "<b>[ ЛКМ (Зажатие и свайп) ]</b>\n" +
-                "Вычерчивание траектории на Векторном Колесе. Быстрые последовательности стрелок активируют комбо-приёмы, выпады и супер-финишеры.\n\n" +
-                "<b>[ ПКМ (Направление) ]</b>\n" +
-                "Направленное отражение и парирование ударов врага в выбранном секторе.\n\n" +
-                "<b>[ Левый Ctrl ]</b>\n" +
-                "Смена стойки: БОЕВАЯ СТОЙКА (приёмы клинка)  ⇄  СТОЙКА ТАКТИКА (арена-контроль и способности кристалла).\n\n" +
-                "<b>[ ESC ]</b>\n" +
-                "Меню паузы, быстрое сохранение, настройки и возврат в главное меню.\n\n" +
-                "<b>[ R ]</b>\n" +
-                "Мгновенный перезапуск боя при гибели персонажа.";
+            // 2. Вкладки (Tabs)
+            float tabY = 0f;
+            movesTabBtn = CreateButton("MovesTabButton", winObj.transform, "⚔  СПИСОК ПРИЁМОВ (СВЯЗКИ)", new Color(0.85f, 0.15f, 0.25f, 1f), ref tabY, 40f, 0f, isPrimary: true);
+            var mtrt = movesTabBtn.GetComponent<RectTransform>();
+            mtrt.anchorMin = new Vector2(0.05f, 0.85f);
+            mtrt.anchorMax = new Vector2(0.49f, 0.91f);
+            mtrt.pivot = new Vector2(0.5f, 0.5f);
+            mtrt.anchoredPosition = Vector2.zero;
+            mtrt.sizeDelta = Vector2.zero;
 
-            var body = CreateText("BodyText", winObj.transform, infoContent, 14, FontStyle.Normal, new Color(0.85f, 0.88f, 0.94f, 0.95f));
-            var brt = body.GetComponent<RectTransform>();
-            brt.anchorMin = new Vector2(0.08f, 0.18f);
-            brt.anchorMax = new Vector2(0.92f, 0.84f);
-            brt.offsetMin = Vector2.zero;
-            brt.offsetMax = Vector2.zero;
-            var btxt = body.GetComponent<Text>();
+            basicsTabBtn = CreateButton("BasicsTabButton", winObj.transform, "⚙  БАЗОВОЕ УПРАВЛЕНИЕ", new Color(0.12f, 0.16f, 0.22f, 1f), ref tabY, 40f, 0f, isPrimary: false);
+            var btrt = basicsTabBtn.GetComponent<RectTransform>();
+            btrt.anchorMin = new Vector2(0.51f, 0.85f);
+            btrt.anchorMax = new Vector2(0.95f, 0.91f);
+            btrt.pivot = new Vector2(0.5f, 0.5f);
+            btrt.anchoredPosition = Vector2.zero;
+            btrt.sizeDelta = Vector2.zero;
+
+            // 3. Контейнер вкладки "Список приемов"
+            movesContent = new GameObject("MovesTabContent", typeof(RectTransform));
+            movesContent.transform.SetParent(winObj.transform, false);
+            var mcRt = movesContent.GetComponent<RectTransform>();
+            mcRt.anchorMin = new Vector2(0.05f, 0.11f);
+            mcRt.anchorMax = new Vector2(0.95f, 0.83f);
+            mcRt.offsetMin = Vector2.zero;
+            mcRt.offsetMax = Vector2.zero;
+
+            string movesInfo =
+                "<color=#FF3355><b>1. ВОСХОДЯЩИЙ ВИХРЬ ⚡ (СУПЕР-ФИНИШЕР)</b></color>\n" +
+                "  • <b>Комбинация:</b>  <color=#FFD700><b>⬋ ⬇ ⬊ ⮕ ⬈</b></color>  <i>(влево: ⬊ ⬇ ⬋ ⬅ ⬉)</i>\n" +
+                "  • <b>Как сделать:</b> Зажмите ЛКМ и плавно проведите дугу по нижнему полукругу вверх в сторону удара.\n" +
+                "  • <b>Характеристики:</b> Урон: <b>38</b> | Зоны: Средняя + Верхняя | Выпад: 5.5 | <b>Подбрасывает врага в воздух (Launcher)!</b>\n\n" +
+
+                "<color=#FF6622><b>2. ПРОНЗАЮЩИЙ ШТОРМ 💥 (СИЛОВОЙ ВЫПАД)</b></color>\n" +
+                "  • <b>Комбинация:</b>  <color=#FFD700><b>⬊ ⮕ ⬈</b></color>  <i>(влево: ⬋ ⬅ ⬉)</i>\n" +
+                "  • <b>Как сделать:</b> Свайп из нижнего сектора вперед и вверх.\n" +
+                "  • <b>Характеристики:</b> Урон: <b>32</b> | Зона: Средняя | Сила выпада: 6.8 (максимальная дистанция атаки)\n\n" +
+
+                "<color=#FFAA00><b>3. ВЕРХНИЙ РУБЯЩИЙ ▲ / ДИАГОНАЛЬНЫЙ СРЕЗ ↗</b></color>\n" +
+                "  • <b>Комбинация:</b>  <color=#FFD700><b>⬇ ⬆</b></color>  <i>(диагональные срезы: ⬋ ⬈  /  ⬊ ⬉)</i>\n" +
+                "  • <b>Как сделать:</b> Резкий вертикальный свайп снизу-вверх (или по диагонали через центр колеса).\n" +
+                "  • <b>Характеристики:</b> Урон: <b>26</b> | Зоны: Верхняя + Средняя | Сбивает врагов в воздухе и бьёт поверх блока.\n\n" +
+
+                "<color=#00E5FF><b>4. ВЫПАД КЛИНКОМ ▶ (СРЕДНИЙ УКОЛ)</b></color>\n" +
+                "  • <b>Комбинация:</b>  <color=#FFD700><b>⬅ ⮕</b></color>  <i>(влево: ⮕ ⬅)</i>\n" +
+                "  • <b>Как сделать:</b> Взмах назад с мгновенным выбросом вперед.\n" +
+                "  • <b>Характеристики:</b> Урон: <b>22</b> | Зона: Средняя | Быстрый колющий тычок для завязки комбо.\n\n" +
+
+                "<color=#33CCFF><b>5. НИЖНЯЯ ПОДСЕЧКА ▼ / НИЗКИЙ СРЕЗ ↘</b></color>\n" +
+                "  • <b>Комбинация:</b>  <color=#FFD700><b>⬆ ⬇</b></color>  <i>(диагональные срезы: ⬉ ⬊  /  ⬈ ⬋)</i>\n" +
+                "  • <b>Как сделать:</b> Свайп сверху-вниз.\n" +
+                "  • <b>Характеристики:</b> Урон: <b>20</b> | Зона: Нижняя | Сбивает равновесие и обходит высокий блок.\n\n" +
+
+                "<color=#00FF99><b>💡 ФИШКИ СИСТЕМЫ ВВОДА:</b></color>\n" +
+                "  • <b>Комбо-Компас:</b> во время зажатия ЛКМ стрелки на колесе светятся золотом, подсказывая продолжение приёма!\n" +
+                "  • <b>Прощение ошибок:</b> ошибка на 1 соседнюю стрелку не сбивает приём — урон наносится на 100% без штрафа.\n" +
+                "  • <b>Hit-Confirm отмены:</b> попав по врагу, можно мгновенно прервать остаток анимации в следующий удар!";
+
+            var movesTextObj = CreateText("MovesText", movesContent.transform, movesInfo, 12, FontStyle.Normal, new Color(0.90f, 0.92f, 0.96f, 0.95f));
+            var mtRt = movesTextObj.GetComponent<RectTransform>();
+            mtRt.anchorMin = Vector2.zero;
+            mtRt.anchorMax = Vector2.one;
+            mtRt.offsetMin = Vector2.zero;
+            mtRt.offsetMax = Vector2.zero;
+            var mtxt = movesTextObj.GetComponent<Text>();
+            mtxt.alignment = TextAnchor.UpperLeft;
+            mtxt.lineSpacing = 1.15f;
+
+            // 4. Контейнер вкладки "Базовое управление"
+            basicsContent = new GameObject("BasicsTabContent", typeof(RectTransform));
+            basicsContent.transform.SetParent(winObj.transform, false);
+            var bcRt = basicsContent.GetComponent<RectTransform>();
+            bcRt.anchorMin = new Vector2(0.05f, 0.11f);
+            bcRt.anchorMax = new Vector2(0.95f, 0.83f);
+            bcRt.offsetMin = Vector2.zero;
+            bcRt.offsetMax = Vector2.zero;
+
+            string basicsInfo =
+                "<color=#00E5FF><b>[ ЛКМ (Зажатие и вычерчивание жеста) ]</b></color>\n" +
+                "Вычерчивание траектории внутри Векторного Колеса. Одиночные свайпы не атакуют вхолостую — удары наносятся строго через комбинации и моушн-связки из 8 направлений (см. вкладку «Список приёмов»).\n\n" +
+
+                "<color=#00E5FF><b>[ ПКМ (Зажатие и выбор сектора) ]</b></color>\n" +
+                "Направленное отражение и парирование атак врага. Выберите сектор направления, откуда летит вражеский удар, и отпустите ПКМ в момент контакта. Успешное парирование оглушает противника и истощает его шкалу выносливости.\n\n" +
+
+                "<color=#00E5FF><b>[ Левый Ctrl ] — Смена боевой стойки:</b></color>\n" +
+                "  • <color=#FF4444><b>БОЕВАЯ СТОЙКА (КЛИНОК):</b></color> выполнение рубящих связок, проверочных выпадов и финишеров клинком.\n" +
+                "  • <color=#00E5FF><b>СТОЙКА ТАКТИКА (МАГИЯ КРИСТАЛЛА):</b></color> свайпы колеса активируют способности контроля арены (Кристалл телепорта, Барьер, Грави-воронка, Ударная волна и др.).\n\n" +
+
+                "<color=#00E5FF><b>[ ESC ]</b></color>\n" +
+                "Меню паузы: продолжить бой, быстрое сохранение, быстрая загрузка, настройки параметров и выход в главное меню.\n\n" +
+
+                "<color=#00E5FF><b>[ R ]</b></color>\n" +
+                "Мгновенный перезапуск арены при гибели персонажа.";
+
+            var basicsTextObj = CreateText("BasicsText", basicsContent.transform, basicsInfo, 13, FontStyle.Normal, new Color(0.90f, 0.92f, 0.96f, 0.95f));
+            var btRt = basicsTextObj.GetComponent<RectTransform>();
+            btRt.anchorMin = Vector2.zero;
+            btRt.anchorMax = Vector2.one;
+            btRt.offsetMin = Vector2.zero;
+            btRt.offsetMax = Vector2.zero;
+            var btxt = basicsTextObj.GetComponent<Text>();
             btxt.alignment = TextAnchor.UpperLeft;
             btxt.lineSpacing = 1.25f;
 
-            // Кнопка Закрыть
+            basicsContent.SetActive(false); // По умолчанию открыта вкладка приемов
+
+            // 5. Кнопка Закрыть
             float closeY = 0f;
-            closeBtn = CreateButton("CloseButton", winObj.transform, "ЗАКРЫТЬ [ ESC ]", new Color(0.85f, 0.15f, 0.25f, 1f), ref closeY, 44f, 0f, isPrimary: true);
+            closeBtn = CreateButton("CloseButton", winObj.transform, "ЗАКРЫТЬ [ ESC ]", new Color(0.85f, 0.15f, 0.25f, 1f), ref closeY, 40f, 0f, isPrimary: true);
             var crt = closeBtn.GetComponent<RectTransform>();
-            crt.anchorMin = new Vector2(0.3f, 0.05f);
-            crt.anchorMax = new Vector2(0.7f, 0.05f);
-            crt.pivot = new Vector2(0.5f, 0f);
+            crt.anchorMin = new Vector2(0.35f, 0.03f);
+            crt.anchorMax = new Vector2(0.65f, 0.09f);
+            crt.pivot = new Vector2(0.5f, 0.5f);
             crt.anchoredPosition = Vector2.zero;
+            crt.sizeDelta = Vector2.zero;
 
             modalRoot.SetActive(false);
             return modalRoot;
