@@ -271,11 +271,29 @@ namespace Combat.Player
             }
         }
 
+        private void OnDisable()
+        {
+            if (Combat.Audio.SoundManager.Instance != null)
+            {
+                Combat.Audio.SoundManager.Instance.UpdateMovementAudio(false, false, false, 0f);
+            }
+        }
+
         private void Update()
         {
             GatherInput();
             UpdateTimers();
             UpdateVisuals();
+            UpdateMovementAudio();
+        }
+
+        private void UpdateMovementAudio()
+        {
+            bool isMoving = (HasMoveInput || Mathf.Abs(Velocity.x) > 0.2f) && !IsHitstunned;
+            if (Combat.Audio.SoundManager.Instance != null)
+            {
+                Combat.Audio.SoundManager.Instance.UpdateMovementAudio(IsGrounded, isMoving, _isSprinting, Velocity.x);
+            }
         }
 
         private void FixedUpdate()
@@ -740,6 +758,10 @@ namespace Combat.Player
             _coyoteTimer = 0f;
             _isJumping = true;
             OnJumpStarted?.Invoke();
+            if (Combat.Audio.SoundManager.Instance != null)
+            {
+                Combat.Audio.SoundManager.Instance.PlayJump();
+            }
 
             // Эффект stretch при прыжке
             if (enableJuiceSquashStretch)
@@ -756,6 +778,10 @@ namespace Combat.Player
             _coyoteTimer = 0f;
             _isJumping = true;
             OnJumpStarted?.Invoke();
+            if (Combat.Audio.SoundManager.Instance != null)
+            {
+                Combat.Audio.SoundManager.Instance.PlayJump();
+            }
 
             // Эффект stretch при двойном прыжке
             if (enableJuiceSquashStretch)

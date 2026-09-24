@@ -569,6 +569,10 @@ namespace Combat.Player
                     modifiedKnockback = knockbackDirection * blockPushbackMultiplier;
 
                     TriggerBlockAbsorbFeedback(hitPoint);
+                    if (Combat.Audio.SoundManager.Instance != null)
+                    {
+                        Combat.Audio.SoundManager.Instance.PlayBlockHit();
+                    }
                     return true;
                 }
                 else
@@ -579,6 +583,10 @@ namespace Combat.Player
                     modifiedKnockback = knockbackDirection * 0.7f;
 
                     TriggerBlockChipFeedback(hitPoint);
+                    if (Combat.Audio.SoundManager.Instance != null)
+                    {
+                        Combat.Audio.SoundManager.Instance.PlayBlockHit();
+                    }
                     return true;
                 }
             }
@@ -595,6 +603,11 @@ namespace Combat.Player
             }
             IsParrying = false;
             IsParryStaggered = false;
+
+            if (Combat.Audio.SoundManager.Instance != null)
+            {
+                Combat.Audio.SoundManager.Instance.PlayParry();
+            }
 
             // 1. Полное (100%) восстановление выносливости и снятие истощения!
             if (_stamina != null)

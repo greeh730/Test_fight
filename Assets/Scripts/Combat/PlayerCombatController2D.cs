@@ -644,6 +644,12 @@ namespace Combat
             CurrentState = CombatState.Active;
             float activeTimer = baseAttack.activeTime / speedMult;
 
+            // Звук взмаха/удара клинком
+            if (Combat.Audio.SoundManager.Instance != null)
+            {
+                Combat.Audio.SoundManager.Instance.PlayPlayerAttack();
+            }
+
             // Выпад в направлении удара
             ApplySequenceLunge(horizontalSign, seq.LungeForce);
 

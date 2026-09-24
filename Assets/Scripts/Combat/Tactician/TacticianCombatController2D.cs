@@ -226,6 +226,11 @@ namespace Combat.Tactician
 
             OnAbilityExecuted?.Invoke(dir);
 
+            if (Combat.Audio.SoundManager.Instance != null)
+            {
+                Combat.Audio.SoundManager.Instance.PlayTacticianAbility(dir);
+            }
+
             switch (dir)
             {
                 case Direction8.Right:     // ➡️

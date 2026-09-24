@@ -1456,6 +1456,11 @@ namespace Combat
                 animationController.PlayHit(0.25f);
             }
 
+            if (Combat.Audio.SoundManager.Instance != null && currentHealth > 0f)
+            {
+                Combat.Audio.SoundManager.Instance.PlayEnemyHit();
+            }
+
             Debug.Log($"[ENEMY HIT] Получен удар: {dmg:F1} HP | Stale: {isStale} | HP: {currentHealth:F0}/{maxHealth:F0} | Стамина: {currentStamina:F0}/{maxStamina:F0}");
 
             // Проверка гибели от удара
@@ -1481,6 +1486,10 @@ namespace Combat
                 _hitstunTimer = 0.8f;
                 _stunRemaining = 2.8f;
                 CurrentState = EnemyState.Stunned;
+                if (Combat.Audio.SoundManager.Instance != null)
+                {
+                    Combat.Audio.SoundManager.Instance.PlayEnemyStun();
+                }
                 if (_stateRoutine != null) StopCoroutine(_stateRoutine);
                 _stateRoutine = StartCoroutine(StunRoutine(2.8f, replenishStaminaAfter: false));
                 return;
@@ -1513,6 +1522,10 @@ namespace Combat
 
             // Сохраняем физический импульс удара (включая подбрасывание вверх от верхней атаки).
             CurrentState = EnemyState.Stunned;
+            if (Combat.Audio.SoundManager.Instance != null)
+            {
+                Combat.Audio.SoundManager.Instance.PlayEnemyStun();
+            }
             Debug.Log($"<color=orange><b>[НЕТ СТАМИНЫ!]</b></color> Враг истощен и оглушен на {staminaBreakStunDuration:F1}с!");
             _stateRoutine = StartCoroutine(StunRoutine(staminaBreakStunDuration, replenishStaminaAfter: true));
         }
@@ -1549,6 +1562,10 @@ namespace Combat
             if (_rb != null) _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
 
             CurrentState = EnemyState.Stunned;
+            if (Combat.Audio.SoundManager.Instance != null)
+            {
+                Combat.Audio.SoundManager.Instance.PlayEnemyStun();
+            }
             float effectiveStun = CalculateEffectiveStunDuration(duration);
             _stateRoutine = StartCoroutine(StunRoutine(effectiveStun, replenishStaminaAfter: false));
 
@@ -1699,6 +1716,10 @@ namespace Combat
             if (_flashRoutine != null) { StopCoroutine(_flashRoutine); _flashRoutine = null; }
 
             if (animationController != null) animationController.PlayDeath();
+            if (Combat.Audio.SoundManager.Instance != null)
+            {
+                Combat.Audio.SoundManager.Instance.PlayEnemyDeath();
+            }
 
             if (telegraphVisualizer != null)
             {

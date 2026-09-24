@@ -255,6 +255,11 @@ namespace Combat
             if (_flashRoutine != null) StopCoroutine(_flashRoutine);
             _flashRoutine = StartCoroutine(FlashColorRoutine(zoneColor));
 
+            if (Combat.Audio.SoundManager.Instance != null && currentHealth > 0f)
+            {
+                Combat.Audio.SoundManager.Instance.PlayEnemyHit();
+            }
+
             Debug.Log($"<color=orange><b>[DUMMY HIT!]</b></color> Атака: <b>{attack?.attackName}</b> | Зона: <b><color=#{ColorUtility.ToHtmlStringRGB(zoneColor)}>{hitZone}</color></b> | Урон: <b>{damage:F0}</b> | HP: <b>{currentHealth:F0}/{maxHealth}</b>");
 
             // Проверка гибели/разрушения
@@ -268,6 +273,11 @@ namespace Combat
         {
             if (IsDead) return;
             IsDead = true;
+
+            if (Combat.Audio.SoundManager.Instance != null)
+            {
+                Combat.Audio.SoundManager.Instance.PlayEnemyDeath();
+            }
 
             if (_flashRoutine != null) { StopCoroutine(_flashRoutine); _flashRoutine = null; }
             if (_statusEffectRoutine != null) { StopCoroutine(_statusEffectRoutine); _statusEffectRoutine = null; }
