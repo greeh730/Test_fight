@@ -420,7 +420,7 @@ namespace Combat.UI
                 {
                     _fadeAlpha = 1f;
                     CurrentRawAngle = Mathf.Repeat(Mathf.Atan2(_penPosition.y, _penPosition.x) * Mathf.Rad2Deg, 360f);
-                    Direction8 newDir = Direction8Extensions.FromAngle(CurrentRawAngle);
+                    Direction8 newDir = EvaluateDirection(CurrentRawAngle);
 
                     if (newDir != CurrentDirection)
                     {
@@ -615,7 +615,7 @@ namespace Combat.UI
             {
                 _fadeAlpha = 1f;
                 CurrentRawAngle = Mathf.Repeat(Mathf.Atan2(inputVec.y, inputVec.x) * Mathf.Rad2Deg, 360f);
-                Direction8 newDir = Direction8Extensions.FromAngle(CurrentRawAngle);
+                Direction8 newDir = EvaluateDirection(CurrentRawAngle);
 
                 if (newDir != CurrentDirection)
                 {
@@ -653,6 +653,21 @@ namespace Combat.UI
                     UpdatePlaqueText(Direction8.None);
                 }
             }
+        }
+
+        /// <summary>
+        /// Определяет сектор направления Direction8 с учетом "умного магнетизма" к возможным продолжениям комбо.
+        /// </summary>
+        private Direction8 EvaluateDirection(float angleDeg)
+        {
+            ICollection<Direction8> favoredDirs = null;
+            if (ActiveGestureButton == WheelGestureButton.LMB && sequenceRecognizer != null && sequenceRecognizer.CurrentBuffer.Count > 0
+                && (playerCombat == null || playerCombat.CurrentStance == CombatStance.Normal))
+            {
+                favoredDirs = CombatSequenceLibrary.Instance.GetPossibleNextDirections(sequenceRecognizer.CurrentBuffer, sequenceRecognizer.CurrentBuffer.Count);
+            }
+
+            return Direction8Extensions.FromAngleWithMagnetism(angleDeg, favoredDirs);
         }
 
         private void UpdateJuiceAnimations()

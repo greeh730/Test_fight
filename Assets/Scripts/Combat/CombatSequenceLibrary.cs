@@ -334,20 +334,99 @@ namespace Combat
 
         /// <summary>
         /// Ищет наиболее подходящий приём для конца буфера истории ввода.
-        /// Возвращает самый длинный совпавший приём (например, "⬋⬇⬊⮕⬈" выиграет у "⬅⮕").
+        /// Возвращает самый подходящий приём по взвешенному приоритету:
+        /// - Точное совпадение: Score = Length * 2.0f
+        /// - Нечёткое совпадение с коррекцией 1 ошибки (Length >= 3): Score = Length * 1.5f - errorScore
+        /// Это гарантирует, что длинная связка или финишер с 1 ошибкой игрока не будет перехвачена случайным коротким выпадом.
         /// </summary>
         public ComboSequenceDefinition FindMatchingSequence(IReadOnlyList<Direction8> buffer, int count)
         {
             EnsureInitialized();
+            if (buffer == null || count <= 0) return null;
+
+            ComboSequenceDefinition bestMatch = null;
+            float bestScore = 0f;
+            bool bestIsFuzzy = false;
+            float bestErrorScore = 0f;
+
             for (int i = 0; i < _allSequences.Count; i++)
             {
                 var seq = _allSequences[i];
+
+                // 1. Точное совпадение
                 if (seq.Matches(buffer, count))
                 {
-                    return seq;
+                    float exactScore = seq.Length * 2.0f;
+                    if (exactScore > bestScore)
+                    {
+                        bestScore = exactScore;
+                        bestMatch = seq;
+                        bestIsFuzzy = false;
+                    }
+                }
+                // 2. Нечёткое совпадение (только для приёмов длины >= 3)
+                else if (seq.Length >= 3 && seq.FuzzyMatches(buffer, count, out float errorScore))
+                {
+                    float fuzzyScore = (seq.Length * 1.5f) - errorScore;
+                    if (fuzzyScore > bestScore)
+                    {
+                        bestScore = fuzzyScore;
+                        bestMatch = seq;
+                        bestIsFuzzy = true;
+                        bestErrorScore = errorScore;
+                    }
                 }
             }
-            return null;
+
+            if (bestMatch != null && bestIsFuzzy)
+            {
+                Debug.Log($"<color=#FFD700>[FUZZY COMBO MATCH]</color> Распознан приём через коррекцию ошибки: <b>{bestMatch.SequenceName}</b> ({bestMatch.GlyphPattern}) | ErrorScore: {bestErrorScore:F2}");
+            }
+
+            return bestMatch;
+        }
+
+        /// <summary>
+        /// Возвращает множество направлений Direction8, которые могут продолжить текущую цепочку ввода
+        /// для завершения какого-либо зарегистрированного приёма (для Smart Magnetism и Combo Compass).
+        /// </summary>
+        public HashSet<Direction8> GetPossibleNextDirections(IReadOnlyList<Direction8> buffer, int count)
+        {
+            EnsureInitialized();
+            var nextSet = new HashSet<Direction8>();
+            if (buffer == null || count <= 0) return nextSet;
+
+            // Проверяем все последовательности, у которых начало (префикс) может совпадать с хвостом буфера
+            for (int i = 0; i < _allSequences.Count; i++)
+            {
+                var seq = _allSequences[i];
+                var directions = seq.RequiredDirections;
+                if (directions == null || directions.Count <= 1) continue;
+
+                // Проверяем совпадение суффикса буфера длины k с префиксом комбинации длины k (1 <= k < directions.Count)
+                for (int k = Math.Min(count, directions.Count - 1); k >= 1; k--)
+                {
+                    bool prefixMatches = true;
+                    int bufStart = count - k;
+                    for (int p = 0; p < k; p++)
+                    {
+                        if (buffer[bufStart + p] != directions[p])
+                        {
+                            prefixMatches = false;
+                            break;
+                        }
+                    }
+
+                    if (prefixMatches)
+                    {
+                        // Следующее необходимое направление: directions[k]
+                        nextSet.Add(directions[k]);
+                        break; // Самый длинный совпавший префикс для этой комбинации найден
+                    }
+                }
+            }
+
+            return nextSet;
         }
     }
 }

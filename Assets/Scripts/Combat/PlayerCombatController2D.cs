@@ -660,6 +660,21 @@ namespace Combat
 
                 CheckHitboxOverlapSequence(effectiveAttack, horizontalSign, boxCenter, boxSize, isFinisher, seq.IsLauncher, isStale);
 
+                // Feature 2: Hit-Confirm Cancel!
+                // При успешном попадании по врагу игрок может мгновенно прервать остаток активной фазы в забуферизованный приём
+                if (_hasHitTargetInCurrentAttack && _bufferedSequence != null)
+                {
+                    if (visualizer != null) visualizer.HideHitbox();
+                    _lastAttackFinishTime = Time.time;
+                    _lastWasFinisher = isFinisher;
+                    var nextSeq = _bufferedSequence;
+                    bool nextStale = _bufferedIsStale;
+                    ClearSequenceBuffer();
+                    _attackRoutine = null;
+                    ExecuteSequenceAttack(nextSeq, nextStale, isComboChain: true);
+                    yield break;
+                }
+
                 activeTimer -= Time.deltaTime;
                 yield return null;
             }

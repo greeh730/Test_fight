@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using Combat;
 using Combat.Player;
 using Combat.Tactician;
 using Combat.Stances;
@@ -246,12 +247,22 @@ namespace Combat.UI
                 }
             }
 
+            // Feature 3: Combo Compass — вычисляем доступные продолжения текущей связки
+            HashSet<Direction8> nextPossibleDirs = null;
+            if (wheelController != null && wheelController.IsDragging && wheelController.ActiveGestureButton == WheelGestureButton.LMB
+                && sequenceRecognizer != null && sequenceRecognizer.CurrentBuffer.Count > 0
+                && (_playerCombat == null || _playerCombat.CurrentStance == CombatStance.Normal))
+            {
+                nextPossibleDirs = CombatSequenceLibrary.Instance.GetPossibleNextDirections(sequenceRecognizer.CurrentBuffer, sequenceRecognizer.CurrentBuffer.Count);
+            }
+
             for (int i = 0; i < arrowSlots.Count; i++)
             {
                 var slot = arrowSlots[i];
                 if (slot.rectTransform == null || slot.image == null) continue;
 
                 bool isActive = (slot.direction == activeDir && activeDir != Direction8.None);
+                bool isPossibleNext = (nextPossibleDirs != null && nextPossibleDirs.Contains(slot.direction));
 
                 // Проверка стойки Тактика и доступности способности
                 bool isTactician = (_playerCombat != null && _playerCombat.CurrentStance == CombatStance.Tactician);
@@ -269,7 +280,7 @@ namespace Combat.UI
                 }
 
                 // 1. Анимация масштаба
-                float targetScale = isActive ? activeScaleMultiplier : 1.0f;
+                float targetScale = isActive ? activeScaleMultiplier : (isPossibleNext ? 1.15f : 1.0f);
                 if (isLockedAbility)
                 {
                     targetScale *= 0.85f;
@@ -277,6 +288,10 @@ namespace Combat.UI
                 else if (isActive)
                 {
                     targetScale += 0.08f * Mathf.Sin(Time.time * pulseSpeed);
+                }
+                else if (isPossibleNext)
+                {
+                    targetScale += 0.05f * Mathf.Sin(Time.time * 6f);
                 }
 
                 if (Application.isPlaying)
@@ -308,7 +323,20 @@ namespace Combat.UI
                 }
                 else
                 {
-                    baseCol = isActive ? (isParry ? parryActiveColor : activeColor) : idleColor;
+                    if (isActive)
+                    {
+                        baseCol = isParry ? parryActiveColor : activeColor;
+                    }
+                    else if (isPossibleNext)
+                    {
+                        // Feature 3: Combo Compass — подсветка доступных следующих шагов комбо тёплым неоново-золотистым свечением
+                        float pulse = 0.75f + 0.25f * Mathf.Sin(Time.time * 6f);
+                        baseCol = new Color(1.0f, 0.82f, 0.25f, 0.85f * pulse);
+                    }
+                    else
+                    {
+                        baseCol = idleColor;
+                    }
                     baseCol.a = Mathf.Clamp01(baseCol.a * wheelAlpha);
                 }
 

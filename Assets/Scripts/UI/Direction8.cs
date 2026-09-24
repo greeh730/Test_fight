@@ -184,5 +184,58 @@ namespace Combat.UI
                 _ => dir
             };
         }
+
+        /// <summary>
+        /// Возвращает расстояние в шагах секторов (0..4) между двумя направлениями по кругу 8 направлений.
+        /// 0 = идентичны, 1 = соседний сектор (45°), 2 = 90°, 3 = 135°, 4 = 180° (противоположные).
+        /// </summary>
+        public static int StepDistance(this Direction8 a, Direction8 b)
+        {
+            if (a == Direction8.None || b == Direction8.None) return 4;
+            int diff = Mathf.Abs((int)a - (int)b);
+            if (diff > 4) diff = 8 - diff;
+            return diff;
+        }
+
+        /// <summary>
+        /// Возвращает угловое расстояние в градусах [0..180] между двумя направлениями.
+        /// </summary>
+        public static float AngularDistance(this Direction8 a, Direction8 b)
+        {
+            return StepDistance(a, b) * 45f;
+        }
+
+        /// <summary>
+        /// Определяет Direction8 с учетом "умного магнетизма" (Smart Magnetism) к ожидаемым продолжениям комбо.
+        /// Если угол находится в расширенном секторе (по умолчанию до 32.5°) одного из приоритетных направлений,
+        /// выбирается это приоритетное направление.
+        /// </summary>
+        public static Direction8 FromAngleWithMagnetism(float angleDeg, System.Collections.Generic.ICollection<Direction8> favoredDirections, float magneticThresholdDeg = 32.5f)
+        {
+            if (favoredDirections != null && favoredDirections.Count > 0)
+            {
+                Direction8 bestFavored = Direction8.None;
+                float minFavoredDist = float.MaxValue;
+
+                foreach (var dir in favoredDirections)
+                {
+                    if (dir == Direction8.None) continue;
+                    float dirAngle = dir.ToAngle();
+                    float delta = Mathf.Abs(Mathf.DeltaAngle(angleDeg, dirAngle));
+                    if (delta <= magneticThresholdDeg && delta < minFavoredDist)
+                    {
+                        minFavoredDist = delta;
+                        bestFavored = dir;
+                    }
+                }
+
+                if (bestFavored != Direction8.None)
+                {
+                    return bestFavored;
+                }
+            }
+
+            return FromAngle(angleDeg);
+        }
     }
 }

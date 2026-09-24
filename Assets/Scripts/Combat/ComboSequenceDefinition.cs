@@ -111,5 +111,117 @@ namespace Combat
 
             return true;
         }
+
+        /// <summary>
+        /// Вычисляет нечеткое соответствие буфера приему с допуском до 1 ошибки.
+        /// Возвращает true, если прием совпадает с буфером (точно или с 1 ошибкой),
+        /// и возвращает score ошибки (0 = идеальное совпадение, 1.0 = соседний сектор 45°, 1.2 = лишний шаг, 1.5 = пропуск).
+        /// </summary>
+        public bool FuzzyMatches(IReadOnlyList<Direction8> buffer, int bufferCount, out float errorScore)
+        {
+            errorScore = float.MaxValue;
+            if (requiredDirections == null || requiredDirections.Count == 0) return false;
+
+            int patternLen = requiredDirections.Count;
+
+            // 1. Точное совпадение (0 ошибок)
+            if (Matches(buffer, bufferCount))
+            {
+                errorScore = 0f;
+                return true;
+            }
+
+            // Для коротких приемов из 2 стрелок (например, "⬅ ⮕") нечеткий поиск запрещен,
+            // чтобы выпад вперед не путался со случайным чихом или другими направлениями
+            if (patternLen < 3) return false;
+
+            // 2. Ошибка подмены (Substitution): ровно 1 стрелка отличается (соседний сектор 45°)
+            if (bufferCount >= patternLen)
+            {
+                int bufferOffset = bufferCount - patternLen;
+                int mismatchCount = 0;
+                int totalStepDist = 0;
+
+                for (int i = 0; i < patternLen; i++)
+                {
+                    Direction8 bufDir = buffer[bufferOffset + i];
+                    Direction8 reqDir = requiredDirections[i];
+                    if (bufDir != reqDir)
+                    {
+                        mismatchCount++;
+                        int dist = bufDir.StepDistance(reqDir);
+                        totalStepDist += dist;
+                        if (dist > (patternLen >= 4 ? 2 : 1))
+                        {
+                            mismatchCount += 2;
+                            break;
+                        }
+                    }
+                }
+
+                if (mismatchCount == 1 && totalStepDist <= (patternLen >= 4 ? 2 : 1))
+                {
+                    errorScore = totalStepDist == 1 ? 1.0f : 1.4f;
+                    return true;
+                }
+            }
+
+            // 3. Лишний промежуточный шаг (Insertion): игрок ввел patternLen + 1 стрелок, где 1 стрелка лишняя
+            if (bufferCount >= patternLen + 1)
+            {
+                int bufferOffset = bufferCount - (patternLen + 1);
+                for (int dropIdx = 1; dropIdx < patternLen; dropIdx++)
+                {
+                    bool matchWithDrop = true;
+                    int bufIdx = 0;
+                    for (int p = 0; p < patternLen; p++)
+                    {
+                        if (bufIdx == dropIdx) bufIdx++;
+                        if (buffer[bufferOffset + bufIdx] != requiredDirections[p])
+                        {
+                            matchWithDrop = false;
+                            break;
+                        }
+                        bufIdx++;
+                    }
+
+                    if (matchWithDrop)
+                    {
+                        errorScore = 1.2f;
+                        return true;
+                    }
+                }
+            }
+
+            // 4. Пропущенный шаг (Omission) для длинных приемов (patternLen >= 4):
+            // игрок ввел patternLen - 1 стрелок в круговом движении
+            if (patternLen >= 4 && bufferCount >= patternLen - 1)
+            {
+                int bufferOffset = bufferCount - (patternLen - 1);
+                for (int skipIdx = 1; skipIdx < patternLen - 1; skipIdx++)
+                {
+                    bool matchWithSkip = true;
+                    int bufIdx = 0;
+                    for (int p = 0; p < patternLen; p++)
+                    {
+                        if (p == skipIdx) continue;
+                        if (buffer[bufferOffset + bufIdx] != requiredDirections[p])
+                        {
+                            matchWithSkip = false;
+                            break;
+                        }
+                        bufIdx++;
+                    }
+
+                    if (matchWithSkip)
+                    {
+                        errorScore = 1.5f;
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
     }
 }
