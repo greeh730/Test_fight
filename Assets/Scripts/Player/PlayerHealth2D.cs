@@ -2,7 +2,9 @@ using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.SceneManagement;
 using Combat;
+using Combat.UI;
 
 namespace Combat.Player
 {
@@ -22,10 +24,7 @@ namespace Combat.Player
         [Tooltip("Если включено (галочка), игрок погибает при HP <= 0. Если выключено — игрок бессмертен (HP не падает ниже 1).")]
         [SerializeField] private bool canDie = true;
 
-        [Tooltip("Автоматическое возрождение через указанное количество секунд (0 = только по клавише R)")]
-        [SerializeField] private float autoRespawnDelay = 3.0f;
-
-        [Tooltip("Клавиша для быстрого возрождения")]
+        [Tooltip("Клавиша для быстрого перезапуска сцены")]
         [SerializeField] private KeyCode respawnKey = KeyCode.R;
 
         [Tooltip("Цвет спрайта игрока при гибели")]
@@ -57,8 +56,6 @@ namespace Combat.Player
         private Quaternion _spawnRotation;
         private Coroutine _flashRoutine;
         private Coroutine _iFrameRoutine;
-        private Coroutine _autoRespawnRoutine;
-        private GameObject _deathOverlayObj;
         private bool _isInvulnerable;
 
         public float MaxHealth => maxHealth;
@@ -120,7 +117,7 @@ namespace Combat.Player
 
             if (keyPressed)
             {
-                Respawn();
+                RestartGame();
             }
         }
 
@@ -219,125 +216,24 @@ namespace Combat.Player
                 _sr.color = deathColor;
             }
 
-            ShowDeathBanner();
+            PlayerDeathScreenUI.ShowDeathScreen();
             onDeath?.Invoke();
             OnAnyPlayerDeath?.Invoke();
 
-            Debug.Log("<color=red><b>[PLAYER DIED]</b></color> Игрок погиб! Нажмите [R] для возрождения.");
+            Debug.Log("<color=red><b>[PLAYER DIED]</b></color> Игрок погиб! Нажмите [R] для перезагрузки сцены.");
+        }
 
-            if (autoRespawnDelay > 0f)
-            {
-                if (_autoRespawnRoutine != null) StopCoroutine(_autoRespawnRoutine);
-                _autoRespawnRoutine = StartCoroutine(AutoRespawnRoutine(autoRespawnDelay));
-            }
+        /// <summary>
+        /// Перезагружает активную сцену для начала заново
+        /// </summary>
+        public void RestartGame()
+        {
+            PlayerDeathScreenUI.RestartGame();
         }
 
         public void Respawn()
         {
-            if (!IsDead) return;
-            IsDead = false;
-
-            if (_autoRespawnRoutine != null)
-            {
-                StopCoroutine(_autoRespawnRoutine);
-                _autoRespawnRoutine = null;
-            }
-
-            HideDeathBanner();
-
-            // Возврат на спавн и сброс поворота
-            transform.position = _spawnPosition;
-            transform.rotation = _spawnRotation;
-
-            if (_rb != null)
-            {
-                _rb.linearVelocity = Vector2.zero;
-            }
-
-            ResetHealth();
-
-            // Включаем обратно компоненты
-            if (_movement != null) _movement.enabled = true;
-            if (_combat != null) _combat.enabled = true;
-
-            // Временная неуязвимость при возрождении (1.2 сек)
-            if (_iFrameRoutine != null) StopCoroutine(_iFrameRoutine);
-            _iFrameRoutine = StartCoroutine(IFrameRoutine(1.2f));
-
-            onRespawn?.Invoke();
-            OnAnyPlayerRespawn?.Invoke();
-            Debug.Log("<color=green><b>[PLAYER RESPAWN]</b></color> Игрок возрожден на исходной позиции!");
-        }
-
-        private void ShowDeathBanner()
-        {
-            HideDeathBanner();
-
-            _deathOverlayObj = new GameObject("Player_Death_Banner");
-            _deathOverlayObj.transform.position = transform.position + new Vector3(0f, 1.3f, 0f);
-
-            var titleObj = new GameObject("Death_Title");
-            titleObj.transform.SetParent(_deathOverlayObj.transform, false);
-            titleObj.transform.localPosition = new Vector3(0f, 0.45f, 0f);
-
-            var titleTm = titleObj.AddComponent<TextMesh>();
-            titleTm.text = "ВЫ ПОГИБЛИ";
-            titleTm.fontSize = 54;
-            titleTm.characterSize = 0.088f;
-            titleTm.alignment = TextAlignment.Center;
-            titleTm.anchor = TextAnchor.MiddleCenter;
-            titleTm.fontStyle = FontStyle.Bold;
-            titleTm.color = new Color(0.95f, 0.15f, 0.15f, 1f);
-            var mr1 = titleObj.GetComponent<MeshRenderer>();
-            if (mr1 != null) mr1.sortingOrder = 95;
-
-            var subObj = new GameObject("Death_Subtitle");
-            subObj.transform.SetParent(_deathOverlayObj.transform, false);
-            subObj.transform.localPosition = new Vector3(0f, -0.18f, 0f);
-
-            var subTm = subObj.AddComponent<TextMesh>();
-            subTm.text = autoRespawnDelay > 0f ? $"[ R ] Возродиться ({autoRespawnDelay:F0}с)" : "[ R ] Возродиться";
-            subTm.fontSize = 32;
-            subTm.characterSize = 0.075f;
-            subTm.alignment = TextAlignment.Center;
-            subTm.anchor = TextAnchor.MiddleCenter;
-            subTm.fontStyle = FontStyle.Bold;
-            subTm.color = new Color(1f, 0.95f, 0.95f, 0.95f);
-            var mr2 = subObj.GetComponent<MeshRenderer>();
-            if (mr2 != null) mr2.sortingOrder = 96;
-        }
-
-        private void HideDeathBanner()
-        {
-            if (_deathOverlayObj != null)
-            {
-                Destroy(_deathOverlayObj);
-                _deathOverlayObj = null;
-            }
-        }
-
-        private IEnumerator AutoRespawnRoutine(float delay)
-        {
-            float elapsed = 0f;
-            while (elapsed < delay)
-            {
-                elapsed += Time.deltaTime;
-                if (_deathOverlayObj != null)
-                {
-                    var sub = _deathOverlayObj.transform.Find("Death_Subtitle");
-                    if (sub != null)
-                    {
-                        var tm = sub.GetComponent<TextMesh>();
-                        if (tm != null)
-                        {
-                            float remaining = Mathf.Max(0f, delay - elapsed);
-                            tm.text = $"[ R ] Возродиться ({remaining:F1}с)";
-                        }
-                    }
-                }
-                yield return null;
-            }
-            Respawn();
+            RestartGame();
         }
 
         public void Heal(float amount)
@@ -377,7 +273,6 @@ namespace Combat.Player
         {
             if (_flashRoutine != null) { StopCoroutine(_flashRoutine); _flashRoutine = null; }
             if (_iFrameRoutine != null) { StopCoroutine(_iFrameRoutine); _iFrameRoutine = null; }
-            if (_autoRespawnRoutine != null) { StopCoroutine(_autoRespawnRoutine); _autoRespawnRoutine = null; }
 
             transform.position = new Vector3(position.x, position.y, transform.position.z);
             if (_rb != null)
@@ -394,7 +289,6 @@ namespace Combat.Player
             else
             {
                 IsDead = false;
-                HideDeathBanner();
                 transform.rotation = _spawnRotation;
 
                 if (_movement != null) _movement.enabled = true;
@@ -437,11 +331,6 @@ namespace Combat.Player
             if (_sr != null) _sr.enabled = true;
             _isInvulnerable = false;
             _iFrameRoutine = null;
-        }
-
-        private void OnDestroy()
-        {
-            HideDeathBanner();
         }
     }
 }
