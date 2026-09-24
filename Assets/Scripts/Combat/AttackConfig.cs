@@ -100,6 +100,28 @@ namespace Combat
             lungeForce = lunge;
         }
 
+        public AttackConfig Clone()
+        {
+            return new AttackConfig(
+                attackName,
+                targetedZones,
+                hitboxOffset,
+                hitboxSize,
+                startupTime,
+                activeTime,
+                recoveryTime,
+                damage,
+                knockbackForce,
+                hitboxColor,
+                isLauncher,
+                isStale,
+                lungeForce
+            )
+            {
+                attacker = this.attacker
+            };
+        }
+
         public AttackConfig CloneWithModifiers(string nameSuffix, float dmgMult, float kbMult, Vector2 size, Color col, bool launcher, bool stale)
         {
             return new AttackConfig(

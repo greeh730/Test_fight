@@ -14,7 +14,7 @@ namespace LevelGeneration
     {
         [Header("--- Геометрия двери ---")]
         [Tooltip("Высота барьера (должна быть достаточно высокой, чтобы боты и игрок не перепрыгнули)")]
-        [SerializeField] private float barrierHeight = 10.0f;
+        [SerializeField] private float barrierHeight = 30.0f;
         [Tooltip("Ширина барьера")]
         [SerializeField] private float barrierWidth = 0.6f;
 

@@ -48,6 +48,26 @@ namespace LevelGeneration
         [Tooltip("Клавиша быстрой перегенерации в игре для тестирования разных вариантов (F4)")]
         [SerializeField] private KeyCode regenerateHotkey = KeyCode.F4;
 
+        [Header("--- Предпросмотр в редакторе (Editor Preview) ---")]
+        [Tooltip("Принудительный выбор конкретной боевой комнаты для предпросмотра в Scene View (-1 = Случайно, 0=Вариант A, 1=Вариант B, 2=Вариант C, 3=Вариант D)")]
+        [SerializeField] private int forcePreviewCombatVariantIndex = -1;
+        public int ForcePreviewCombatVariantIndex
+        {
+            get => forcePreviewCombatVariantIndex;
+            set => forcePreviewCombatVariantIndex = value;
+        }
+
+        [Tooltip("Сбрасывать ли принудительный выбор варианта на случайный при старте Play Mode")]
+        [SerializeField] private bool resetForceVariantOnPlay = true;
+
+        [Tooltip("Спавнить ли врагов при генерации предпросмотра в редакторе")]
+        [SerializeField] private bool spawnEnemiesInEditorPreview = false;
+        public bool SpawnEnemiesInEditorPreview
+        {
+            get => spawnEnemiesInEditorPreview;
+            set => spawnEnemiesInEditorPreview = value;
+        }
+
         [Header("--- Последовательность шагов уровня ---")]
         [SerializeField] private List<LevelSegmentStep> levelSteps = new List<LevelSegmentStep>();
 
@@ -125,6 +145,11 @@ namespace LevelGeneration
             {
                 Destroy(this);
                 return;
+            }
+
+            if (resetForceVariantOnPlay)
+            {
+                forcePreviewCombatVariantIndex = -1;
             }
         }
 
@@ -209,7 +234,21 @@ namespace LevelGeneration
                 }
 
                 // 1. Создаем экземпляр префаба
-                LevelChunk chunkInstance = Instantiate(prefabToSpawn, Vector3.zero, Quaternion.identity, chunksContainer);
+                LevelChunk chunkInstance = null;
+#if UNITY_EDITOR
+                if (!Application.isPlaying)
+                {
+                    chunkInstance = (LevelChunk)UnityEditor.PrefabUtility.InstantiatePrefab(prefabToSpawn, chunksContainer);
+                    if (chunkInstance != null)
+                    {
+                        UnityEditor.Undo.RegisterCreatedObjectUndo(chunkInstance.gameObject, "Generate Level Preview");
+                    }
+                }
+#endif
+                if (chunkInstance == null)
+                {
+                    chunkInstance = Instantiate(prefabToSpawn, Vector3.zero, Quaternion.identity, chunksContainer);
+                }
                 chunkInstance.name = $"[{i:D2}]_{step.segmentName}_{prefabToSpawn.name}";
 
                 // 2. Бесшовно состыковываем вход нового чанка с выходом предыдущего
@@ -272,6 +311,12 @@ namespace LevelGeneration
                     var validList = step.variantPool.FindAll(p => p != null);
                     if (validList.Count > 0)
                     {
+                        if (forcePreviewCombatVariantIndex >= 0)
+                        {
+                            int idx = Mathf.Clamp(forcePreviewCombatVariantIndex, 0, validList.Count - 1);
+                            return validList[idx];
+                        }
+
                         int randomIndex = UnityEngine.Random.Range(0, validList.Count);
                         return validList[randomIndex];
                     }
@@ -316,6 +361,11 @@ namespace LevelGeneration
         private void SpawnEnemiesForCurrentCycle(List<LevelChunk> spawnedChunks)
         {
             ClearEnemies();
+
+            if (!Application.isPlaying && !spawnEnemiesInEditorPreview)
+            {
+                return;
+            }
 
             // Если префаб врага не задан в инспекторе, пытаемся загрузить стандартный префаб
             if (enemyPrefab == null)
@@ -444,10 +494,24 @@ namespace LevelGeneration
 
         private SectorBarrierDoor2D SpawnOrSetupDoor(string doorName, Vector3 worldPos)
         {
-            SectorBarrierDoor2D door;
+            SectorBarrierDoor2D door = null;
             if (barrierDoorPrefab != null)
             {
-                door = Instantiate(barrierDoorPrefab, worldPos, Quaternion.identity, chunksContainer);
+#if UNITY_EDITOR
+                if (!Application.isPlaying)
+                {
+                    door = (SectorBarrierDoor2D)UnityEditor.PrefabUtility.InstantiatePrefab(barrierDoorPrefab, chunksContainer);
+                    if (door != null)
+                    {
+                        door.transform.position = worldPos;
+                        UnityEditor.Undo.RegisterCreatedObjectUndo(door.gameObject, "Spawn Door Preview");
+                    }
+                }
+#endif
+                if (door == null)
+                {
+                    door = Instantiate(barrierDoorPrefab, worldPos, Quaternion.identity, chunksContainer);
+                }
             }
             else
             {
@@ -455,6 +519,12 @@ namespace LevelGeneration
                 go.transform.SetParent(chunksContainer, false);
                 go.transform.position = worldPos;
                 door = go.AddComponent<SectorBarrierDoor2D>();
+#if UNITY_EDITOR
+                if (!Application.isPlaying)
+                {
+                    UnityEditor.Undo.RegisterCreatedObjectUndo(go, "Spawn Door Preview");
+                }
+#endif
             }
             door.name = doorName;
             return door;

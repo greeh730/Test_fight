@@ -31,6 +31,10 @@ namespace Combat
             private set => _instance = value;
         }
 
+        [Header("--- База данных хитбоксов и атак (SO) ---")]
+        [SerializeField] private CombatAttackDatabase attackDatabase;
+        public CombatAttackDatabase AttackDatabase => attackDatabase;
+
         [Header("--- Предустановленные приёмы (Presets) ---")]
         [SerializeField] private List<ComboSequenceDefinition> customSequences = new List<ComboSequenceDefinition>();
 
@@ -69,6 +73,57 @@ namespace Combat
         {
             _allSequences.Clear();
 
+            if (attackDatabase == null)
+            {
+                attackDatabase = Resources.Load<CombatAttackDatabase>("CombatAttackDatabase");
+#if UNITY_EDITOR
+                if (attackDatabase == null)
+                {
+                    attackDatabase = UnityEditor.AssetDatabase.LoadAssetAtPath<CombatAttackDatabase>("Assets/Resources/CombatAttackDatabase.asset");
+                }
+#endif
+            }
+
+            if (attackDatabase != null && attackDatabase.Attacks != null && attackDatabase.Attacks.Count > 0)
+            {
+                foreach (var entry in attackDatabase.Attacks)
+                {
+                    if (entry == null || string.IsNullOrEmpty(entry.sequenceId)) continue;
+                    RegisterSequence(new ComboSequenceDefinition(
+                        entry.sequenceId,
+                        entry.displayName,
+                        entry.glyphPattern,
+                        entry.attackConfig != null ? entry.attackConfig.Clone() : new AttackConfig(),
+                        entry.staminaCost,
+                        entry.isLauncher,
+                        entry.lungeForce
+                    ));
+                }
+            }
+            else
+            {
+                // Резервная инициализация по умолчанию (Fallback)
+                RegisterDefaultHardcodedSequences();
+            }
+
+            // Добавляем пользовательские приёмы из инспектора, если есть
+            if (customSequences != null)
+            {
+                foreach (var seq in customSequences)
+                {
+                    if (seq != null && !string.IsNullOrEmpty(seq.SequenceId))
+                    {
+                        RegisterSequence(seq);
+                    }
+                }
+            }
+
+            // Сортируем: более длинные приёмы должны проверяться первыми (Longest-Match-First)
+            SortSequences();
+        }
+
+        private void RegisterDefaultHardcodedSequences()
+        {
             // 1. Средний выпад вперед (Mid Forward Slash): ⬅ ⮕
             RegisterSequence(new ComboSequenceDefinition(
                 "strike_mid_forward",
@@ -302,21 +357,25 @@ namespace Combat
                 launcher: false,
                 lunge: 6.8f
             ));
+        }
 
-            // Добавляем пользовательские приёмы из инспектора, если есть
-            if (customSequences != null)
+        public ComboSequenceDefinition GetSequence(string sequenceId)
+        {
+            EnsureInitialized();
+            return _allSequences.Find(s => s.SequenceId == sequenceId);
+        }
+
+        public void UpdateSequenceAttack(string sequenceId, AttackConfig newConfig, float stamina, bool launcher, float lunge)
+        {
+            EnsureInitialized();
+            var seq = _allSequences.Find(s => s.SequenceId == sequenceId);
+            if (seq != null)
             {
-                foreach (var seq in customSequences)
-                {
-                    if (seq != null && !string.IsNullOrEmpty(seq.SequenceId))
-                    {
-                        RegisterSequence(seq);
-                    }
-                }
+                if (newConfig != null) seq.SetAttackData(newConfig.Clone());
+                seq.SetStaminaCost(stamina);
+                seq.SetLauncher(launcher);
+                seq.SetLungeForce(lunge);
             }
-
-            // Сортируем: более длинные приёмы должны проверяться первыми (Longest-Match-First)
-            SortSequences();
         }
 
         public void RegisterSequence(ComboSequenceDefinition seq)

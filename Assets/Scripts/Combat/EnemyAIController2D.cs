@@ -1464,6 +1464,21 @@ namespace Combat
         }
 
         /// <summary>
+        /// Отменяет текущую атаку врага, гасит визуализаторы замаха и переводит в Idle.
+        /// </summary>
+        public void CancelAttack()
+        {
+            if (_stateRoutine != null) { StopCoroutine(_stateRoutine); _stateRoutine = null; }
+            if (_flashRoutine != null) { StopCoroutine(_flashRoutine); _flashRoutine = null; }
+            if (telegraphVisualizer != null) telegraphVisualizer.HideHitbox();
+
+            if (CurrentState == EnemyState.TelegraphWindup || CurrentState == EnemyState.ActiveStrike || CurrentState == EnemyState.Recovery)
+            {
+                CurrentState = EnemyState.Idle;
+            }
+        }
+
+        /// <summary>
         /// Принудительно оглушает врага (вызывается при успешном парировании игрока).
         /// Срывает любые замахи и действия, останавливает врага и открывает его для комбо.
         /// </summary>

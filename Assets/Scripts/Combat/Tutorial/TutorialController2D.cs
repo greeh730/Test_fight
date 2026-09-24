@@ -41,8 +41,11 @@ namespace Combat.Tutorial
         [SerializeField] private EnemyAIController2D tutorialEnemy;
 
         [Header("--- Positions & Triggers ---")]
-        [Tooltip("Позиция X, до которой игрок должен дойти на этапе передвижения")]
-        [SerializeField] private float movementTargetX = 11.5f;
+        [Tooltip("Физический триггер для завершения этапа передвижения (можно двигать и масштабировать в Scene View)")]
+        [SerializeField] private TutorialTriggerZone2D movementTrigger;
+
+        [Tooltip("Резервная позиция X, если физический триггер не назначен")]
+        [SerializeField] private float movementTargetX = 13.5f;
 
         [Header("--- UI Elements ---")]
         [SerializeField] private GameObject promptPanel;
@@ -201,8 +204,8 @@ namespace Combat.Tutorial
         {
             if (playerMovement == null) return;
 
-            // Игрок должен пройти за препятствие (x >= movementTargetX)
-            if (playerMovement.transform.position.x >= movementTargetX)
+            // Если физический триггер не задан — используем резервную проверку по X
+            if (movementTrigger == null && playerMovement.transform.position.x >= movementTargetX)
             {
                 CompleteCurrentStage(TutorialStage.MeleeCombat);
             }
@@ -318,11 +321,6 @@ namespace Combat.Tutorial
                 _dodgeSuccess = true;
                 Time.timeScale = 1.0f;
 
-                if (tutorialEnemy != null)
-                {
-                    tutorialEnemy.Stun(2.5f);
-                }
-
                 if (promptObjectiveText != null)
                 {
                     promptObjectiveText.text = "<color=#00FF88><b>✓ РЫВОК ВЫПОЛНЕН! Урон успешно избегнут!</b></color>";
@@ -377,7 +375,7 @@ namespace Combat.Tutorial
 
                 if (tutorialEnemy != null)
                 {
-                    tutorialEnemy.Stun(3.0f);
+                    tutorialEnemy.Stun(5.0f);
                 }
 
                 if (promptObjectiveText != null)
@@ -391,7 +389,21 @@ namespace Combat.Tutorial
 
         private IEnumerator FinishParryStageRoutine()
         {
-            yield return new WaitForSeconds(3.0f);
+            yield return new WaitForSeconds(1.8f);
+            if (tutorialEnemy != null)
+            {
+                tutorialEnemy.CancelAttack();
+                tutorialEnemy.gameObject.SetActive(false);
+            }
+            if (playerMovement != null)
+            {
+                var pHealth = playerMovement.GetComponent<PlayerHealth2D>();
+                if (pHealth != null)
+                {
+                    pHealth.CanDie = false;
+                    pHealth.SetInvulnerable(true);
+                }
+            }
             CompleteCurrentStage(TutorialStage.Completed);
         }
 
@@ -415,7 +427,27 @@ namespace Combat.Tutorial
         private IEnumerator TransitionToStageRoutine(TutorialStage nextStage)
         {
             if (objectiveCheckmark != null) objectiveCheckmark.color = new Color(0f, 1f, 0.5f, 1f);
-            yield return new WaitForSeconds(0.6f);
+
+            if (nextStage == TutorialStage.Completed)
+            {
+                // Немедленно нейтрализуем врагов и защищаем игрока от любой случайной гибели
+                if (tutorialEnemy != null)
+                {
+                    tutorialEnemy.CancelAttack();
+                    tutorialEnemy.gameObject.SetActive(false);
+                }
+                if (playerMovement != null)
+                {
+                    var pHealth = playerMovement.GetComponent<PlayerHealth2D>();
+                    if (pHealth != null)
+                    {
+                        pHealth.CanDie = false;
+                        pHealth.SetInvulnerable(true);
+                    }
+                }
+            }
+
+            yield return new WaitForSeconds(0.4f);
             SetStage(nextStage);
         }
 
@@ -541,8 +573,79 @@ namespace Combat.Tutorial
             }
         }
 
+        private void OnEnable()
+        {
+            if (movementTrigger != null)
+            {
+                movementTrigger.OnPlayerEntered -= OnMovementTriggerEntered;
+                movementTrigger.OnPlayerEntered += OnMovementTriggerEntered;
+            }
+        }
+
+        private void OnDisable()
+        {
+            Time.timeScale = 1.0f;
+            if (movementTrigger != null)
+            {
+                movementTrigger.OnPlayerEntered -= OnMovementTriggerEntered;
+            }
+        }
+
+        private void OnMovementTriggerEntered(Collider2D playerCol)
+        {
+            if (CurrentStage == TutorialStage.Movement)
+            {
+                CompleteCurrentStage(TutorialStage.MeleeCombat);
+            }
+        }
+
+        private void OnDrawGizmosSelected()
+        {
+            if (movementTrigger == null)
+            {
+                Gizmos.color = new Color(0.2f, 0.95f, 1f, 0.6f);
+                Gizmos.DrawLine(new Vector3(movementTargetX, -2f, 0f), new Vector3(movementTargetX, 8f, 0f));
+#if UNITY_EDITOR
+                UnityEditor.Handles.Label(new Vector3(movementTargetX, 4f, 0f), $"Резервная граница Этапа 1 (X={movementTargetX:F1})");
+#endif
+            }
+        }
+
         private void ShowCompletionModal()
         {
+            // 1. ПОЛНАЯ ОСТАНОВКА ВРЕМЕНИ
+            Time.timeScale = 0f;
+
+            // 2. Прерываем любые фоновые корутины атак и переходов
+            StopAllCoroutines();
+
+            // 3. Отключаем врагов и манекен
+            if (tutorialEnemy != null)
+            {
+                tutorialEnemy.CancelAttack();
+                tutorialEnemy.gameObject.SetActive(false);
+            }
+            if (trainingDummy != null)
+            {
+                trainingDummy.gameObject.SetActive(false);
+            }
+
+            // 4. Защищаем игрока от любой возможной гибели (снаряды, эффекты)
+            if (playerMovement != null)
+            {
+                var pHealth = playerMovement.GetComponent<PlayerHealth2D>();
+                if (pHealth != null)
+                {
+                    pHealth.CanDie = false;
+                    pHealth.SetInvulnerable(true);
+                }
+            }
+            if (playerCombat != null)
+            {
+                playerCombat.CancelAttack();
+            }
+
+            // 5. Открываем модальное окно завершения обучения
             if (completionModal != null)
             {
                 completionModal.SetActive(true);
@@ -558,13 +661,13 @@ namespace Combat.Tutorial
         public void GoToArena()
         {
             Time.timeScale = 1.0f;
-            SceneManager.LoadScene(arenaSceneName);
+            ScreenFadeTransition2D.FadeAndLoadScene(arenaSceneName);
         }
 
         public void GoToMainMenu()
         {
             Time.timeScale = 1.0f;
-            SceneManager.LoadScene(mainMenuSceneName);
+            ScreenFadeTransition2D.FadeAndLoadScene(mainMenuSceneName);
         }
     }
 }

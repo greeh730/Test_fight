@@ -138,14 +138,7 @@ namespace Combat
                 vectorWheel = FindAnyObjectByType<VectorWheelController>();
             }
 
-            if (sequenceRecognizer == null && vectorWheel != null)
-            {
-                sequenceRecognizer = vectorWheel.SequenceRecognizer;
-            }
-            if (sequenceRecognizer == null)
-            {
-                sequenceRecognizer = FindAnyObjectByType<DirectionSequenceRecognizer>();
-            }
+            EnsureSequenceRecognizer();
 
             if (faceTransform == null)
             {
@@ -164,13 +157,48 @@ namespace Combat
             }
         }
 
-        private void Start()
+        public void SetSequenceRecognizer(DirectionSequenceRecognizer recognizer)
         {
+            if (sequenceRecognizer != null)
+            {
+                sequenceRecognizer.OnSequenceMatched -= OnSequenceMatched;
+            }
+
+            sequenceRecognizer = recognizer;
+
+            if (sequenceRecognizer != null && isActiveAndEnabled)
+            {
+                sequenceRecognizer.OnSequenceMatched -= OnSequenceMatched;
+                sequenceRecognizer.OnSequenceMatched += OnSequenceMatched;
+            }
+        }
+
+        private void EnsureSequenceRecognizer()
+        {
+            if (vectorWheel == null)
+            {
+                vectorWheel = FindAnyObjectByType<VectorWheelController>();
+            }
+
+            if (sequenceRecognizer == null && vectorWheel != null)
+            {
+                sequenceRecognizer = vectorWheel.SequenceRecognizer;
+            }
             if (sequenceRecognizer == null)
             {
-                if (vectorWheel != null) sequenceRecognizer = vectorWheel.SequenceRecognizer;
-                if (sequenceRecognizer == null) sequenceRecognizer = FindAnyObjectByType<DirectionSequenceRecognizer>();
+                sequenceRecognizer = FindAnyObjectByType<DirectionSequenceRecognizer>();
             }
+
+            if (sequenceRecognizer != null && isActiveAndEnabled)
+            {
+                sequenceRecognizer.OnSequenceMatched -= OnSequenceMatched;
+                sequenceRecognizer.OnSequenceMatched += OnSequenceMatched;
+            }
+        }
+
+        private void Start()
+        {
+            EnsureSequenceRecognizer();
 
             if (vectorWheel != null)
             {
@@ -191,20 +219,7 @@ namespace Combat
                 vectorWheel.onSwipeCompleted.AddListener(OnWheelSwipeCompleted);
             }
 
-            if (sequenceRecognizer == null && vectorWheel != null)
-            {
-                sequenceRecognizer = vectorWheel.SequenceRecognizer;
-            }
-            if (sequenceRecognizer == null)
-            {
-                sequenceRecognizer = FindAnyObjectByType<DirectionSequenceRecognizer>();
-            }
-
-            if (sequenceRecognizer != null)
-            {
-                sequenceRecognizer.OnSequenceMatched -= OnSequenceMatched;
-                sequenceRecognizer.OnSequenceMatched += OnSequenceMatched;
-            }
+            EnsureSequenceRecognizer();
         }
 
         public void CancelAttack()
@@ -225,6 +240,7 @@ namespace Combat
             {
                 vectorWheel.onSwipeCompleted.RemoveListener(OnWheelSwipeCompleted);
             }
+
             if (sequenceRecognizer != null)
             {
                 sequenceRecognizer.OnSequenceMatched -= OnSequenceMatched;
@@ -528,8 +544,182 @@ namespace Combat
                 return;
             }
 
-            // В Боевой Стойке (Normal) одиночные свайпы НЕ наносят ударов!
-            // Все удары и комбо выполняются строго через связки жестов (DirectionSequenceRecognizer)
+            // В Боевой Стойке (Normal): если не сработала многонаправленная связка, выполняем базовый удар в сторону свайпа!
+            if (Time.time - _lastAttackStartTime > 0.28f)
+            {
+                ExecuteBasicDirectionalStrike(dir);
+            }
+        }
+
+        private void ExecuteBasicDirectionalStrike(Direction8 dir)
+        {
+            if (!CanExecuteAttackNow()) return;
+
+            if (_stamina != null && (_stamina.IsExhausted || !_stamina.CanAfford(10f)))
+            {
+                Debug.LogWarning("<color=orange>[СТАМИНА НА НУЛЕ]</color> Недостаточно выносливости для базового удара!");
+                return;
+            }
+
+            ComboSequenceDefinition strike = GetBasicStrikeForDirection(dir);
+            if (strike != null)
+            {
+                ExecuteSequenceAttack(strike, false);
+            }
+        }
+
+        private ComboSequenceDefinition GetBasicStrikeForDirection(Direction8 dir)
+        {
+            var lib = CombatSequenceLibrary.Instance;
+            switch (dir)
+            {
+                case Direction8.Right:
+                case Direction8.UpRight:
+                case Direction8.DownRight:
+                {
+                    var baseSeq = lib != null ? lib.GetSequence("strike_mid_forward") : null;
+                    if (baseSeq != null)
+                    {
+                        return new ComboSequenceDefinition(
+                            "strike_basic_right",
+                            baseSeq.SequenceName,
+                            new Direction8[] { Direction8.Right },
+                            baseSeq.AttackData != null ? baseSeq.AttackData.Clone() : null,
+                            baseSeq.StaminaCost,
+                            baseSeq.IsLauncher,
+                            baseSeq.LungeForce
+                        );
+                    }
+                    return new ComboSequenceDefinition(
+                        "strike_basic_right",
+                        "Выпад клинком ▶",
+                        new Direction8[] { Direction8.Right },
+                        new AttackConfig(
+                            "Базовый выпад вправо",
+                            CombatZone.Mid,
+                            new Vector2(1.2f, 0.0f),
+                            new Vector2(1.4f, 0.85f),
+                            0.05f, 0.14f, 0.16f,
+                            22f,
+                            new Vector2(5.0f, 1.5f),
+                            new Color(1f, 0.85f, 0.15f, 0.85f)
+                        ),
+                        stamina: 10f,
+                        launcher: false,
+                        lunge: 3.5f
+                    );
+                }
+
+                case Direction8.Left:
+                case Direction8.UpLeft:
+                case Direction8.DownLeft:
+                {
+                    var baseSeq = lib != null ? lib.GetSequence("strike_turnaround") : null;
+                    if (baseSeq != null)
+                    {
+                        return new ComboSequenceDefinition(
+                            "strike_basic_left",
+                            baseSeq.SequenceName,
+                            new Direction8[] { Direction8.Left },
+                            baseSeq.AttackData != null ? baseSeq.AttackData.Clone() : null,
+                            baseSeq.StaminaCost,
+                            baseSeq.IsLauncher,
+                            baseSeq.LungeForce
+                        );
+                    }
+                    return new ComboSequenceDefinition(
+                        "strike_basic_left",
+                        "Выпад клинком ◀",
+                        new Direction8[] { Direction8.Left },
+                        new AttackConfig(
+                            "Базовый выпад влево",
+                            CombatZone.Mid,
+                            new Vector2(1.2f, 0.0f),
+                            new Vector2(1.4f, 0.85f),
+                            0.05f, 0.14f, 0.16f,
+                            22f,
+                            new Vector2(5.0f, 1.5f),
+                            new Color(1f, 0.85f, 0.15f, 0.85f)
+                        ),
+                        stamina: 10f,
+                        launcher: false,
+                        lunge: 3.5f
+                    );
+                }
+
+                case Direction8.Up:
+                {
+                    var baseSeq = lib != null ? lib.GetSequence("strike_high_slash") : null;
+                    if (baseSeq != null)
+                    {
+                        return new ComboSequenceDefinition(
+                            "strike_basic_up",
+                            baseSeq.SequenceName,
+                            new Direction8[] { Direction8.Up },
+                            baseSeq.AttackData != null ? baseSeq.AttackData.Clone() : null,
+                            baseSeq.StaminaCost,
+                            baseSeq.IsLauncher,
+                            baseSeq.LungeForce
+                        );
+                    }
+                    return new ComboSequenceDefinition(
+                        "strike_basic_up",
+                        "Верхний рубящий ▲",
+                        new Direction8[] { Direction8.Up },
+                        new AttackConfig(
+                            "Базовый срез вверх",
+                            CombatZone.Mid | CombatZone.High,
+                            new Vector2(1.0f, 0.5f),
+                            new Vector2(1.3f, 1.4f),
+                            0.06f, 0.16f, 0.20f,
+                            26f,
+                            new Vector2(3.0f, 6.0f),
+                            new Color(1f, 0.35f, 0.1f, 0.85f)
+                        ),
+                        stamina: 12f,
+                        launcher: false,
+                        lunge: 2.5f
+                    );
+                }
+
+                case Direction8.Down:
+                {
+                    var baseSeq = lib != null ? lib.GetSequence("strike_low_sweep") : null;
+                    if (baseSeq != null)
+                    {
+                        return new ComboSequenceDefinition(
+                            "strike_basic_down",
+                            baseSeq.SequenceName,
+                            new Direction8[] { Direction8.Down },
+                            baseSeq.AttackData != null ? baseSeq.AttackData.Clone() : null,
+                            baseSeq.StaminaCost,
+                            baseSeq.IsLauncher,
+                            baseSeq.LungeForce
+                        );
+                    }
+                    return new ComboSequenceDefinition(
+                        "strike_basic_down",
+                        "Нижняя подсечка ▼",
+                        new Direction8[] { Direction8.Down },
+                        new AttackConfig(
+                            "Базовая подсечка",
+                            CombatZone.Low,
+                            new Vector2(1.1f, -0.45f),
+                            new Vector2(1.5f, 0.65f),
+                            0.05f, 0.14f, 0.18f,
+                            20f,
+                            new Vector2(4.5f, 0.8f),
+                            new Color(0.15f, 0.85f, 1f, 0.85f)
+                        ),
+                        stamina: 10f,
+                        launcher: false,
+                        lunge: 3.0f
+                    );
+                }
+
+                default:
+                    return null;
+            }
         }
 
         public bool ExecuteSequenceAttack(ComboSequenceDefinition seq, bool isStale, bool isComboChain = false)

@@ -313,9 +313,14 @@ namespace Combat.UI
 
         /// <summary>
         /// Показать экран гибели с плавным появлением
-        /// </summary>
         public static void ShowDeathScreen()
         {
+            var tutorial = FindAnyObjectByType<Combat.Tutorial.TutorialController2D>();
+            if (tutorial != null && tutorial.CurrentStage == Combat.Tutorial.TutorialStage.Completed)
+            {
+                return;
+            }
+
             if (Instance == null)
             {
                 var existing = FindAnyObjectByType<PlayerDeathScreenUI>();

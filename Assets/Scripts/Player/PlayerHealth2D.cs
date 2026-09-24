@@ -64,6 +64,11 @@ namespace Combat.Player
         public bool CanDie { get => canDie; set => canDie = value; }
         public bool IsDead { get; private set; }
 
+        public void SetInvulnerable(bool invulnerable)
+        {
+            _isInvulnerable = invulnerable;
+        }
+
         private void Awake()
         {
             _rb = GetComponent<Rigidbody2D>();

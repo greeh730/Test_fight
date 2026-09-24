@@ -4992,6 +4992,7 @@ MonoBehaviour:
   quickSaveButton: {fileID: 5901113447461923335}
   quickLoadButton: {fileID: 1991267798661308037}
   settingsButton: {fileID: 4393125045040600639}
+  mainMenuButton: {fileID: 0}
   feedbackText: {fileID: 8238204484703122000}
   settingsUI: {fileID: 150038128278868353}
   fadeDuration: 0.15
@@ -7010,6 +7011,7 @@ GameObject:
   m_Component:
   - component: {fileID: 6763442079272277910}
   - component: {fileID: 3834546557207936245}
+  - component: {fileID: 3858264767948027543}
   m_Layer: 0
   m_Name: VectorWheel
   m_TagString: Untagged
@@ -7065,18 +7067,12 @@ MonoBehaviour:
   sectorHighlightImage: {fileID: 3169626064596956546}
   centerCoreImage: {fileID: 3577393515349729051}
   wheelTrailGraphic: {fileID: 7759671569501058818}
+  sequenceRecognizer: {fileID: 0}
+  playerCombat: {fileID: 0}
+  arrowsOverlay: {fileID: 0}
   plaqueCanvasGroup: {fileID: 820771883410304530}
   plaqueRect: {fileID: 1941758324389318739}
   attackNameText: {fileID: 7066682489098680660}
-  attackNames:
-  - "\u0421\u0420\u0415\u0414\u041D\u0418\u0419 \u0412\u041F\u0415\u0420\u0415\u0414 \u25B6"
-  - "\u0412\u0415\u0420\u0425\u041D\u0418\u0419 \u0412\u041F\u0415\u0420\u0415\u0414 \u2197"
-  - "\u0412\u0415\u0420\u0425\u041D\u0418\u0419 \u0423\u0414\u0410\u0420 \u25B2"
-  - "\u0412\u0415\u0420\u0425\u041D\u0418\u0419 \u041D\u0410\u0417\u0410\u0414 \u2196"
-  - "\u0421\u0420\u0415\u0414\u041D\u0418\u0419 \u041D\u0410\u0417\u0410\u0414 \u25C0"
-  - "\u041D\u0418\u0416\u041D\u0418\u0419 \u041D\u0410\u0417\u0410\u0414 \u2199"
-  - "\u041D\u0418\u0416\u041D\u0418\u0419 \u0423\u0414\u0410\u0420 \u25BC"
-  - "\u041D\u0418\u0416\u041D\u0418\u0419 \u0412\u041F\u0415\u0420\u0415\u0414 \u2198"
   neutralStanceName: "\u2014 \u0411\u041E\u0415\u0412\u0410\u042F \u0421\u0422\u041E\u0419\u041A\u0410 \u2014"
   outlineColor: {r: 1, g: 1, b: 1, a: 1}
   highlightColor: {r: 1, g: 0.12, b: 0.25, a: 0.65}
@@ -7086,9 +7082,6 @@ MonoBehaviour:
   activeScaleMultiplier: 1.025
   scaleSmoothSpeed: 8
   sectorPulseSpeed: 7
-  chargeThresholdTime: 1
-  maxHoldAutoReleaseTime: 2
-  chargedGlowColor: {r: 1, g: 0.7, b: 0.1, a: 1}
   onDirectionChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -7107,6 +7100,22 @@ MonoBehaviour:
   onBlockStateChanged:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &3858264767948027543
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5055958741733839213}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ed05afce6eceff8488222be91aab621f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Combat.DirectionSequenceRecognizer
+  bufferTimeout: 1.25
+  minTokenInterval: 0.035
+  maxBufferSize: 12
+  staleMoveWindow: 4
 --- !u!1 &5132660274319643839
 GameObject:
   m_ObjectHideFlags: 0

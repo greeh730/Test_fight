@@ -173,6 +173,28 @@ namespace Combat.Editor
                 out Button continueToArenaBtn,
                 out Button returnToMenuBtn);
 
+            // Связываем зависимости колеса и распознавателя с игроком напрямую
+            var playerCombatComp = playerObj.GetComponent<PlayerCombatController2D>();
+            var vectorWheelComp = canvasObj.GetComponentInChildren<Combat.UI.VectorWheelController>(true);
+            var recogComp = canvasObj.GetComponentInChildren<Combat.DirectionSequenceRecognizer>(true);
+            if (playerCombatComp != null)
+            {
+                var pcSo = new SerializedObject(playerCombatComp);
+                if (vectorWheelComp != null)
+                    pcSo.FindProperty("vectorWheel").objectReferenceValue = vectorWheelComp;
+                if (recogComp != null)
+                    pcSo.FindProperty("sequenceRecognizer").objectReferenceValue = recogComp;
+                pcSo.ApplyModifiedProperties();
+            }
+
+            // 11.5. Создаем визуально настраиваемый физический триггер для Этапа 1 (Передвижение)
+            var trigObj = new GameObject("TutorialTrigger_Stage1_Movement", typeof(BoxCollider2D), typeof(TutorialTriggerZone2D));
+            trigObj.transform.position = new Vector3(13.5f, 2.0f, 0f);
+            var trigCol = trigObj.GetComponent<BoxCollider2D>();
+            trigCol.isTrigger = true;
+            trigCol.size = new Vector2(2.5f, 5.0f);
+            var trigZone = trigObj.GetComponent<TutorialTriggerZone2D>();
+
             // 12. Создаем контроллер обучения [TutorialController]
             var tutorialCtrlObj = new GameObject("[TutorialController]", typeof(TutorialController2D));
             var tutorialController = tutorialCtrlObj.GetComponent<TutorialController2D>();
@@ -184,6 +206,9 @@ namespace Combat.Editor
             ctrlSo.FindProperty("playerTactician").objectReferenceValue = playerObj.GetComponent<TacticianCombatController2D>();
             if (dummyObj != null) ctrlSo.FindProperty("trainingDummy").objectReferenceValue = dummyObj.GetComponent<CombatDummy2D>();
             if (enemyObj != null) ctrlSo.FindProperty("tutorialEnemy").objectReferenceValue = enemyObj.GetComponent<EnemyAIController2D>();
+
+            ctrlSo.FindProperty("movementTrigger").objectReferenceValue = trigZone;
+            ctrlSo.FindProperty("movementTargetX").floatValue = 13.5f;
 
             ctrlSo.FindProperty("promptPanel").objectReferenceValue = promptPanel;
             ctrlSo.FindProperty("stageBadgeText").objectReferenceValue = stageBadgeText;
@@ -272,6 +297,7 @@ namespace Combat.Editor
 
             var pimg = promptPanel.GetComponent<Image>();
             pimg.color = new Color(0.05f, 0.08f, 0.12f, 0.92f);
+            pimg.raycastTarget = false;
 
             // А. Бейдж этапа
             var badgeObj = CreateText("StageBadge", promptPanel.transform, "ЭТАП 1 / 5  •  ОСНОВЫ ДВИЖЕНИЯ", 12, FontStyle.Bold, new Color(0.2f, 0.95f, 1f, 1f));
@@ -312,7 +338,9 @@ namespace Combat.Editor
             ocrt.anchorMax = new Vector2(0.96f, 0.24f);
             ocrt.offsetMin = Vector2.zero;
             ocrt.offsetMax = Vector2.zero;
-            objContainer.GetComponent<Image>().color = new Color(0.08f, 0.12f, 0.18f, 0.85f);
+            var objImg = objContainer.GetComponent<Image>();
+            objImg.color = new Color(0.08f, 0.12f, 0.18f, 0.85f);
+            objImg.raycastTarget = false;
 
             var checkObj = new GameObject("Checkmark", typeof(RectTransform), typeof(Image));
             checkObj.transform.SetParent(objContainer.transform, false);
@@ -323,6 +351,7 @@ namespace Combat.Editor
             chrt.offsetMax = Vector2.zero;
             checkmarkImg = checkObj.GetComponent<Image>();
             checkmarkImg.color = new Color(0.3f, 0.95f, 0.5f, 1f);
+            checkmarkImg.raycastTarget = false;
 
             var objTextObj = CreateText("ObjectiveText", objContainer.transform, "Пройдите вперед и перепрыгните через препятствие.", 12, FontStyle.Bold, new Color(1f, 0.92f, 0.4f, 1f));
             var otrt = objTextObj.GetComponent<RectTransform>();
@@ -440,6 +469,9 @@ namespace Combat.Editor
                 mtxt.fontStyle = FontStyle.Bold;
                 mtxt.color = new Color(0.85f, 0.90f, 0.98f, 1f);
             }
+
+            // По умолчанию модальное окно завершения скрыто
+            completionModal.SetActive(false);
         }
 
         private static GameObject CreateText(string name, Transform parent, string content, int size, FontStyle style, Color color)
@@ -454,6 +486,7 @@ namespace Combat.Editor
             text.fontStyle = style;
             text.color = color;
             text.alignment = TextAnchor.MiddleCenter;
+            text.raycastTarget = false;
 
             return go;
         }

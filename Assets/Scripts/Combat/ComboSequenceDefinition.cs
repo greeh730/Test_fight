@@ -48,6 +48,27 @@ namespace Combat
         public float LungeForce => lungeForce;
         public bool CanCancelIntoOthers => canCancelIntoOthers;
 
+        public void SetAttackData(AttackConfig data) => attackData = data;
+        public void SetStaminaCost(float stamina) => staminaCost = stamina;
+        public void SetLauncher(bool launcher) => isLauncher = launcher;
+        public void SetLungeForce(float lunge) => lungeForce = lunge;
+
+        public ComboSequenceDefinition Clone()
+        {
+            return new ComboSequenceDefinition(
+                sequenceId,
+                sequenceName,
+                glyphPattern,
+                attackData != null ? attackData.Clone() : null,
+                staminaCost,
+                isLauncher,
+                lungeForce
+            )
+            {
+                canCancelIntoOthers = this.canCancelIntoOthers
+            };
+        }
+
         public int Length => requiredDirections != null ? requiredDirections.Count : 0;
 
         public ComboSequenceDefinition(

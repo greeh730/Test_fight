@@ -175,6 +175,11 @@ namespace Combat.UI
                 playerCombat = FindAnyObjectByType<PlayerCombatController2D>();
             }
 
+            if (playerCombat != null && sequenceRecognizer != null)
+            {
+                playerCombat.SetSequenceRecognizer(sequenceRecognizer);
+            }
+
             if (arrowsOverlay == null)
             {
                 arrowsOverlay = GetComponentInChildren<WheelDirectionArrowsOverlay>();
