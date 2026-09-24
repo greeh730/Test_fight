@@ -88,8 +88,8 @@ namespace Combat.Editor
             var fadeImg = fadeOverlayObj.GetComponent<Image>();
             fadeImg.color = Color.black;
             var fadeCg = fadeOverlayObj.GetComponent<CanvasGroup>();
-            fadeCg.alpha = 0f;
-            fadeCg.blocksRaycasts = false;
+            fadeCg.alpha = 1f;
+            fadeCg.blocksRaycasts = true;
 
             // 7. Настраиваем связи контроллера
             var so = new SerializedObject(controller);
