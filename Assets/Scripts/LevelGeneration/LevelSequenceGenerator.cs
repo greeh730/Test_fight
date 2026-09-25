@@ -175,6 +175,15 @@ namespace LevelGeneration
         [Tooltip("Текущий номер прохождения/забега (1..3 = Тир 1, 4..5 = Тир 2, 6+ = Тир 3)")]
         [SerializeField] private int currentRun = 1;
 
+        [Header("--- Папка с чанками уровней ---")]
+        [Tooltip("Относительный путь к корневой папке с префабами чанков уровней (по умолчанию Assets/Prefabs/LevelChunks)")]
+        [SerializeField] private string levelChunksFolderPath = "Assets/Prefabs/LevelChunks";
+        public string LevelChunksFolderPath
+        {
+            get => levelChunksFolderPath;
+            set => levelChunksFolderPath = value;
+        }
+
         [Header("--- Стартовый и Финальный чанки ---")]
         [Tooltip("Стартовый чанк с точкой спавна игрока")]
         [SerializeField] private LevelChunk startChunkPrefab;
@@ -624,62 +633,238 @@ namespace LevelGeneration
         }
 
 #if UNITY_EDITOR
-        [ContextMenu("Автозаполнить тиры по умолчанию из папок")]
+        [ContextMenu("Синхронизировать тиры и комнаты из папок")]
         public void PopulateDefaultTiers()
         {
+            SyncTiersFromFolders(levelChunksFolderPath);
+        }
+
+        public void SyncTiersFromFolders(string rootPath = null)
+        {
+            if (string.IsNullOrEmpty(rootPath)) rootPath = levelChunksFolderPath;
+            if (string.IsNullOrEmpty(rootPath)) rootPath = "Assets/Prefabs/LevelChunks";
+            rootPath = rootPath.Replace('\\', '/');
+
+            if (!System.IO.Directory.Exists(rootPath) && !UnityEditor.AssetDatabase.IsValidFolder(rootPath))
+            {
+                Debug.LogWarning($"<color=#FF4444><b>[LevelGen]</b></color> Папка не найдена: '{rootPath}'");
+                return;
+            }
+
             useDifficultyTiers = true;
 
-            startChunkPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>("Assets/Prefabs/LevelChunks/Starn and end/Chunk_Start_Intro.prefab");
-            endChunkPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>("Assets/Prefabs/LevelChunks/Starn and end/Chunk_End_Outro.prefab");
+            // 1. Поиск стартового и финального чанка во всех подпапках
+            FindStartAndEndChunks(rootPath);
 
-            difficultyTiers.Clear();
+            // 2. Сбор подпапок уровней
+            string[] subDirs = System.IO.Directory.GetDirectories(rootPath);
+            var tierDirs = new List<string>();
 
-            // Тир 1: 1-3 прохождения
-            var tier1 = new LevelDifficultyTier
+            foreach (var dir in subDirs)
             {
-                tierName = "Уровень 1 (1-3 прохождения)",
-                minRun = 1,
-                maxRun = 3,
-                chunkPool = new List<LevelChunk>
-                {
-                    UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>("Assets/Prefabs/LevelChunks/1rd level/First_Level.prefab"),
-                    UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>("Assets/Prefabs/LevelChunks/1rd level/Second_Level.prefab"),
-                    UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>("Assets/Prefabs/LevelChunks/1rd level/Third_level.prefab")
-                }
-            };
-            difficultyTiers.Add(tier1);
+                string normDir = dir.Replace('\\', '/');
+                string dirName = System.IO.Path.GetFileName(normDir).ToLowerInvariant();
 
-            // Тир 2: 4-5 прохождений
-            var tier2 = new LevelDifficultyTier
-            {
-                tierName = "Уровень 2 (4-5 прохождений)",
-                minRun = 4,
-                maxRun = 5,
-                chunkPool = new List<LevelChunk>
-                {
-                    UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>("Assets/Prefabs/LevelChunks/2rd level/First_Level.prefab")
-                }
-            };
-            difficultyTiers.Add(tier2);
+                // Пропускаем папки со стартом/финалом
+                if (dirName.Contains("start") || dirName.Contains("end") || dirName.Contains("intro") || dirName.Contains("outro") || dirName.Contains("starn"))
+                    continue;
 
-            // Тир 3: 6+ прохождений
-            var tier3 = new LevelDifficultyTier
+                tierDirs.Add(normDir);
+            }
+
+            // Сортировка подпапок по номеру тира (1rd level, 2rd level, 3rd level, 4th level...)
+            tierDirs.Sort((a, b) =>
             {
-                tierName = "Уровень 3 (6+ прохождений)",
-                minRun = 6,
-                maxRun = 9999,
-                chunkPool = new List<LevelChunk>
+                int numA = ExtractFirstNumber(System.IO.Path.GetFileName(a));
+                int numB = ExtractFirstNumber(System.IO.Path.GetFileName(b));
+                if (numA != numB) return numA.CompareTo(numB);
+                return string.Compare(a, b, System.StringComparison.OrdinalIgnoreCase);
+            });
+
+            if (tierDirs.Count == 0)
+            {
+                Debug.LogWarning($"<color=#FF9900><b>[LevelGen]</b></color> В папке '{rootPath}' не найдено подпапок уровней!");
+                return;
+            }
+
+            if (difficultyTiers == null) difficultyTiers = new List<LevelDifficultyTier>();
+
+            int syncedTiersCount = 0;
+            int totalRoomsCount = 0;
+            var syncSummary = new System.Text.StringBuilder();
+
+            for (int t = 0; t < tierDirs.Count; t++)
+            {
+                string dirPath = tierDirs[t];
+                string dirName = System.IO.Path.GetFileName(dirPath);
+                int tierNumber = ExtractFirstNumber(dirName);
+                if (tierNumber <= 0) tierNumber = t + 1;
+
+                var foundChunks = LoadAllChunksInFolder(dirPath);
+                totalRoomsCount += foundChunks.Count;
+
+                LevelDifficultyTier tier;
+                bool isNew = false;
+                if (t < difficultyTiers.Count)
                 {
-                    UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>("Assets/Prefabs/LevelChunks/3rd level/Chunk_Variant_A_CombatArena.prefab"),
-                    UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>("Assets/Prefabs/LevelChunks/3rd level/Chunk_Variant_B_TwoTierElevation.prefab"),
-                    UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>("Assets/Prefabs/LevelChunks/3rd level/Chunk_Variant_C_SplitPath.prefab"),
-                    UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>("Assets/Prefabs/LevelChunks/3rd level/Chucn_varint_D.prefab")
+                    tier = difficultyTiers[t];
                 }
-            };
-            difficultyTiers.Add(tier3);
+                else
+                {
+                    tier = new LevelDifficultyTier();
+                    difficultyTiers.Add(tier);
+                    isNew = true;
+                }
+
+                if (isNew || (tier.minRun <= 0 && tier.maxRun <= 0) || string.IsNullOrEmpty(tier.tierName))
+                {
+                    string runRange = GetDefaultRunRangeForTier(tierNumber, tierDirs.Count);
+                    tier.tierName = $"Уровень {tierNumber} ({runRange})";
+                    tier.minRun = GetDefaultMinRun(tierNumber);
+                    tier.maxRun = GetDefaultMaxRun(tierNumber, tierDirs.Count);
+                }
+
+                tier.chunkPool = foundChunks;
+                syncedTiersCount++;
+
+                syncSummary.AppendLine($"  <b>[Тир {tierNumber}]</b> {tier.tierName} ({foundChunks.Count} комнат):");
+                foreach (var chunk in foundChunks)
+                {
+                    syncSummary.AppendLine($"    - {chunk.name}");
+                }
+            }
+
+            // Удаляем лишние тиры, если папок стало меньше
+            if (difficultyTiers.Count > tierDirs.Count)
+            {
+                difficultyTiers.RemoveRange(tierDirs.Count, difficultyTiers.Count - tierDirs.Count);
+            }
 
             UnityEditor.EditorUtility.SetDirty(this);
-            Debug.Log("<color=#00FFAA><b>[LevelGen]</b></color> Тиры сложности успешно заполнены по умолчанию из папок ассетов!");
+            Debug.Log($"<color=#00FFAA><b>[LevelGen]</b></color> Синхронизация папок завершена успешно!\n" +
+                     $"Папка: '{rootPath}'\n" +
+                     $"Синхронизировано тиров: <b>{syncedTiersCount}</b> (всего комнат: <b>{totalRoomsCount}</b>)\n" +
+                     $"  • Старт: {(startChunkPrefab != null ? startChunkPrefab.name : "<color=yellow>не найден</color>")}\n" +
+                     $"  • Финал: {(endChunkPrefab != null ? endChunkPrefab.name : "<color=yellow>не найден</color>")}\n" +
+                     syncSummary.ToString());
+        }
+
+        private void FindStartAndEndChunks(string rootPath)
+        {
+            string[] allPrefabs = System.IO.Directory.GetFiles(rootPath, "*.prefab", System.IO.SearchOption.AllDirectories);
+            foreach (var file in allPrefabs)
+            {
+                string assetPath = file.Replace('\\', '/');
+                string fileName = System.IO.Path.GetFileNameWithoutExtension(assetPath).ToLowerInvariant();
+
+                if (fileName.Contains("start") || fileName.Contains("intro"))
+                {
+                    var chunk = UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>(assetPath);
+                    if (chunk != null) startChunkPrefab = chunk;
+                }
+                else if (fileName.Contains("end") || fileName.Contains("outro"))
+                {
+                    var chunk = UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>(assetPath);
+                    if (chunk != null) endChunkPrefab = chunk;
+                }
+            }
+        }
+
+        private static List<LevelChunk> LoadAllChunksInFolder(string folderPath)
+        {
+            var result = new List<LevelChunk>();
+            if (!System.IO.Directory.Exists(folderPath)) return result;
+
+            string[] prefabFiles = System.IO.Directory.GetFiles(folderPath, "*.prefab", System.IO.SearchOption.TopDirectoryOnly);
+
+            // Сортировка по логическому весу (First, Second, Third, Variant_A, B, C...)
+            System.Array.Sort(prefabFiles, (a, b) =>
+            {
+                string nameA = System.IO.Path.GetFileNameWithoutExtension(a);
+                string nameB = System.IO.Path.GetFileNameWithoutExtension(b);
+                int weightA = GetLevelChunkSortWeight(nameA);
+                int weightB = GetLevelChunkSortWeight(nameB);
+                if (weightA != weightB) return weightA.CompareTo(weightB);
+                return string.Compare(nameA, nameB, System.StringComparison.OrdinalIgnoreCase);
+            });
+
+            foreach (var file in prefabFiles)
+            {
+                string assetPath = file.Replace('\\', '/');
+                var chunk = UnityEditor.AssetDatabase.LoadAssetAtPath<LevelChunk>(assetPath);
+                if (chunk != null)
+                {
+                    result.Add(chunk);
+                }
+            }
+
+            return result;
+        }
+
+        private static int GetLevelChunkSortWeight(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return 999;
+            string lower = name.ToLowerInvariant();
+
+            if (lower.Contains("first") || lower.Contains("level_1") || lower.Contains("level1")) return 1;
+            if (lower.Contains("second") || lower.Contains("level_2") || lower.Contains("level2")) return 2;
+            if (lower.Contains("third") || lower.Contains("level_3") || lower.Contains("level3")) return 3;
+            if (lower.Contains("fourth") || lower.Contains("level_4") || lower.Contains("level4")) return 4;
+            if (lower.Contains("fifth") || lower.Contains("level_5") || lower.Contains("level5")) return 5;
+
+            if (lower.Contains("variant_a") || lower.Contains("var_a") || lower.Contains("_a")) return 10;
+            if (lower.Contains("variant_b") || lower.Contains("var_b") || lower.Contains("_b")) return 11;
+            if (lower.Contains("variant_c") || lower.Contains("var_c") || lower.Contains("_c")) return 12;
+            if (lower.Contains("varint_d") || lower.Contains("variant_d") || lower.Contains("var_d") || lower.Contains("_d")) return 13;
+
+            int num = ExtractFirstNumber(name);
+            if (num > 0) return num;
+
+            return 500;
+        }
+
+        private static int ExtractFirstNumber(string str)
+        {
+            if (string.IsNullOrEmpty(str)) return 0;
+            string digits = "";
+            for (int i = 0; i < str.Length; i++)
+            {
+                if (char.IsDigit(str[i]))
+                {
+                    while (i < str.Length && char.IsDigit(str[i]))
+                    {
+                        digits += str[i];
+                        i++;
+                    }
+                    break;
+                }
+            }
+            if (int.TryParse(digits, out int res)) return res;
+            return 0;
+        }
+
+        private static int GetDefaultMinRun(int tierNumber)
+        {
+            if (tierNumber == 1) return 1;
+            if (tierNumber == 2) return 4;
+            if (tierNumber == 3) return 6;
+            return 6 + (tierNumber - 3) * 2;
+        }
+
+        private static int GetDefaultMaxRun(int tierNumber, int totalTiers)
+        {
+            if (tierNumber >= totalTiers) return 9999;
+            if (tierNumber == 1) return 3;
+            if (tierNumber == 2) return 5;
+            return GetDefaultMinRun(tierNumber) + 1;
+        }
+
+        private static string GetDefaultRunRangeForTier(int tierNumber, int totalTiers)
+        {
+            int min = GetDefaultMinRun(tierNumber);
+            int max = GetDefaultMaxRun(tierNumber, totalTiers);
+            if (max >= 9000) return $"{min}+ прохождений";
+            return $"{min}-{max} прохождения";
         }
 #endif
 

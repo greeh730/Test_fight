@@ -62,25 +62,33 @@ namespace LevelGeneration.Editor
             EditorGUILayout.LabelField("Быстрое переключение сложности для тестов:", EditorStyles.miniBoldLabel);
             EditorGUILayout.BeginHorizontal();
 
-            bool isTier1 = gen.ActiveTierOverrideMode == TierOverrideMode.ForceTier1 || (gen.ActiveTierOverrideMode == TierOverrideMode.AutoByProgress && activeTierIdx == 0);
-            GUI.backgroundColor = isTier1 ? new Color(0.35f, 0.85f, 1.0f) : Color.white;
-            if (GUILayout.Button("⭐ Тир 1\n(1-3 забег)", GUILayout.Height(36)))
+            if (gen.DifficultyTiers != null && gen.DifficultyTiers.Count > 0)
             {
-                SwitchTier(gen, 0);
-            }
+                for (int t = 0; t < gen.DifficultyTiers.Count; t++)
+                {
+                    var tier = gen.DifficultyTiers[t];
+                    if (tier == null) continue;
 
-            bool isTier2 = gen.ActiveTierOverrideMode == TierOverrideMode.ForceTier2 || (gen.ActiveTierOverrideMode == TierOverrideMode.AutoByProgress && activeTierIdx == 1);
-            GUI.backgroundColor = isTier2 ? new Color(1f, 0.85f, 0.2f) : Color.white;
-            if (GUILayout.Button("⚡ Тир 2\n(4-5 забег)", GUILayout.Height(36)))
-            {
-                SwitchTier(gen, 1);
-            }
+                    bool isSelected = (gen.ActiveTierOverrideMode == TierOverrideMode.AutoByProgress && activeTierIdx == t)
+                        || (t == 0 && gen.ActiveTierOverrideMode == TierOverrideMode.ForceTier1)
+                        || (t == 1 && gen.ActiveTierOverrideMode == TierOverrideMode.ForceTier2)
+                        || (t == 2 && gen.ActiveTierOverrideMode == TierOverrideMode.ForceTier3);
 
-            bool isTier3 = gen.ActiveTierOverrideMode == TierOverrideMode.ForceTier3 || (gen.ActiveTierOverrideMode == TierOverrideMode.AutoByProgress && activeTierIdx == 2);
-            GUI.backgroundColor = isTier3 ? new Color(1f, 0.45f, 0.45f) : Color.white;
-            if (GUILayout.Button("💀 Тир 3\n(6+ забег)", GUILayout.Height(36)))
-            {
-                SwitchTier(gen, 2);
+                    Color btnCol = Color.white;
+                    if (t == 0) btnCol = new Color(0.35f, 0.85f, 1.0f);
+                    else if (t == 1) btnCol = new Color(1f, 0.85f, 0.2f);
+                    else if (t == 2) btnCol = new Color(1f, 0.45f, 0.45f);
+                    else btnCol = new Color(0.85f, 0.5f, 1.0f);
+
+                    GUI.backgroundColor = isSelected ? btnCol : Color.white;
+
+                    string runLabel = tier.maxRun >= 9000 ? $"{tier.minRun}+ забег" : $"{tier.minRun}-{tier.maxRun} забег";
+                    string icon = t == 0 ? "⭐" : (t == 1 ? "⚡" : (t == 2 ? "💀" : "🔥"));
+                    if (GUILayout.Button($"{icon} Тир {t + 1}\n({runLabel})", GUILayout.Height(36)))
+                    {
+                        SwitchTier(gen, t);
+                    }
+                }
             }
 
             bool isAuto = gen.ActiveTierOverrideMode == TierOverrideMode.AutoByProgress;
@@ -177,17 +185,31 @@ namespace LevelGeneration.Editor
 
             EditorGUILayout.Space(8);
 
-            // Кнопка автозаполнения префабов по умолчанию из папок
+            // Секция синхронизации из папки
+            EditorGUILayout.LabelField("📁 СИНХРОНИЗАЦИЯ УРОВНЕЙ И ТИРОВ ИЗ ПАПКИ:", EditorStyles.miniBoldLabel);
             EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button("🔄 Авто-заполнить тиры из папок по умолчанию", GUILayout.Height(24)))
+            string oldPath = gen.LevelChunksFolderPath;
+            string newPath = EditorGUILayout.TextField("Папка с чанками:", oldPath);
+            if (newPath != oldPath)
             {
-                Undo.RecordObject(gen, "Populate Default Tiers");
+                Undo.RecordObject(gen, "Change Chunks Folder");
+                gen.LevelChunksFolderPath = newPath;
+                MarkDirty(gen);
+            }
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.BeginHorizontal();
+            GUI.backgroundColor = new Color(0.2f, 0.95f, 0.6f);
+            if (GUILayout.Button("🔄 Синхронизировать тиры и комнаты из папок", GUILayout.Height(30)))
+            {
+                Undo.RecordObject(gen, "Sync Tiers From Folders");
                 gen.PopulateDefaultTiers();
                 gen.GenerateLevel();
                 MarkDirty(gen);
             }
+            GUI.backgroundColor = Color.white;
 
-            if (GUILayout.Button("🔍 Камера на весь уровень", GUILayout.Height(24), GUILayout.Width(170)))
+            if (GUILayout.Button("🔍 Камера на весь уровень", GUILayout.Height(30), GUILayout.Width(170)))
             {
                 FocusSceneViewOnLevel(gen);
             }
