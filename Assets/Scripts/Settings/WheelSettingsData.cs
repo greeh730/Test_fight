@@ -44,6 +44,12 @@ namespace Combat.Settings
         public bool showAttackPlaque = true;
         public WheelColorTheme colorTheme = WheelColorTheme.CrimsonRed;
 
+        [Header("--- Audio & Volume ---")]
+        public float masterVolume = 1.0f;          // 0.0 - 1.0
+        public float sfxVolume = 1.0f;             // 0.0 - 1.0
+        public float footstepsVolume = 0.85f;      // 0.0 - 1.0
+        public bool isMuted = false;
+
         public static WheelSettingsData CreateDefault()
         {
             return new WheelSettingsData();

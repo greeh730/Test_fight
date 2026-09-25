@@ -193,6 +193,16 @@ namespace Combat
         public bool CanDie { get => canDie; set => canDie = value; }
         public bool RespawnOnDeath { get => respawnOnDeath; set => respawnOnDeath = value; }
         public bool IsDead => CurrentState == EnemyState.Dead;
+
+        // Границы боевого сектора арены
+        private float _minSectorX = float.MinValue;
+        private float _maxSectorX = float.MaxValue;
+
+        public void SetSectorBounds(float minX, float maxX)
+        {
+            _minSectorX = minX;
+            _maxSectorX = maxX;
+        }
         public float MaxStamina => maxStamina;
         public float CurrentStamina => currentStamina;
         public Rigidbody2D Rigidbody => _rb;
@@ -446,6 +456,8 @@ namespace Combat
         {
             if (CurrentState == EnemyState.Dead) return;
 
+            ClampToSectorBounds();
+
             CheckGrounded();
 
             if (_hasJumpCommand)
@@ -486,6 +498,31 @@ namespace Combat
             if (_rb != null)
             {
                 _rb.linearVelocity = new Vector2(_desiredVelocityX, _rb.linearVelocity.y);
+            }
+
+            ClampToSectorBounds();
+        }
+
+        private void ClampToSectorBounds()
+        {
+            if (_minSectorX > float.MinValue * 0.5f)
+            {
+                if (transform.position.x < _minSectorX)
+                {
+                    transform.position = new Vector3(_minSectorX, transform.position.y, transform.position.z);
+                    if (_rb != null && _rb.linearVelocity.x < 0f)
+                    {
+                        _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
+                    }
+                }
+                else if (_maxSectorX < float.MaxValue * 0.5f && transform.position.x > _maxSectorX)
+                {
+                    transform.position = new Vector3(_maxSectorX, transform.position.y, transform.position.z);
+                    if (_rb != null && _rb.linearVelocity.x > 0f)
+                    {
+                        _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
+                    }
+                }
             }
         }
 
@@ -543,6 +580,12 @@ namespace Combat
         {
             _desiredVelocityX = 0f;
             if (_disorientTimer > 0f) return; // Ослеплен, не может обнаружить игрока
+
+            // Защита: не начинать преследование, если игрок ещё находится снаружи сектора в стартовой комнате
+            if (_minSectorX > float.MinValue * 0.5f && _playerTransform != null && _playerTransform.position.x < _minSectorX - 0.5f)
+            {
+                return;
+            }
 
             float dist = Vector2.Distance(transform.position, _playerTransform.position);
             if (dist <= detectionRange)
@@ -638,6 +681,10 @@ namespace Combat
             // -------------------------------------------------------------
             EnemyTacticalRole role = EnemyTacticalRole.Solo;
             float targetX = _playerTransform.position.x;
+            if (_minSectorX > float.MinValue * 0.5f)
+            {
+                targetX = Mathf.Clamp(targetX, _minSectorX + 0.6f, _maxSectorX - 0.6f);
+            }
             float currentMoveSpeed = moveSpeed;
             bool isFlankingThrough = false;
 
@@ -1674,10 +1721,10 @@ namespace Combat
         }
 
         /// <summary>
-        /// Применяет процедурное масштабирование сложности (от кругов кристалла).
-        /// Увеличивает максимальное здоровье, выносливость и ускоряет фазу замаха (телеграфа).
+        /// Применяет процедурное масштабирование сложности и баффов за уровень (от кругов кристалла).
+        /// Увеличивает максимальное здоровье, выносливость, урон, скорость перемещения и ускоряет фазу замаха (телеграфа).
         /// </summary>
-        public void ApplyDifficultyScaling(float healthMultiplier, float staminaMultiplier, float telegraphSpeedMultiplier)
+        public void ApplyDifficultyScaling(float healthMultiplier, float staminaMultiplier, float telegraphSpeedMultiplier, float damageMultiplier = 1.0f, float moveSpeedMultiplier = 1.0f)
         {
             if (healthMultiplier > 0.01f)
             {
@@ -1700,11 +1747,21 @@ namespace Combat
                 // Замах ускоряется (длительность делится на множитель скорости, но не меньше 0.35с)
                 telegraphDuration = Mathf.Max(0.35f, telegraphDuration / telegraphSpeedMultiplier);
             }
+
+            if (damageMultiplier > 0.01f)
+            {
+                attackDamage = Mathf.Round(attackDamage * damageMultiplier);
+            }
+
+            if (moveSpeedMultiplier > 0.01f)
+            {
+                moveSpeed = moveSpeed * moveSpeedMultiplier;
+            }
         }
 
         public void ApplyDifficultyScaling(float staminaMultiplier, float telegraphSpeedMultiplier)
         {
-            ApplyDifficultyScaling(1.0f, staminaMultiplier, telegraphSpeedMultiplier);
+            ApplyDifficultyScaling(1.0f, staminaMultiplier, telegraphSpeedMultiplier, 1.0f, 1.0f);
         }
 
         public void Die(Vector2 knockbackDirection, bool wasCounter = false)

@@ -43,6 +43,7 @@ namespace LevelGeneration
         private readonly List<EnemyAIController2D> _livingEnemies = new List<EnemyAIController2D>();
         private GameObject _entryTriggerObject;
         private Vector3 _sectorEntryPos;
+        private Vector3 _sectorExitPos;
         private Transform _playerTransform;
         private bool _isSubscribed = false;
 
@@ -132,6 +133,49 @@ namespace LevelGeneration
             }
         }
 
+        private void FixedUpdate()
+        {
+            if (isCleared || _livingEnemies.Count == 0) return;
+
+            float minEnemyX = _sectorEntryPos.x + 0.35f;
+            float maxEnemyX = (_sectorExitPos.sqrMagnitude > 0.01f) ? (_sectorExitPos.x - 0.35f) : float.MaxValue;
+
+            for (int i = 0; i < _livingEnemies.Count; i++)
+            {
+                var enemy = _livingEnemies[i];
+                if (enemy == null || enemy.IsDead) continue;
+
+                var t = enemy.transform;
+                Vector3 pos = t.position;
+                bool clamped = false;
+
+                if (pos.x < minEnemyX)
+                {
+                    pos.x = minEnemyX;
+                    clamped = true;
+                }
+                else if (pos.x > maxEnemyX)
+                {
+                    pos.x = maxEnemyX;
+                    clamped = true;
+                }
+
+                if (clamped)
+                {
+                    t.position = pos;
+                    var rb = enemy.GetComponent<Rigidbody2D>();
+                    if (rb != null)
+                    {
+                        float vx = rb.linearVelocity.x;
+                        if ((pos.x <= minEnemyX && vx < 0f) || (pos.x >= maxEnemyX && vx > 0f))
+                        {
+                            rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
+                        }
+                    }
+                }
+            }
+        }
+
         private void HandlePlayerDiedOrRespawned()
         {
             if (isCleared) return;
@@ -142,22 +186,47 @@ namespace LevelGeneration
                 isLocked = false;
                 if (entranceDoor != null) entranceDoor.OpenDoor(instant: true);
                 if (_entryTriggerObject != null) _entryTriggerObject.SetActive(true);
+                RegisterPlayerWithDoors();
                 ShowBanner($"[!] ВХОД НА АРЕНУ ОТКРЫТ (Осталось врагов: {remainingEnemiesCount})", new Color(1.0f, 0.65f, 0.2f, 1f), 3.0f);
                 Debug.Log("<color=yellow><b>[CombatSector]</b></color> Игрок погиб/возродился. Входная дверь открыта для повторного входа на арену.");
             }
+            else
+            {
+                RegisterPlayerWithDoors();
+            }
+        }
+
+        public void RegisterPlayerWithDoors()
+        {
+            var playerObj = GameObject.FindWithTag("Player");
+            if (playerObj == null && _playerTransform != null) playerObj = _playerTransform.gameObject;
+            if (playerObj != null)
+            {
+                if (entranceDoor != null) entranceDoor.IgnorePlayerObject(playerObj);
+                if (exitDoor != null) exitDoor.IgnorePlayerObject(playerObj);
+            }
+        }
+
+        public void InitializeSector(SectorBarrierDoor2D entrance, SectorBarrierDoor2D exit, Vector3 sectorEntryPos, List<GameObject> spawnedEnemies)
+        {
+            InitializeSector(entrance, exit, sectorEntryPos, Vector3.zero, spawnedEnemies);
         }
 
         /// <summary>
         /// Инициализация сектора после процедурной генерации уровня
         /// </summary>
-        public void InitializeSector(SectorBarrierDoor2D entrance, SectorBarrierDoor2D exit, Vector3 sectorEntryPos, List<GameObject> spawnedEnemies)
+        public void InitializeSector(SectorBarrierDoor2D entrance, SectorBarrierDoor2D exit, Vector3 sectorEntryPos, Vector3 sectorExitPos, List<GameObject> spawnedEnemies)
         {
             entranceDoor = entrance;
             exitDoor = exit;
             _sectorEntryPos = sectorEntryPos;
+            _sectorExitPos = sectorExitPos;
             isLocked = false;
             isCleared = false;
             SubscribeEvents();
+
+            float minEnemyX = _sectorEntryPos.x + 0.35f;
+            float maxEnemyX = (_sectorExitPos.sqrMagnitude > 0.01f) ? (_sectorExitPos.x - 0.35f) : float.MaxValue;
 
             _livingEnemies.Clear();
             if (spawnedEnemies != null)
@@ -171,6 +240,7 @@ namespace LevelGeneration
                         {
                             // Отключаем возрождение для врагов процедурного боевого сектора
                             ai.RespawnOnDeath = false;
+                            ai.SetSectorBounds(minEnemyX, maxEnemyX);
                             _livingEnemies.Add(ai);
                         }
                     }
@@ -181,6 +251,9 @@ namespace LevelGeneration
             // На старте: Входная дверь ОТКРЫТА, Выходная ЗАКРЫТА
             if (entranceDoor != null) entranceDoor.OpenDoor(instant: true);
             if (exitDoor != null) exitDoor.CloseDoor(instant: true);
+
+            // Настраиваем игнорирование коллизий барьеров с игроком
+            RegisterPlayerWithDoors();
 
             // Создаем триггер фиксации входа игрока на арену (чуть правее порога входа)
             CreateEntryTrigger(sectorEntryPos + new Vector3(1.2f, 0f, 0f));

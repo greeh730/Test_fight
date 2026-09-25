@@ -213,6 +213,7 @@ namespace Combat.Player
         private bool _downHeld;
         private bool _sprintHeld;
         private bool _isSprinting;
+        private bool _wasSprintingWhenJumped;
         private bool _isSkidding;
         private float _currentSurfaceFriction = 1.0f;
 
@@ -394,6 +395,7 @@ namespace Combat.Player
                 _downHeld = false;
                 _sprintHeld = false;
                 _isSprinting = false;
+                _wasSprintingWhenJumped = false;
                 return;
             }
 
@@ -473,7 +475,17 @@ namespace Combat.Player
             _jumpHeld = jumpHold;
             _downHeld = downHold;
             _sprintHeld = shiftHold;
-            _isSprinting = _sprintHeld && IsGrounded && Mathf.Abs(_horizontalInput) > 0.05f;
+            bool sprintInput = _sprintHeld && Mathf.Abs(_horizontalInput) > 0.05f;
+            if (IsGrounded)
+            {
+                _isSprinting = sprintInput;
+                _wasSprintingWhenJumped = false;
+            }
+            else
+            {
+                // В воздухе спринт сохраняется, если игрок выпрыгнул из спринта или держит Shift
+                _isSprinting = (_wasSprintingWhenJumped || sprintInput) && Mathf.Abs(_horizontalInput) > 0.05f;
+            }
 
             if (jumpDown)
             {
@@ -814,8 +826,9 @@ namespace Combat.Player
         {
             float speedMult = MoveSpeedMultiplier;
 
-            // Спринт при зажатии Shift на земле
-            if (IsGrounded && _sprintHeld && Mathf.Abs(_horizontalInput) > 0.01f)
+            // Спринт при зажатии Shift на земле и сохранение спринта в воздухе при прыжке
+            bool isSprintActive = _isSprinting || (_sprintHeld && Mathf.Abs(_horizontalInput) > 0.01f) || (!IsGrounded && _wasSprintingWhenJumped && Mathf.Abs(_horizontalInput) > 0.01f);
+            if (isSprintActive)
             {
                 speedMult *= sprintMultiplier;
             }
@@ -969,6 +982,7 @@ namespace Combat.Player
 
         private void ExecuteJump()
         {
+            _wasSprintingWhenJumped = _isSprinting || (_sprintHeld && Mathf.Abs(_horizontalInput) > 0.05f);
             _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, jumpForce);
             _jumpBufferTimer = 0f;
             _coyoteTimer = 0f;
@@ -994,6 +1008,7 @@ namespace Combat.Player
         private void ExecuteAirJump()
         {
             _airJumpsLeft--;
+            _wasSprintingWhenJumped = _wasSprintingWhenJumped || _sprintHeld;
             _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, jumpForce * airJumpForceMultiplier);
             _jumpBufferTimer = 0f;
             _coyoteTimer = 0f;

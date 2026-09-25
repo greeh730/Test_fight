@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using LevelGeneration;
 
 namespace Combat.Navigation
 {
@@ -168,7 +169,8 @@ namespace Combat.Navigation
                 // Исключаем коллайдеры персонажей и боевых сущностей
                 if (col.CompareTag("Player") || col.name.Contains("Player") || col.GetComponentInParent<Combat.Player.PlayerHealth2D>() != null) continue;
                 if (col.GetComponent<Combat.Common.ICombatEntity2D>() != null || col.GetComponentInParent<Combat.Common.ICombatEntity2D>() != null) continue;
-                if (col.name.Contains("Hurtbox") || col.name.Contains("Hitbox") || col.name.Contains("Wall")) continue;
+                if (col.name.Contains("Hurtbox") || col.name.Contains("Hitbox") || col.name.Contains("Wall") || col.name.Contains("Barrier") || col.name.Contains("Blocker")) continue;
+                if (col.GetComponentInParent<SectorBarrierDoor2D>() != null || col.GetComponentInParent<EnemyBlockerBarrier2D>() != null) continue;
 
                 Bounds b = col.bounds;
                 // Исключаем вертикальные тонкие стены

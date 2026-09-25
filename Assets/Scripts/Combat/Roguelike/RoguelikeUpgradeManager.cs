@@ -88,11 +88,11 @@ namespace Combat.Roguelike
         }
 
         /// <summary>
-        /// Генерирует ровно count (по умолчанию 3) уникальных карточек на выбор.
+        /// Генерирует ровно count (по умолчанию 5) уникальных карточек на выбор.
         /// При наличии заблокированных способностей Тактика хотя бы 1-2 карточки будут предлагать новые умения.
         /// Остальные слоты заполняются боевыми баффами и двусторонними перками (риск/награда).
         /// </summary>
-        public List<UpgradeCardDefinition> GenerateUpgradeOffer(int count = 3)
+        public List<UpgradeCardDefinition> GenerateUpgradeOffer(int count = 5)
         {
             ResolvePlayerReferences();
             EnsureDefaultCatalogs();
@@ -131,7 +131,7 @@ namespace Combat.Roguelike
             }
             Shuffle(otherPool);
 
-            // 3. Заполняем оставшиеся карточки
+            // 3. Заполняем оставшиеся карточки уникальными элементами
             for (int i = 0; i < otherPool.Count && result.Count < count; i++)
             {
                 var card = otherPool[i];
@@ -142,7 +142,19 @@ namespace Combat.Roguelike
                 }
             }
 
-            // Перемешиваем порядок 3 карточек перед показом игроку
+            // 4. Если уникальных карточек в пуле оказалось меньше count, добираем из боевых баффов
+            if (result.Count < count && combatBuffs != null && combatBuffs.Count > 0)
+            {
+                int safety = 0;
+                while (result.Count < count && safety < 30)
+                {
+                    safety++;
+                    var fallback = combatBuffs[UnityEngine.Random.Range(0, combatBuffs.Count)].Clone();
+                    result.Add(fallback);
+                }
+            }
+
+            // Перемешиваем порядок карточек перед показом игроку
             Shuffle(result);
             CurrentOffer = result;
             return result;

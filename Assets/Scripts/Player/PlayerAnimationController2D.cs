@@ -7,13 +7,20 @@ using Combat.Stances;
 namespace Combat.Player
 {
     /// <summary>
-    /// Контроллер спрайтовой анимации игрока для Abyss of Emotions.
-    /// Управляет переключением состояний:
+    /// Контроллер спрайтовой анимации героя (Evo) для Abyss of Emotions.
+    /// Управляет 11 состояниями героя:
     /// - Idle (покой на земле)
-    /// - Jump (прыжок и падение в воздухе)
-    /// - Block (защитная стойка / прицеливание парирования на ПКМ)
-    /// - Attack Wind-Up (замах при удержании направления на стрелке с фиксацией на кадре 10)
-    /// - Attack Strike (активная фаза удара)
+    /// - Walk (ходьба по земле)
+    /// - Run (быстрый бег с зажатым Shift)
+    /// - Jump (прыжок и полет в воздухе)
+    /// - Block (защитная стойка ПКМ)
+    /// - Parry (отбив удара клинком)
+    /// - Damage (получение урона / оглушение)
+    /// - Attack_High (подбрасывающий удар вверх / Launcher)
+    /// - Attack_Mid (выпад и пронзающий удар вперед)
+    /// - Attack_Low (подсечка по ногам вниз)
+    /// - Attack_Combo1 (базовая серия нейтральных ударов)
+    /// Включает поддержку интерактивного замаха (Wind-Up) при удержании направления на Vector Wheel.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(SpriteRenderer))]
@@ -24,34 +31,48 @@ namespace Combat.Player
         [SerializeField] private RuntimeAnimatorController animatorControllerAsset;
 
         [Header("--- Attack Wind-Up Hold Settings ---")]
-        [Tooltip("Кадр, на котором замирает анимация замаха при удержании стрелки (2-я картинка 0012 = кадр 2 при samples=12)")]
+        [Tooltip("Кадр, на котором замирает анимация замаха при удержании стрелки (кадр 2 при samples=14)")]
         [SerializeField] private int attackWindupHoldFrame = 2;
 
         [Tooltip("Частота кадров (samples) анимации атаки")]
-        [SerializeField] private float attackFrameRate = 12f;
+        [SerializeField] private float attackFrameRate = 14f;
 
         [Tooltip("Скорость проигрывания до кадра замаха")]
-        [SerializeField] private float windupSpeed = 2.5f;
+        [SerializeField] private float windupSpeed = 3.5f;
+
+        [Header("--- Reaction Durations ---")]
+        [Tooltip("Длительность проигрывания анимации урона при получении удара")]
+        [SerializeField] private float damageDuration = 0.35f;
+
+        [Tooltip("Длительность проигрывания анимации парирования")]
+        [SerializeField] private float parryDuration = 0.35f;
 
         [Header("--- References ---")]
         [SerializeField] private PlayerController2D playerController;
         [SerializeField] private PlayerCombatController2D playerCombat;
         [SerializeField] private PlayerBlockAndParry2D playerBlockParry;
+        [SerializeField] private PlayerHealth2D playerHealth;
         [SerializeField] private VectorWheelController vectorWheel;
 
         [Header("--- Visual Elements ---")]
-        [Tooltip("Старый белый маркер лица (отключается, так как спрайт уже содержит лицо)")]
+        [Tooltip("Старый маркер лица (отключается, так как спрайт уже содержит детали лица)")]
         [SerializeField] private Transform faceTransform;
 
         // Внутреннее состояние аниматора
         private SpriteRenderer _sr;
         private string _currentState = "";
+        private string _currentAttackState = "Attack_Combo1";
         private float _currentWindupTime = 0f;
         private bool _isHoldingWindup = false;
-        private float _holdTargetTime = 0.8333f;
-        private float _attackClipLength = 0.9167f;
+        private float _holdTargetTime = 0.143f;
+        private float _damageTimer = 0f;
+        private float _parryTimer = 0f;
+        private bool _awaitingNewDirectionAfterStrike = false;
+        private Direction8 _struckDirection = Direction8.None;
 
         public bool IsHoldingWindup => _isHoldingWindup;
+        public string CurrentState => _currentState;
+        public string CurrentAttackState => _currentAttackState;
 
         private void Awake()
         {
@@ -66,11 +87,15 @@ namespace Combat.Player
             if (animatorControllerAsset == null)
             {
 #if UNITY_EDITOR
-                animatorControllerAsset = UnityEditor.AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>("Assets/Sprites/Player_AnimatorController.controller");
+                animatorControllerAsset = UnityEditor.AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>("Assets/Sprites/Evo/Evo_AnimatorController.controller");
+                if (animatorControllerAsset == null)
+                {
+                    animatorControllerAsset = UnityEditor.AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>("Assets/Sprites/Other/Player_AnimatorController.controller");
+                }
 #endif
             }
 
-            if (animatorControllerAsset != null && animator.runtimeAnimatorController == null)
+            if (animatorControllerAsset != null && (animator.runtimeAnimatorController == null || animator.runtimeAnimatorController != animatorControllerAsset))
             {
                 animator.runtimeAnimatorController = animatorControllerAsset;
             }
@@ -78,12 +103,12 @@ namespace Combat.Player
             if (playerController == null) playerController = GetComponent<PlayerController2D>();
             if (playerCombat == null) playerCombat = GetComponent<PlayerCombatController2D>();
             if (playerBlockParry == null) playerBlockParry = GetComponent<PlayerBlockAndParry2D>();
+            if (playerHealth == null) playerHealth = GetComponent<PlayerHealth2D>();
             if (vectorWheel == null) vectorWheel = FindAnyObjectByType<VectorWheelController>();
 
             if (faceTransform == null) faceTransform = transform.Find("Face");
             if (faceTransform != null)
             {
-                // Отключаем старый спрайт-квадрат лица, так как теперь есть детальный спрайт персонажа
                 var faceSr = faceTransform.GetComponent<SpriteRenderer>();
                 if (faceSr != null) faceSr.enabled = false;
             }
@@ -91,21 +116,66 @@ namespace Combat.Player
             CalculateClipTimings();
         }
 
+        private void OnEnable()
+        {
+            if (playerHealth != null)
+            {
+                playerHealth.onDamaged.AddListener(HandleDamageTaken);
+                playerHealth.onDeath.AddListener(HandleDeath);
+                playerHealth.onRespawn.AddListener(HandleRespawn);
+            }
+
+            if (playerBlockParry != null)
+            {
+                playerBlockParry.onParryStarted.AddListener(HandleParryTriggered);
+                playerBlockParry.onParrySuccess.AddListener(HandleParryTriggered);
+            }
+
+            if (playerCombat != null)
+            {
+                playerCombat.onSequenceExecuted += HandleSequenceExecuted;
+            }
+        }
+
+        private void OnDisable()
+        {
+            if (playerHealth != null)
+            {
+                playerHealth.onDamaged.RemoveListener(HandleDamageTaken);
+                playerHealth.onDeath.RemoveListener(HandleDeath);
+                playerHealth.onRespawn.RemoveListener(HandleRespawn);
+            }
+
+            if (playerBlockParry != null)
+            {
+                playerBlockParry.onParryStarted.RemoveListener(HandleParryTriggered);
+                playerBlockParry.onParrySuccess.RemoveListener(HandleParryTriggered);
+            }
+
+            if (playerCombat != null)
+            {
+                playerCombat.onSequenceExecuted -= HandleSequenceExecuted;
+            }
+        }
+
         private void CalculateClipTimings()
         {
             _holdTargetTime = attackWindupHoldFrame / Mathf.Max(1f, attackFrameRate);
+        }
 
+        private float GetAttackClipLength(string stateName)
+        {
             if (animator != null && animator.runtimeAnimatorController != null)
             {
                 foreach (var clip in animator.runtimeAnimatorController.animationClips)
                 {
-                    if (clip.name == "Attack")
+                    if (clip.name == stateName || clip.name == "Evo_" + stateName)
                     {
-                        _attackClipLength = clip.length;
-                        break;
+                        return clip.length;
                     }
                 }
             }
+            return 0.785f;
         }
 
         private void Start()
@@ -125,33 +195,98 @@ namespace Combat.Player
 
         private void UpdateAnimationState()
         {
-            // 1. ПРОВЕРКА ЗАМАХА НА СТРЕЛКЕ (Vector Wheel LMB Drag & Hold)
-            bool isAimingOnWheel = false;
-            Direction8 aimDir = Direction8.None;
-
-            if (vectorWheel != null && vectorWheel.IsDragging && vectorWheel.ActiveGestureButton == WheelGestureButton.LMB)
+            // 0. СМЕРТЬ ИГРОКА
+            if (playerHealth != null && playerHealth.IsDead)
             {
-                if (vectorWheel.CurrentDirection != Direction8.None)
+                PlayState("Damage");
+                if (animator != null) animator.speed = 0f;
+                return;
+            }
+
+            // 1. ПОЛУЧЕНИЕ УРОНА (HURT / HITSTUN)
+            if (_damageTimer > 0f || (playerCombat != null && playerCombat.IsHitstunned))
+            {
+                if (_damageTimer > 0f) _damageTimer -= Time.deltaTime;
+                _isHoldingWindup = false;
+                PlayState("Damage");
+                if (animator != null) animator.speed = 1.0f;
+                return;
+            }
+
+            // 2. ПАРИРОВАНИЕ (PARRY)
+            if (_parryTimer > 0f || (playerBlockParry != null && playerBlockParry.IsParrying))
+            {
+                if (_parryTimer > 0f) _parryTimer -= Time.deltaTime;
+                _isHoldingWindup = false;
+                PlayState("Parry");
+                if (animator != null) animator.speed = 1.0f;
+                return;
+            }
+
+            // 3. ПРОВЕРКА ЗАМАХА И УДАРА (Vector Wheel LMB Drag & Strike)
+            bool isDraggingLMB = vectorWheel != null && vectorWheel.IsDragging && vectorWheel.ActiveGestureButton == WheelGestureButton.LMB;
+            Direction8 currentWheelDir = isDraggingLMB ? vectorWheel.CurrentDirection : Direction8.None;
+
+            if (!isDraggingLMB)
+            {
+                // Отпустили ЛКМ — полностью сбрасываем блокировку после удара
+                _awaitingNewDirectionAfterStrike = false;
+                _struckDirection = Direction8.None;
+            }
+            else if (_awaitingNewDirectionAfterStrike)
+            {
+                // Если вернулись в центр колеса или перешли в НОВЫЙ сектор — сбрасываем блокировку для нового замаха
+                if (currentWheelDir == Direction8.None)
                 {
-                    isAimingOnWheel = true;
-                    aimDir = vectorWheel.CurrentDirection;
+                    _awaitingNewDirectionAfterStrike = false;
+                    _struckDirection = Direction8.None;
+                }
+                else if (currentWheelDir != _struckDirection)
+                {
+                    _awaitingNewDirectionAfterStrike = false;
+                    _struckDirection = Direction8.None;
                 }
             }
 
-            // Поворот персонажа в сторону прицеливания стрелки
+            // Замах активен, только если игрок целится И НЕ ожидает нового направления после совершенного удара
+            bool isAimingOnWheel = isDraggingLMB && currentWheelDir != Direction8.None && !_awaitingNewDirectionAfterStrike;
+            Direction8 aimDir = isAimingOnWheel ? currentWheelDir : Direction8.None;
+
+            // Выбор анимации замаха при прицеливании на стрелке (без разворота персонажа за мышкой)
             if (isAimingOnWheel && aimDir != Direction8.None)
             {
-                float aimSign = GetHorizontalSign(aimDir);
-                if (Mathf.Abs(aimSign) > 0.01f && playerCombat != null)
-                {
-                    playerCombat.SetFacingDirection(aimSign);
-                }
+                _currentAttackState = GetAttackStateForDirection(aimDir);
             }
 
-            // Проверка фазы атаки контроллера боя
-            bool isCombatActive = playerCombat != null && playerCombat.CurrentState != CombatState.Idle;
+            // Проверка фаз боя контроллера
             bool isCombatStartup = playerCombat != null && playerCombat.CurrentState == CombatState.Startup;
             bool isCombatStriking = playerCombat != null && (playerCombat.CurrentState == CombatState.Active || playerCombat.CurrentState == CombatState.Recovery);
+
+            // Б) Активная фаза удара (Выполняется атака клинком) — высший приоритет над замахом!
+            if (isCombatStriking)
+            {
+                _awaitingNewDirectionAfterStrike = true;
+                _struckDirection = currentWheelDir;
+
+                if (_isHoldingWindup)
+                {
+                    _isHoldingWindup = false;
+                    float attackLength = GetAttackClipLength(_currentAttackState);
+                    float startNormalized = Mathf.Clamp01(_holdTargetTime / Mathf.Max(0.01f, attackLength));
+                    if (animator != null)
+                    {
+                        animator.Play(_currentAttackState, 0, startNormalized);
+                        _currentState = _currentAttackState;
+                        animator.speed = 1.35f;
+                    }
+                }
+                else if (_currentState != _currentAttackState)
+                {
+                    PlayState(_currentAttackState);
+                    if (animator != null) animator.speed = 1.35f;
+                }
+                return;
+            }
 
             // А) Режим удержания замаха (Игрок целится стрелкой ИЛИ идет фаза Startup)
             if (isAimingOnWheel || isCombatStartup)
@@ -161,72 +296,62 @@ namespace Combat.Player
             }
             else
             {
-                _isHoldingWindup = false;
-            }
-
-            // Б) Активная фаза удара (Выполняется атака клинком)
-            if (isCombatStriking)
-            {
                 if (_isHoldingWindup)
                 {
                     _isHoldingWindup = false;
-                    // Подхватываем кадр замаха 2 (картинка 0012) и продолжаем удар вперед!
-                    float startNormalized = Mathf.Clamp01(_holdTargetTime / _attackClipLength);
-                    animator.Play("Attack", 0, startNormalized);
                 }
-                else if (_currentState != "Attack")
-                {
-                    PlayState("Attack");
-                }
-                animator.speed = 1.35f;
-                return;
             }
 
             _isHoldingWindup = false;
 
-            // 2. ПРОВЕРКА БЛОКА / ПАРИРОВАНИЯ (ПКМ)
+            // 4. ПРОВЕРКА БЛОКА (ПКМ)
             if (playerBlockParry != null && playerBlockParry.IsBlocking)
             {
                 PlayState("Block");
-                animator.speed = 1.0f;
+                if (animator != null) animator.speed = 1.0f;
                 return;
             }
 
-            // 3. ПРОВЕРКА ВОЗДУХА / ПРЫЖКА (не зацикливается, удерживает позу парения)
+            // 5. ПРОВЕРКА ВОЗДУХА / ПРЫЖКА (не зацикливается, удерживает позу падения)
             if (playerController != null && !playerController.IsGrounded)
             {
                 if (_currentState != "Jump")
                 {
                     PlayState("Jump");
                 }
-                animator.speed = 1.0f;
+                if (animator != null) animator.speed = 1.0f;
                 return;
             }
 
-            // 4. ДВИЖЕНИЕ ИЛИ ПОКОЙ НА ЗЕМЛЕ (WALK / IDLE)
+            // 6. ДВИЖЕНИЕ ИЛИ ПОКОЙ НА ЗЕМЛЕ (RUN / WALK / IDLE)
             bool isMoving = playerController != null && (playerController.HasMoveInput || Mathf.Abs(playerController.Velocity.x) > 0.2f);
             if (isMoving)
             {
-                PlayState("Walk");
-                float speedX = playerController != null ? Mathf.Abs(playerController.Velocity.x) : 5f;
-                animator.speed = Mathf.Clamp(speedX / 4.8f, 0.8f, 1.6f);
+                if (playerController != null && playerController.IsSprinting)
+                {
+                    PlayState("Run");
+                    float speedX = Mathf.Abs(playerController.Velocity.x);
+                    if (animator != null) animator.speed = Mathf.Clamp(speedX / 7.5f, 0.8f, 1.8f);
+                }
+                else
+                {
+                    PlayState("Walk");
+                    float speedX = playerController != null ? Mathf.Abs(playerController.Velocity.x) : 5f;
+                    if (animator != null) animator.speed = Mathf.Clamp(speedX / 4.8f, 0.8f, 1.6f);
+                }
             }
             else
             {
                 PlayState("Idle");
-                animator.speed = 1.0f;
+                if (animator != null) animator.speed = 1.0f;
             }
         }
 
-        /// <summary>
-        /// Управление замахом: анимация быстро доходит до кадра 10 и замирает,
-        /// пока игрок держит стрелку направления (например, зажал влево).
-        /// </summary>
         private void HandleAttackWindupHold()
         {
-            if (_currentState != "Attack" || !_isHoldingWindup)
+            if (_currentState != _currentAttackState || !_isHoldingWindup)
             {
-                PlayState("Attack");
+                PlayState(_currentAttackState);
                 _isHoldingWindup = true;
                 _currentWindupTime = 0f;
             }
@@ -240,9 +365,98 @@ namespace Combat.Player
                 }
             }
 
-            float normalizedTime = Mathf.Clamp01(_currentWindupTime / _attackClipLength);
-            animator.Play("Attack", 0, normalizedTime);
-            animator.speed = 0f; // Замораживаем на кадре 10!
+            float attackLength = GetAttackClipLength(_currentAttackState);
+            float normalizedTime = Mathf.Clamp01(_currentWindupTime / Mathf.Max(0.01f, attackLength));
+            if (animator != null)
+            {
+                animator.Play(_currentAttackState, 0, normalizedTime);
+                animator.speed = 0f; // Замораживаем на кадре замаха
+            }
+        }
+
+        private void HandleDamageTaken()
+        {
+            _damageTimer = damageDuration;
+            _isHoldingWindup = false;
+            _awaitingNewDirectionAfterStrike = false;
+            _struckDirection = Direction8.None;
+            PlayState("Damage");
+        }
+
+        private void HandleDeath()
+        {
+            _isHoldingWindup = false;
+            _awaitingNewDirectionAfterStrike = false;
+            _struckDirection = Direction8.None;
+            PlayState("Damage");
+            if (animator != null) animator.speed = 0f;
+        }
+
+        private void HandleRespawn()
+        {
+            _damageTimer = 0f;
+            _parryTimer = 0f;
+            _isHoldingWindup = false;
+            _awaitingNewDirectionAfterStrike = false;
+            _struckDirection = Direction8.None;
+            PlayState("Idle");
+        }
+
+        private void HandleParryTriggered()
+        {
+            _parryTimer = parryDuration;
+            _isHoldingWindup = false;
+            _awaitingNewDirectionAfterStrike = false;
+            _struckDirection = Direction8.None;
+            PlayState("Parry");
+        }
+
+        private void HandleSequenceExecuted(ComboSequenceDefinition seq)
+        {
+            if (seq == null) return;
+
+            _awaitingNewDirectionAfterStrike = true;
+            _struckDirection = (vectorWheel != null) ? vectorWheel.CurrentDirection : Direction8.None;
+
+            if (seq.IsLauncher || (seq.AttackData != null && seq.AttackData.targetedZones.HasFlag(CombatZone.High)))
+            {
+                _currentAttackState = "Attack_High";
+            }
+            else if (seq.AttackData != null && seq.AttackData.targetedZones.HasFlag(CombatZone.Low))
+            {
+                _currentAttackState = "Attack_Low";
+            }
+            else if (seq.AttackData != null && seq.AttackData.targetedZones.HasFlag(CombatZone.Mid))
+            {
+                _currentAttackState = "Attack_Mid";
+            }
+            else
+            {
+                _currentAttackState = "Attack_Combo1";
+            }
+        }
+
+        private string GetAttackStateForDirection(Direction8 dir)
+        {
+            switch (dir)
+            {
+                case Direction8.Up:
+                case Direction8.UpRight:
+                case Direction8.UpLeft:
+                    return "Attack_High";
+
+                case Direction8.Down:
+                case Direction8.DownRight:
+                case Direction8.DownLeft:
+                    return "Attack_Low";
+
+                case Direction8.Right:
+                case Direction8.Left:
+                    return "Attack_Mid";
+
+                default:
+                    return "Attack_Combo1";
+            }
         }
 
         private void PlayState(string newState)

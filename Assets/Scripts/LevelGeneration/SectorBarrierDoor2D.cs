@@ -4,10 +4,19 @@ using UnityEngine;
 
 namespace LevelGeneration
 {
+    public enum EnemyBlockerDirection
+    {
+        None,
+        Entrance, // Слева от двери: защищает Chunk 0 от проникновения врагов
+        Exit      // Справа от двери: защищает финальную комнату от проникновения врагов
+    }
+
     /// <summary>
     /// Энергетический барьер / дверь боевого сектора.
     /// Блокирует проход игрока и врагов физическим коллайдером в закрытом состоянии
     /// и плавно растворяется в открытом.
+    /// Также содержит выделенный непробиваемый барьер врагов (EnemyBlocker),
+    /// который всегда активен и не позволяет врагам покинуть боевую арену.
     /// </summary>
     [DisallowMultipleComponent]
     public class SectorBarrierDoor2D : MonoBehaviour
@@ -16,7 +25,15 @@ namespace LevelGeneration
         [Tooltip("Высота барьера (должна быть достаточно высокой, чтобы боты и игрок не перепрыгнули)")]
         [SerializeField] private float barrierHeight = 30.0f;
         [Tooltip("Ширина барьера")]
-        [SerializeField] private float barrierWidth = 0.6f;
+        [SerializeField] private float barrierWidth = 1.2f;
+        [Tooltip("Дополнительное заглубление коллайдера вниз под землю (защита от проскальзывания врагов снизу)")]
+        [SerializeField] private float extraBottomDepth = 10.0f;
+
+        [Header("--- Односторонний барьер врагов ---")]
+        [Tooltip("Режим блокировки врагов: Entrance (слева) или Exit (справа)")]
+        [SerializeField] private EnemyBlockerDirection enemyBlocker = EnemyBlockerDirection.None;
+        [Tooltip("Толщина барьера удержания врагов (метров)")]
+        [SerializeField] private float enemyBlockerWidth = 4.0f;
 
         [Header("--- Настройки состояния ---")]
         [Tooltip("Закрыта ли дверь в данный момент")]
@@ -33,6 +50,7 @@ namespace LevelGeneration
         [SerializeField] private float transitionDuration = 0.35f;
 
         private BoxCollider2D _collider;
+        private EnemyBlockerBarrier2D _enemyBlockerComponent;
         private SpriteRenderer _fieldRenderer;
         private List<SpriteRenderer> _laserBars = new List<SpriteRenderer>();
         private Transform _visualRoot;
@@ -40,6 +58,8 @@ namespace LevelGeneration
         private static Sprite _sharedBoxSprite;
 
         public bool IsClosed => isClosed;
+        public EnemyBlockerDirection BlockerDirection => enemyBlocker;
+        public EnemyBlockerBarrier2D EnemyBlocker => _enemyBlockerComponent;
 
         private void Awake()
         {
@@ -56,16 +76,23 @@ namespace LevelGeneration
                 _sharedBoxSprite = Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0f), 1f);
             }
 
-            // Настройка физического коллайдера
+            float totalHeight = barrierHeight + extraBottomDepth;
+            float centerY = (barrierHeight - extraBottomDepth) * 0.5f;
+
+            // Настройка физического коллайдера основной двери
             _collider = GetComponent<BoxCollider2D>();
             if (_collider == null)
             {
                 _collider = gameObject.AddComponent<BoxCollider2D>();
             }
 
-            _collider.size = new Vector2(barrierWidth, barrierHeight);
-            _collider.offset = new Vector2(0f, barrierHeight * 0.5f);
+            _collider.size = new Vector2(barrierWidth, totalHeight);
+            _collider.offset = new Vector2(0f, centerY);
             _collider.isTrigger = false;
+            _collider.enabled = isClosed;
+
+            // Настройка выделенного непробиваемого барьера врагов
+            SetupEnemyBlocker();
 
             // Настройка визуальных элементов
             if (_visualRoot == null)
@@ -129,6 +156,85 @@ namespace LevelGeneration
             CreateCap("CapTop", new Vector3(0f, barrierHeight - 0.35f, 0f), new Vector3(barrierWidth * 2.2f, 0.35f, 1f));
 
             ApplyVisualState(isClosed, 1.0f);
+        }
+
+        private void SetupEnemyBlocker()
+        {
+            var blockerTform = transform.Find("[EnemyBlocker_Wall]");
+            if (blockerTform == null)
+            {
+                var blockerGo = new GameObject("[EnemyBlocker_Wall]");
+                blockerGo.transform.SetParent(transform, false);
+                blockerTform = blockerGo.transform;
+            }
+
+            _enemyBlockerComponent = blockerTform.GetComponent<EnemyBlockerBarrier2D>();
+            if (_enemyBlockerComponent == null)
+            {
+                _enemyBlockerComponent = blockerTform.gameObject.AddComponent<EnemyBlockerBarrier2D>();
+            }
+
+            float totalHeight = barrierHeight + extraBottomDepth;
+            float centerY = (barrierHeight - extraBottomDepth) * 0.5f;
+
+            if (enemyBlocker == EnemyBlockerDirection.Entrance)
+            {
+                // Расположен слева от двери: от x = -enemyBlockerWidth до x = 0
+                _enemyBlockerComponent.ConfigureGeometry(
+                    new Vector2(enemyBlockerWidth, totalHeight),
+                    new Vector2(-enemyBlockerWidth * 0.5f, centerY)
+                );
+                _enemyBlockerComponent.gameObject.SetActive(true);
+            }
+            else if (enemyBlocker == EnemyBlockerDirection.Exit)
+            {
+                // Расположен справа от двери: от x = 0 до x = enemyBlockerWidth
+                _enemyBlockerComponent.ConfigureGeometry(
+                    new Vector2(enemyBlockerWidth, totalHeight),
+                    new Vector2(enemyBlockerWidth * 0.5f, centerY)
+                );
+                _enemyBlockerComponent.gameObject.SetActive(true);
+            }
+            else
+            {
+                _enemyBlockerComponent.gameObject.SetActive(false);
+            }
+        }
+
+        public void ConfigureAsEntrance()
+        {
+            enemyBlocker = EnemyBlockerDirection.Entrance;
+            SetupComponents();
+            if (_enemyBlockerComponent != null)
+            {
+                _enemyBlockerComponent.IgnoreAllPlayerColliders();
+            }
+        }
+
+        public void ConfigureAsExit()
+        {
+            enemyBlocker = EnemyBlockerDirection.Exit;
+            SetupComponents();
+            if (_enemyBlockerComponent != null)
+            {
+                _enemyBlockerComponent.IgnoreAllPlayerColliders();
+            }
+        }
+
+        public void IgnorePlayerObject(GameObject playerObj)
+        {
+            if (_enemyBlockerComponent != null)
+            {
+                _enemyBlockerComponent.IgnorePlayerObject(playerObj);
+            }
+        }
+
+        public void IgnoreCollider(Collider2D col)
+        {
+            if (_enemyBlockerComponent != null)
+            {
+                _enemyBlockerComponent.IgnoreCollider(col);
+            }
         }
 
         private void CreateCap(string name, Vector3 localPos, Vector3 localScale)

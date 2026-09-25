@@ -85,6 +85,19 @@ namespace Combat.Player
             _spawnRotation = transform.rotation;
 
             currentHealth = maxHealth;
+
+            if (PlayerHealthBarUI.Instance == null)
+            {
+                PlayerHealthBarUI.EnsureExists();
+            }
+        }
+
+        private void Start()
+        {
+            if (PlayerHealthBarUI.Instance == null)
+            {
+                PlayerHealthBarUI.EnsureExists();
+            }
         }
 
         private void OnEnable()

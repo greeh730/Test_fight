@@ -97,13 +97,74 @@ namespace Combat.Audio
         public float MasterVolume
         {
             get => masterVolume;
-            set => masterVolume = Mathf.Clamp01(value);
+            set
+            {
+                masterVolume = Mathf.Clamp01(value);
+                UpdateActiveMovementVolume();
+            }
         }
 
         public float SfxVolume
         {
             get => sfxVolume;
-            set => sfxVolume = Mathf.Clamp01(value);
+            set
+            {
+                sfxVolume = Mathf.Clamp01(value);
+                UpdateActiveMovementVolume();
+            }
+        }
+
+        public float FootstepsVolume
+        {
+            get => footstepsVolume;
+            set
+            {
+                footstepsVolume = Mathf.Clamp01(value);
+                UpdateActiveMovementVolume();
+            }
+        }
+
+        private bool _isMuted = false;
+        public bool IsMuted
+        {
+            get => _isMuted;
+            set
+            {
+                _isMuted = value;
+                AudioListener.pause = value;
+            }
+        }
+
+        public void ApplyVolumeSettings(float master, float sfx, float footsteps, bool muted = false)
+        {
+            masterVolume = Mathf.Clamp01(master);
+            sfxVolume = Mathf.Clamp01(sfx);
+            footstepsVolume = Mathf.Clamp01(footsteps);
+            IsMuted = muted;
+            UpdateActiveMovementVolume();
+        }
+
+        private void UpdateActiveMovementVolume()
+        {
+            if (_movementSource != null && _movementSource.isPlaying)
+            {
+                _movementSource.volume = masterVolume * sfxVolume * footstepsVolume;
+            }
+        }
+
+        /// <summary>
+        /// Воспроизводит тестовый звук для мгновенной проверки громкости в меню настроек.
+        /// </summary>
+        public void PlayTestSound()
+        {
+            if (parryClip != null)
+            {
+                PlayClip(parryClip, 1.0f, 1.0f, 1.0f);
+            }
+            else if (attackSwingClip != null)
+            {
+                PlayClip(attackSwingClip, 1.0f, 1.0f, 1.0f);
+            }
         }
 
         private void Awake()
@@ -124,6 +185,19 @@ namespace Combat.Audio
 
             InitializeAudioSources();
             EnsureClipsLoaded();
+        }
+
+        private void Start()
+        {
+            // Синхронизация с сохраненными настройками
+            if (Combat.Settings.CombatSettingsManager.Instance != null)
+            {
+                var s = Combat.Settings.CombatSettingsManager.Instance.CurrentSettings;
+                if (s != null)
+                {
+                    ApplyVolumeSettings(s.masterVolume, s.sfxVolume, s.footstepsVolume, s.isMuted);
+                }
+            }
         }
 
         private void OnValidate()

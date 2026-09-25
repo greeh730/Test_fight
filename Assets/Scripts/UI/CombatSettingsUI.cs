@@ -38,6 +38,16 @@ namespace Combat.UI
         [SerializeField] private Text idleOpacityValueText;
         [SerializeField] private Toggle showPlaqueToggle;
 
+        [Header("--- Audio & Volume UI ---")]
+        [SerializeField] private Slider masterVolumeSlider;
+        [SerializeField] private Text masterVolumeValueText;
+        [SerializeField] private Slider sfxVolumeSlider;
+        [SerializeField] private Text sfxVolumeValueText;
+        [SerializeField] private Slider footstepsVolumeSlider;
+        [SerializeField] private Text footstepsVolumeValueText;
+        [SerializeField] private Toggle muteAudioToggle;
+        [SerializeField] private Button testAudioButton;
+
         private bool _isUpdatingUI = false;
 
         public bool IsOpen => settingsPanel != null && settingsPanel.activeSelf;
@@ -232,6 +242,27 @@ namespace Combat.UI
             {
                 showPlaqueToggle.onValueChanged.AddListener(OnShowPlaqueChanged);
             }
+
+            if (masterVolumeSlider != null)
+            {
+                masterVolumeSlider.onValueChanged.AddListener(OnMasterVolumeChanged);
+            }
+            if (sfxVolumeSlider != null)
+            {
+                sfxVolumeSlider.onValueChanged.AddListener(OnSfxVolumeChanged);
+            }
+            if (footstepsVolumeSlider != null)
+            {
+                footstepsVolumeSlider.onValueChanged.AddListener(OnFootstepsVolumeChanged);
+            }
+            if (muteAudioToggle != null)
+            {
+                muteAudioToggle.onValueChanged.AddListener(OnMuteAudioChanged);
+            }
+            if (testAudioButton != null)
+            {
+                testAudioButton.onClick.AddListener(OnTestAudioClicked);
+            }
         }
 
         private void OnSettingsChangedFromExternal(WheelSettingsData data)
@@ -298,6 +329,34 @@ namespace Combat.UI
                 }
 
                 if (showPlaqueToggle != null) showPlaqueToggle.isOn = data.showAttackPlaque;
+
+                if (masterVolumeSlider != null)
+                {
+                    masterVolumeSlider.value = data.masterVolume;
+                    if (masterVolumeValueText != null)
+                        masterVolumeValueText.text = $"{Mathf.RoundToInt(data.masterVolume * 100f)}%";
+                }
+
+                if (sfxVolumeSlider != null)
+                {
+                    sfxVolumeSlider.value = data.sfxVolume;
+                    if (sfxVolumeValueText != null)
+                        sfxVolumeValueText.text = $"{Mathf.RoundToInt(data.sfxVolume * 100f)}%";
+                }
+
+                if (footstepsVolumeSlider != null)
+                {
+                    footstepsVolumeSlider.value = data.footstepsVolume;
+                    if (footstepsVolumeValueText != null)
+                        footstepsVolumeValueText.text = $"{Mathf.RoundToInt(data.footstepsVolume * 100f)}%";
+                }
+
+                if (muteAudioToggle != null) muteAudioToggle.isOn = data.isMuted;
+
+                if (Combat.Audio.SoundManager.Instance != null)
+                {
+                    Combat.Audio.SoundManager.Instance.ApplyVolumeSettings(data.masterVolume, data.sfxVolume, data.footstepsVolume, data.isMuted);
+                }
             }
             finally
             {
@@ -395,6 +454,55 @@ namespace Combat.UI
         private void OnShowPlaqueChanged(bool val)
         {
             CommitChange(s => s.showAttackPlaque = val);
+        }
+
+        private void OnMasterVolumeChanged(float val)
+        {
+            if (masterVolumeValueText != null)
+                masterVolumeValueText.text = $"{Mathf.RoundToInt(val * 100f)}%";
+
+            if (Combat.Audio.SoundManager.Instance != null)
+                Combat.Audio.SoundManager.Instance.MasterVolume = val;
+
+            CommitChange(s => s.masterVolume = val);
+        }
+
+        private void OnSfxVolumeChanged(float val)
+        {
+            if (sfxVolumeValueText != null)
+                sfxVolumeValueText.text = $"{Mathf.RoundToInt(val * 100f)}%";
+
+            if (Combat.Audio.SoundManager.Instance != null)
+                Combat.Audio.SoundManager.Instance.SfxVolume = val;
+
+            CommitChange(s => s.sfxVolume = val);
+        }
+
+        private void OnFootstepsVolumeChanged(float val)
+        {
+            if (footstepsVolumeValueText != null)
+                footstepsVolumeValueText.text = $"{Mathf.RoundToInt(val * 100f)}%";
+
+            if (Combat.Audio.SoundManager.Instance != null)
+                Combat.Audio.SoundManager.Instance.FootstepsVolume = val;
+
+            CommitChange(s => s.footstepsVolume = val);
+        }
+
+        private void OnMuteAudioChanged(bool val)
+        {
+            if (Combat.Audio.SoundManager.Instance != null)
+                Combat.Audio.SoundManager.Instance.IsMuted = val;
+
+            CommitChange(s => s.isMuted = val);
+        }
+
+        private void OnTestAudioClicked()
+        {
+            if (Combat.Audio.SoundManager.Instance != null)
+            {
+                Combat.Audio.SoundManager.Instance.PlayTestSound();
+            }
         }
 
         private void OnResetClicked()

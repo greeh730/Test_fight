@@ -71,6 +71,60 @@ namespace LevelGeneration
     }
 
     /// <summary>
+    /// Конфигурация баффов и параметров врагов для конкретного уровня (круга забега).
+    /// Полностью настраивается в Инспекторе для каждого уровня индивидуально.
+    /// </summary>
+    [Serializable]
+    public class EnemyLevelBuffConfig
+    {
+        [Tooltip("Название/описание уровня (например, 'Уровень 1 (Старт)', 'Уровень 2 (Усиление)')")]
+        public string levelTitle = "Уровень 1";
+
+        [Header("--- Характеристики врагов (Множители) ---")]
+        [Tooltip("Множитель максимального здоровья врагов (1.0 = базовое 100%, 1.35 = +35% HP)")]
+        public float healthMultiplier = 1.0f;
+
+        [Tooltip("Множитель урона ударов врагов (1.0 = базовый 100%, 1.25 = +25% урона)")]
+        public float damageMultiplier = 1.0f;
+
+        [Tooltip("Множитель скорости перемещения/бега врагов (1.0 = базовая, 1.15 = +15% к скорости)")]
+        public float moveSpeedMultiplier = 1.0f;
+
+        [Tooltip("Множитель выносливости (стамины) врагов (1.0 = базовая, 1.20 = +20% к запасу сил)")]
+        public float staminaMultiplier = 1.0f;
+
+        [Tooltip("Множитель скорости замаха врагов (1.0 = базовая, 1.20 = на 20% быстрее телеграф)")]
+        public float telegraphSpeedMultiplier = 1.0f;
+
+        [Header("--- Спавн врагов на этом уровне ---")]
+        [Tooltip("Точное количество врагов на этом уровне (0 = авто-расчет по формуле базового числа врагов)")]
+        public int enemyCountOverride = 0;
+
+        [Header("--- Очки стиля ---")]
+        [Tooltip("Множитель очков стиля за этот уровень (1.0 = базовый)")]
+        public float styleMultiplier = 1.0f;
+
+        public EnemyLevelBuffConfig() { }
+
+        public EnemyLevelBuffConfig(string title, float hp, float dmg, float moveSpd, float stam, float attackSpd, int count, float style)
+        {
+            levelTitle = title;
+            healthMultiplier = hp;
+            damageMultiplier = dmg;
+            moveSpeedMultiplier = moveSpd;
+            staminaMultiplier = stam;
+            telegraphSpeedMultiplier = attackSpd;
+            enemyCountOverride = count;
+            styleMultiplier = style;
+        }
+
+        public EnemyLevelBuffConfig Clone()
+        {
+            return (EnemyLevelBuffConfig)this.MemberwiseClone();
+        }
+    }
+
+    /// <summary>
     /// Генератор цепочки уровня: собирает уровень из фиксированных и случайных фрагментов
     /// с абсолютной точностью стыковки по высоте через систему сокетов.
     /// </summary>
@@ -241,6 +295,24 @@ namespace LevelGeneration
         [Tooltip("Прирост множителя стиля за каждый круг (+25% к очкам стиля)")]
         [SerializeField] private float styleGrowthPerCycle = 0.25f;
 
+        [Header("--- Настройка баффов врагов за каждый уровень (Inspector) ---")]
+        [Tooltip("Включить индивидуальную настройку баффов врагов для каждого уровня из списка ниже")]
+        [SerializeField] private bool useCustomLevelBuffs = true;
+
+        [Tooltip("Список баффов для каждого уровня (Элемент 0 = Уровень 1, Элемент 1 = Уровень 2 и т.д.)")]
+        [SerializeField] private List<EnemyLevelBuffConfig> levelBuffs = new List<EnemyLevelBuffConfig>();
+
+        [Tooltip("Если уровень выше заданного списка, экстраполировать баффы на основе прироста за уровень")]
+        [SerializeField] private bool extrapolateBeyondConfiguredLevels = true;
+
+        public bool UseCustomLevelBuffs
+        {
+            get => useCustomLevelBuffs;
+            set => useCustomLevelBuffs = value;
+        }
+
+        public List<EnemyLevelBuffConfig> LevelBuffs => levelBuffs;
+
         [Header("--- Префаб врага и контейнер ---")]
         [Tooltip("Префаб врага для спавна на точках EnemySpawnPoints")]
         [SerializeField] private GameObject enemyPrefab;
@@ -283,6 +355,8 @@ namespace LevelGeneration
                 return;
             }
 
+            EnsureDefaultLevelBuffs();
+
             if (resetForceVariantOnPlay)
             {
                 forcePreviewCombatVariantIndex = -1;
@@ -290,6 +364,85 @@ namespace LevelGeneration
                 tierOverrideMode = TierOverrideMode.AutoByProgress;
                 debugSpecificPrefab = null;
             }
+        }
+
+        private void Reset()
+        {
+            EnsureDefaultLevelBuffs(force: true);
+        }
+
+        private void OnValidate()
+        {
+            if (levelBuffs == null || levelBuffs.Count == 0)
+            {
+                EnsureDefaultLevelBuffs();
+            }
+        }
+
+        public void EnsureDefaultLevelBuffs(bool force = false)
+        {
+            if (force || levelBuffs == null || levelBuffs.Count == 0)
+            {
+                levelBuffs = GetDefaultLevelBuffs();
+            }
+        }
+
+        public static List<EnemyLevelBuffConfig> GetDefaultLevelBuffs()
+        {
+            return new List<EnemyLevelBuffConfig>
+            {
+                new EnemyLevelBuffConfig("Уровень 1 (Старт)", hp: 1.00f, dmg: 1.00f, moveSpd: 1.00f, stam: 1.00f, attackSpd: 1.00f, count: 1, style: 1.00f),
+                new EnemyLevelBuffConfig("Уровень 2 (Усиление)", hp: 1.35f, dmg: 1.15f, moveSpd: 1.08f, stam: 1.15f, attackSpd: 1.10f, count: 2, style: 1.25f),
+                new EnemyLevelBuffConfig("Уровень 3 (Ветеран)", hp: 1.70f, dmg: 1.30f, moveSpd: 1.15f, stam: 1.30f, attackSpd: 1.20f, count: 3, style: 1.50f),
+                new EnemyLevelBuffConfig("Уровень 4 (Мастер)", hp: 2.10f, dmg: 1.45f, moveSpd: 1.22f, stam: 1.50f, attackSpd: 1.30f, count: 4, style: 1.75f),
+                new EnemyLevelBuffConfig("Уровень 5 (Элита)", hp: 2.60f, dmg: 1.60f, moveSpd: 1.30f, stam: 1.70f, attackSpd: 1.40f, count: 5, style: 2.00f),
+            };
+        }
+
+        public EnemyLevelBuffConfig GetBuffsForCycle(int cycle)
+        {
+            EnsureDefaultLevelBuffs();
+
+            if (useCustomLevelBuffs && levelBuffs != null && levelBuffs.Count > 0)
+            {
+                if (cycle >= 1 && cycle <= levelBuffs.Count)
+                {
+                    return levelBuffs[cycle - 1];
+                }
+
+                if (cycle > levelBuffs.Count && extrapolateBeyondConfiguredLevels)
+                {
+                    var last = levelBuffs[levelBuffs.Count - 1];
+                    int extra = cycle - levelBuffs.Count;
+                    return new EnemyLevelBuffConfig(
+                        $"Уровень {cycle} (Экстраполяция)",
+                        hp: last.healthMultiplier + extra * healthGrowthPerCycle,
+                        dmg: last.damageMultiplier + extra * 0.15f,
+                        moveSpd: last.moveSpeedMultiplier + extra * 0.05f,
+                        stam: last.staminaMultiplier + extra * staminaGrowthPerCycle,
+                        attackSpd: last.telegraphSpeedMultiplier + extra * telegraphSpeedGrowthPerCycle,
+                        count: last.enemyCountOverride > 0 ? Mathf.Min(maxEnemies, last.enemyCountOverride + extra * enemiesPerCycle) : 0,
+                        style: last.styleMultiplier + extra * styleGrowthPerCycle
+                    );
+                }
+
+                if (levelBuffs.Count > 0)
+                {
+                    return levelBuffs[levelBuffs.Count - 1];
+                }
+            }
+
+            // Фоллбэк: классическая линейная формула
+            return new EnemyLevelBuffConfig(
+                $"Круг {cycle}",
+                hp: 1.0f + (cycle - 1) * healthGrowthPerCycle,
+                dmg: 1.0f + (cycle - 1) * 0.15f,
+                moveSpd: 1.0f + (cycle - 1) * 0.05f,
+                stam: 1.0f + (cycle - 1) * staminaGrowthPerCycle,
+                attackSpd: 1.0f + (cycle - 1) * telegraphSpeedGrowthPerCycle,
+                count: Mathf.Clamp(baseEnemyCount + (cycle - 1) * enemiesPerCycle, 1, maxEnemies),
+                style: 1.0f + (cycle - 1) * styleGrowthPerCycle
+            );
         }
 
         private void Start()
@@ -732,6 +885,18 @@ namespace LevelGeneration
             currentRun++;
             currentCycle = currentRun;
 
+            // Полное восстановление здоровья героя при переходе на новый цикл
+            var playerHealth = FindAnyObjectByType<Combat.Player.PlayerHealth2D>();
+            if (playerHealth != null)
+            {
+                playerHealth.ResetHealth();
+            }
+            if (Combat.UI.PlayerHealthBarUI.Instance != null)
+            {
+                Combat.UI.PlayerHealthBarUI.Instance.RefreshDisplay(instant: true);
+                Combat.UI.PlayerHealthBarUI.Instance.TriggerHealFlash();
+            }
+
             int tierIdx = GetActiveTierIndex();
             string tierName = (difficultyTiers != null && tierIdx >= 0 && tierIdx < difficultyTiers.Count) ? difficultyTiers[tierIdx].tierName : $"Тир {tierIdx + 1}";
             Debug.Log($"<color=#FF5555><b>[LevelGen]</b></color> 💎 <b>Кристалл Победы собран!</b> Всего кристаллов: <b>{crystalsCollected}</b>. Переход на забег <b>#{currentRun}</b> -> <b>{tierName}</b>!");
@@ -807,16 +972,29 @@ namespace LevelGeneration
                 candidatePoints[rnd] = temp;
             }
 
-            // Расчет количества врагов для текущего круга
-            int targetEnemyCount = Mathf.Clamp(baseEnemyCount + (currentCycle - 1) * enemiesPerCycle, 1, maxEnemies);
+            // Получаем настройки баффов для текущего уровня/круга (настраиваются в Инспекторе)
+            var buffConfig = GetBuffsForCycle(currentCycle);
+
+            int targetEnemyCount;
+            if (buffConfig != null && buffConfig.enemyCountOverride > 0)
+            {
+                targetEnemyCount = Mathf.Clamp(buffConfig.enemyCountOverride, 1, maxEnemies);
+            }
+            else
+            {
+                targetEnemyCount = Mathf.Clamp(baseEnemyCount + (currentCycle - 1) * enemiesPerCycle, 1, maxEnemies);
+            }
             int spawnCount = Mathf.Min(targetEnemyCount, candidatePoints.Count);
 
-            // Множители сложности (базовый рост круга + Roguelike-проклятия/баффы)
-            float healthMult = 1.0f + (currentCycle - 1) * healthGrowthPerCycle;
-            float staminaMult = 1.0f + (currentCycle - 1) * staminaGrowthPerCycle;
-            float speedMult = 1.0f + (currentCycle - 1) * telegraphSpeedGrowthPerCycle;
-            float styleMult = 1.0f + (currentCycle - 1) * styleGrowthPerCycle;
+            // Множители характеристик врагов за уровень
+            float healthMult = buffConfig != null ? buffConfig.healthMultiplier : (1.0f + (currentCycle - 1) * healthGrowthPerCycle);
+            float staminaMult = buffConfig != null ? buffConfig.staminaMultiplier : (1.0f + (currentCycle - 1) * staminaGrowthPerCycle);
+            float speedMult = buffConfig != null ? buffConfig.telegraphSpeedMultiplier : (1.0f + (currentCycle - 1) * telegraphSpeedGrowthPerCycle);
+            float damageMult = buffConfig != null ? buffConfig.damageMultiplier : 1.0f;
+            float moveSpeedMult = buffConfig != null ? buffConfig.moveSpeedMultiplier : 1.0f;
+            float styleMult = buffConfig != null ? buffConfig.styleMultiplier : (1.0f + (currentCycle - 1) * styleGrowthPerCycle);
 
+            // Множители Roguelike-улучшений/проклятий
             if (Combat.Roguelike.RoguelikeUpgradeManager.Instance != null)
             {
                 healthMult *= Combat.Roguelike.RoguelikeUpgradeManager.Instance.EnemyHealthMultiplier;
@@ -832,7 +1010,7 @@ namespace LevelGeneration
                 var enemyAI = enemyObj.GetComponent<Combat.EnemyAIController2D>();
                 if (enemyAI != null)
                 {
-                    enemyAI.ApplyDifficultyScaling(healthMult, staminaMult, speedMult);
+                    enemyAI.ApplyDifficultyScaling(healthMult, staminaMult, speedMult, damageMult, moveSpeedMult);
                     enemyAI.RespawnOnDeath = false;
                 }
 
@@ -845,7 +1023,8 @@ namespace LevelGeneration
                 Combat.Style.StyleManager.Instance.SetCycleMultiplier(styleMult);
             }
 
-            Debug.Log($"<color=#FF5555><b>[SPAWN]</b></color> <b>Круг {currentCycle}</b>: Заспавнено {spawnCount} врагов на платформах! (HP: x{healthMult:F2}, Выносливость: x{staminaMult:F2}, Скорость замаха: x{speedMult:F2}, Стиль: x{styleMult:F2})");
+            string levelName = buffConfig != null ? buffConfig.levelTitle : $"Круг {currentCycle}";
+            Debug.Log($"<color=#FF5555><b>[SPAWN]</b></color> <b>{levelName} (Круг {currentCycle})</b>: Заспавнено {spawnCount} врагов на платформах! (HP: x{healthMult:F2}, Урон: x{damageMult:F2}, Скорость: x{moveSpeedMult:F2}, Замах: x{speedMult:F2}, Выносливость: x{staminaMult:F2}, Стиль: x{styleMult:F2})");
         }
 
         private void SetupSectorDoors(List<LevelChunk> chunks)
@@ -860,6 +1039,9 @@ namespace LevelGeneration
             _entranceDoorInstance = SpawnOrSetupDoor("[Entrance_Barrier_Door]", entrancePos);
             _exitDoorInstance = SpawnOrSetupDoor("[Exit_Barrier_Door]", exitPos);
 
+            if (_entranceDoorInstance != null) _entranceDoorInstance.ConfigureAsEntrance();
+            if (_exitDoorInstance != null) _exitDoorInstance.ConfigureAsExit();
+
             if (_combatLockInstance == null)
             {
                 _combatLockInstance = GetComponent<CombatSectorLock2D>();
@@ -869,7 +1051,7 @@ namespace LevelGeneration
                 }
             }
 
-            _combatLockInstance.InitializeSector(_entranceDoorInstance, _exitDoorInstance, entrancePos, _spawnedEnemies);
+            _combatLockInstance.InitializeSector(_entranceDoorInstance, _exitDoorInstance, entrancePos, exitPos, _spawnedEnemies);
         }
 
         private SectorBarrierDoor2D SpawnOrSetupDoor(string doorName, Vector3 worldPos)

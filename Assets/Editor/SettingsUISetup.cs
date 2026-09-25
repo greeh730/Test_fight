@@ -135,7 +135,7 @@ namespace Combat.Editor
             winRt.anchorMax = new Vector2(0.5f, 0.5f);
             winRt.pivot = new Vector2(0.5f, 0.5f);
             winRt.anchoredPosition = Vector2.zero;
-            winRt.sizeDelta = new Vector2(680f, 540f);
+            winRt.sizeDelta = new Vector2(960f, 540f);
 
             var winImg = winObj.GetComponent<Image>();
             winImg.sprite = s_Resources.background;
@@ -145,7 +145,7 @@ namespace Combat.Editor
             // Заголовок (Header)
             CreateHeader(winObj.transform);
 
-            // Контент (2 колонки: Controls и Visuals)
+            // Контент (3 колонки: Controls, Visuals, Audio)
             CreateBody(winObj.transform);
 
             // Нижняя панель с кнопками (Footer)
@@ -170,7 +170,7 @@ namespace Combat.Editor
             img.color = new Color(0.12f, 0.15f, 0.22f, 1f);
 
             // Заголовок
-            var titleTextObj = CreateText("TitleText", headerObj.transform, "⚙  НАСТРОЙКИ БОЕВОЙ СИСТЕМЫ", 15, FontStyle.Bold, Color.white);
+            var titleTextObj = CreateText("TitleText", headerObj.transform, "⚙  НАСТРОЙКИ БОЕВОЙ СИСТЕМЫ И ЗВУКА", 15, FontStyle.Bold, Color.white);
             var titleRt = titleTextObj.GetComponent<RectTransform>();
             titleRt.anchorMin = new Vector2(0f, 0f);
             titleRt.anchorMax = new Vector2(1f, 1f);
@@ -213,36 +213,56 @@ namespace Combat.Editor
             bodyRt.offsetMin = new Vector2(25f, 60f);
             bodyRt.offsetMax = new Vector2(-25f, -56f);
 
-            // Левая колонка: Controls
+            // Левая колонка: Controls (0 .. 0.32)
             var colLeftObj = new GameObject("ColControls", typeof(RectTransform));
             colLeftObj.transform.SetParent(bodyObj.transform, false);
             var leftRt = colLeftObj.GetComponent<RectTransform>();
             leftRt.anchorMin = new Vector2(0f, 0f);
-            leftRt.anchorMax = new Vector2(0.485f, 1f);
+            leftRt.anchorMax = new Vector2(0.32f, 1f);
             leftRt.offsetMin = Vector2.zero;
             leftRt.offsetMax = Vector2.zero;
 
             PopulateControlsColumn(colLeftObj.transform);
 
-            // Разделительная линия по центру
-            var dividerObj = new GameObject("Divider", typeof(RectTransform), typeof(Image));
-            dividerObj.transform.SetParent(bodyObj.transform, false);
-            var divRt = dividerObj.GetComponent<RectTransform>();
-            divRt.anchorMin = new Vector2(0.5f, 0.05f);
-            divRt.anchorMax = new Vector2(0.5f, 0.95f);
-            divRt.sizeDelta = new Vector2(1f, 0f);
-            dividerObj.GetComponent<Image>().color = new Color(0.2f, 0.25f, 0.35f, 0.5f);
+            // Разделительная линия 1
+            var div1Obj = new GameObject("Divider1", typeof(RectTransform), typeof(Image));
+            div1Obj.transform.SetParent(bodyObj.transform, false);
+            var div1Rt = div1Obj.GetComponent<RectTransform>();
+            div1Rt.anchorMin = new Vector2(0.33f, 0.05f);
+            div1Rt.anchorMax = new Vector2(0.33f, 0.95f);
+            div1Rt.sizeDelta = new Vector2(1f, 0f);
+            div1Obj.GetComponent<Image>().color = new Color(0.2f, 0.25f, 0.35f, 0.5f);
 
-            // Правая колонка: Visuals
-            var colRightObj = new GameObject("ColVisuals", typeof(RectTransform));
+            // Средняя колонка: Visuals (0.34 .. 0.66)
+            var colCenterObj = new GameObject("ColVisuals", typeof(RectTransform));
+            colCenterObj.transform.SetParent(bodyObj.transform, false);
+            var centerRt = colCenterObj.GetComponent<RectTransform>();
+            centerRt.anchorMin = new Vector2(0.34f, 0f);
+            centerRt.anchorMax = new Vector2(0.66f, 1f);
+            centerRt.offsetMin = Vector2.zero;
+            centerRt.offsetMax = Vector2.zero;
+
+            PopulateVisualsColumn(colCenterObj.transform);
+
+            // Разделительная линия 2
+            var div2Obj = new GameObject("Divider2", typeof(RectTransform), typeof(Image));
+            div2Obj.transform.SetParent(bodyObj.transform, false);
+            var div2Rt = div2Obj.GetComponent<RectTransform>();
+            div2Rt.anchorMin = new Vector2(0.67f, 0.05f);
+            div2Rt.anchorMax = new Vector2(0.67f, 0.95f);
+            div2Rt.sizeDelta = new Vector2(1f, 0f);
+            div2Obj.GetComponent<Image>().color = new Color(0.2f, 0.25f, 0.35f, 0.5f);
+
+            // Правая колонка: Audio (0.68 .. 1.0)
+            var colRightObj = new GameObject("ColAudio", typeof(RectTransform));
             colRightObj.transform.SetParent(bodyObj.transform, false);
             var rightRt = colRightObj.GetComponent<RectTransform>();
-            rightRt.anchorMin = new Vector2(0.515f, 0f);
+            rightRt.anchorMin = new Vector2(0.68f, 0f);
             rightRt.anchorMax = new Vector2(1f, 1f);
             rightRt.offsetMin = Vector2.zero;
             rightRt.offsetMax = Vector2.zero;
 
-            PopulateVisualsColumn(colRightObj.transform);
+            PopulateAudioColumn(colRightObj.transform);
         }
 
         private static void PopulateControlsColumn(Transform parent)
@@ -307,6 +327,47 @@ namespace Combat.Editor
 
             // 5. Показывать плашку атак (Toggle)
             CreateToggleItem("ShowPlaque", parent, "Показывать плашку атак", true, ref yPos, 32f);
+        }
+
+        private static void PopulateAudioColumn(Transform parent)
+        {
+            float yPos = -5f;
+            const float itemGap = 42f;
+
+            // Заголовок секции
+            var secTitle = CreateText("SecTitleAudio", parent, "— ЗВУК И ГРОМКОСТЬ —", 13, FontStyle.Bold, new Color(0.2f, 0.9f, 0.5f, 1f));
+            PositionItem(secTitle.GetComponent<RectTransform>(), yPos, 22f);
+            yPos -= 30f;
+
+            // 1. Общая громкость (Master: 0.0 - 1.0)
+            CreateSliderItem("MasterVolume", parent, "Общая громкость", 0.0f, 1.0f, 1.0f, "100%", ref yPos, itemGap);
+
+            // 2. Звуки боя и магии (SFX: 0.0 - 1.0)
+            CreateSliderItem("SfxVolume", parent, "Звуки боя и магии", 0.0f, 1.0f, 1.0f, "100%", ref yPos, itemGap);
+
+            // 3. Звуки шагов (Footsteps: 0.0 - 1.0)
+            CreateSliderItem("FootstepsVolume", parent, "Шаги и перемещение", 0.0f, 1.0f, 0.85f, "85%", ref yPos, itemGap);
+
+            // 4. Отключить звук (Mute toggle)
+            CreateToggleItem("MuteAudio", parent, "Отключить весь звук (Mute)", false, ref yPos, 36f);
+
+            // 5. Кнопка "Проверить звук"
+            var testBtnObj = DefaultControls.CreateButton(s_Resources);
+            testBtnObj.name = "TestAudioButton";
+            testBtnObj.transform.SetParent(parent, false);
+            PositionItem(testBtnObj.GetComponent<RectTransform>(), yPos, 34f);
+            yPos -= itemGap;
+
+            testBtnObj.GetComponent<Image>().color = new Color(0.16f, 0.28f, 0.38f, 0.95f);
+            var testBtnText = testBtnObj.GetComponentInChildren<Text>();
+            if (testBtnText != null)
+            {
+                testBtnText.text = "🔊 Проверить звук";
+                testBtnText.font = s_Font;
+                testBtnText.fontSize = 11;
+                testBtnText.fontStyle = FontStyle.Bold;
+                testBtnText.color = new Color(0.9f, 0.98f, 1f, 1f);
+            }
         }
 
         private static void CreateSliderItem(string name, Transform parent, string labelText, float min, float max, float defVal, string defDisplay, ref float yPos, float gap)
@@ -600,6 +661,35 @@ namespace Combat.Editor
 
                 var plqToggle = rightCol.Find("ShowPlaqueToggle");
                 if (plqToggle != null) so.FindProperty("showPlaqueToggle").objectReferenceValue = plqToggle.GetComponent<Toggle>();
+            }
+
+            // 4. Audio & Volume UI
+            var audioCol = panelObj.transform.Find("SettingsWindow/Body/ColAudio");
+            if (audioCol != null)
+            {
+                var masterSlider = audioCol.Find("MasterVolumeGroup/MasterVolumeSlider");
+                if (masterSlider != null) so.FindProperty("masterVolumeSlider").objectReferenceValue = masterSlider.GetComponent<Slider>();
+
+                var masterVal = audioCol.Find("MasterVolumeGroup/MasterVolumeValueText");
+                if (masterVal != null) so.FindProperty("masterVolumeValueText").objectReferenceValue = masterVal.GetComponent<Text>();
+
+                var sfxSlider = audioCol.Find("SfxVolumeGroup/SfxVolumeSlider");
+                if (sfxSlider != null) so.FindProperty("sfxVolumeSlider").objectReferenceValue = sfxSlider.GetComponent<Slider>();
+
+                var sfxVal = audioCol.Find("SfxVolumeGroup/SfxVolumeValueText");
+                if (sfxVal != null) so.FindProperty("sfxVolumeValueText").objectReferenceValue = sfxVal.GetComponent<Text>();
+
+                var ftSlider = audioCol.Find("FootstepsVolumeGroup/FootstepsVolumeSlider");
+                if (ftSlider != null) so.FindProperty("footstepsVolumeSlider").objectReferenceValue = ftSlider.GetComponent<Slider>();
+
+                var ftVal = audioCol.Find("FootstepsVolumeGroup/FootstepsVolumeValueText");
+                if (ftVal != null) so.FindProperty("footstepsVolumeValueText").objectReferenceValue = ftVal.GetComponent<Text>();
+
+                var muteToggle = audioCol.Find("MuteAudioToggle");
+                if (muteToggle != null) so.FindProperty("muteAudioToggle").objectReferenceValue = muteToggle.GetComponent<Toggle>();
+
+                var testBtn = audioCol.Find("TestAudioButton");
+                if (testBtn != null) so.FindProperty("testAudioButton").objectReferenceValue = testBtn.GetComponent<Button>();
             }
 
             so.ApplyModifiedProperties();

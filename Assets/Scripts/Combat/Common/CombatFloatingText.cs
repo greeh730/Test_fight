@@ -53,6 +53,11 @@ namespace Combat.Common
             Spawn(pos + new Vector3(0f, 1.4f, 0f), "НЕТ СТАМИНЫ!", new Color(1f, 0.45f, 0.1f, 1f), 1.15f, 1.1f, 0.088f, 46, 76);
         }
 
+        public static void ShowHeal(Vector3 pos, string text = "+100% HP ПОЛНОЕ ВОССТАНОВЛЕНИЕ! 💚")
+        {
+            Spawn(pos + new Vector3(0f, 1.4f, 0f), text, new Color(0.15f, 1.0f, 0.60f, 1f), 1.4f, 1.35f, 0.088f, 44, 78);
+        }
+
         public static void ShowDummyBroken(Vector3 pos)
         {
             Spawn(pos + new Vector3(0f, 1.2f, 0f), "МАНЕКЕН СЛОМАН!", new Color(1f, 0.45f, 0.15f, 1f), 1.0f, 0.9f, 0.082f, 42, 70);

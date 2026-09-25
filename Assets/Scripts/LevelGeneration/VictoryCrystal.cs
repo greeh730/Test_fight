@@ -72,6 +72,20 @@ namespace LevelGeneration
 
             if (isPlayer)
             {
+                // Полное восстановление здоровья игрока при сборе Кристалла Победы
+                var playerHealth = other.GetComponent<PlayerHealth2D>() ?? other.GetComponentInParent<PlayerHealth2D>();
+                if (playerHealth == null) playerHealth = FindAnyObjectByType<PlayerHealth2D>();
+                if (playerHealth != null)
+                {
+                    playerHealth.ResetHealth();
+                    Combat.Common.CombatFloatingText.ShowHeal(playerHealth.transform.position);
+                }
+
+                if (Combat.UI.PlayerHealthBarUI.Instance != null)
+                {
+                    Combat.UI.PlayerHealthBarUI.Instance.TriggerHealFlash();
+                }
+
                 if (Application.isPlaying && transitionDelay > 0f)
                 {
                     StartCoroutine(TriggerVictoryRoutine());
@@ -114,6 +128,19 @@ namespace LevelGeneration
         {
             _isTriggered = true;
 
+            // Полное восстановление здоровья героя при сборе кристалла
+            var playerHealth = Object.FindAnyObjectByType<PlayerHealth2D>();
+            if (playerHealth != null)
+            {
+                playerHealth.ResetHealth();
+                Combat.Common.CombatFloatingText.ShowHeal(playerHealth.transform.position);
+            }
+            if (Combat.UI.PlayerHealthBarUI.Instance != null)
+            {
+                Combat.UI.PlayerHealthBarUI.Instance.RefreshDisplay(instant: true);
+                Combat.UI.PlayerHealthBarUI.Instance.TriggerHealFlash();
+            }
+
             var generator = LevelSequenceGenerator.Instance;
             if (generator == null)
             {
@@ -145,8 +172,8 @@ namespace LevelGeneration
 
             if (upgradeManager != null && upgradeUI != null)
             {
-                var cards = upgradeManager.GenerateUpgradeOffer(3);
-                upgradeUI.ShowSelection(cards, () =>
+                var cards = upgradeManager.GenerateUpgradeOffer(5);
+                upgradeUI.ShowSelection(cards, 2, () =>
                 {
                     if (generator != null)
                     {
