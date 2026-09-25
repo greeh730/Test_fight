@@ -311,8 +311,8 @@ MonoBehaviour:
   respawnOnDeath: 0
   respawnDelay: 4
   defeatColor: {r: 0.28, g: 0.28, b: 0.28, a: 0.75}
-  detectionRange: 9.5
-  loseTargetRange: 14
+  detectionRange: 17
+  loseTargetRange: 20
   visionObstacleLayers:
     serializedVersion: 2
     m_Bits: 0
