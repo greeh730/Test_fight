@@ -294,11 +294,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f6ec1ba86e5f0fd43a847c64c2a4f955, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Combat.EnemyAIController2D
-  maxHealth: 70
-  currentHealth: 70
+  maxHealth: 140
+  currentHealth: 125
   resetHealthDelay: 7
-  maxStamina: 135
-  currentStamina: 135
+  maxStamina: 50
+  currentStamina: 40
   staminaDrainMultiplier: 1
   staminaBreakStunDuration: 3
   staminaRegenIdleDelay: 11

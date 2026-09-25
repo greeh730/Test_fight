@@ -163,9 +163,9 @@ MonoBehaviour:
   maxFallSpeed: 22
   maxAirJumps: 1
   airJumpForceMultiplier: 0.92
-  jumpStaminaPercent: 25
+  jumpStaminaPercent: 10
   separateAirJumpStamina: 0
-  airJumpStaminaPercent: 25
+  airJumpStaminaPercent: 10
   enableApexHang: 1
   apexVelocityThreshold: 2.6
   apexGravityMultiplier: 0.35
@@ -350,9 +350,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a68ef54ae21631b428afde9429718e1d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Combat.Player.PlayerStamina2D
-  maxStamina: 200
+  maxStamina: 350
   currentStamina: 200
-  regenRate: 35
+  regenRate: 50
   regenDelay: 0.85
   spamWindow: 1.4
   spamPenaltyMultiplier: 1.5
