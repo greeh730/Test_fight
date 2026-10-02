@@ -1,0 +1,70 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &4372368506594696096
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8661714735409034442}
+  - component: {fileID: 3387486063184001403}
+  m_Layer: 0
+  m_Name: SoundManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8661714735409034442
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4372368506594696096}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &3387486063184001403
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4372368506594696096}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c84b91180c28804428b2b073607e5346, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Combat.Audio.SoundManager
+  walkClip: {fileID: 8300000, guid: 03932ac3bc26f0643856985341a56cc1, type: 3}
+  runClip: {fileID: 8300000, guid: f953e3ac2a7696d458262a3b80b91024, type: 3}
+  jumpClip: {fileID: 8300000, guid: 9a9d05c0e8fbbed43a8508daf79e6f31, type: 3}
+  attackSwingClip: {fileID: 8300000, guid: 390b5b8ea38c2684fac394b56ea1f6a5, type: 3}
+  parryClip: {fileID: 8300000, guid: 325efe67362d9104a8ac3e624bbf8867, type: 3}
+  blockHitClip: {fileID: 8300000, guid: 53a6ef1e419859443add214f624795b3, type: 3}
+  enemyStunClip: {fileID: 8300000, guid: c0758f5b16f986b4e928a807e9b0665e, type: 3}
+  skeletonDamageClips:
+  - {fileID: 8300000, guid: 2313bec26c2e9f94ea4bd4510d0a52a9, type: 3}
+  - {fileID: 8300000, guid: 167ba4372ffdc8a4da830c0e959366c2, type: 3}
+  - {fileID: 8300000, guid: f8b902bc24dd6b441bb18fcf40cbc124, type: 3}
+  - {fileID: 8300000, guid: 8dbb36cf1c93b3a4f89131c993faa52c, type: 3}
+  skeletonDeathClip: {fileID: 8300000, guid: d967fb239dc51e041b4e5d2d367c4915, type: 3}
+  probingThrustClip: {fileID: 8300000, guid: ed5855c773b720c45bdf36fa0945cddb, type: 3}
+  abyssalTrapClip: {fileID: 8300000, guid: 3f700cf3471283041824678b73eaa7e2, type: 3}
+  gravityAnchorClip: {fileID: 8300000, guid: b7f22db4b9d47d44c88eab09461d072f, type: 3}
+  tacticalSmokeClip: {fileID: 8300000, guid: fbfc93425464a944a88e9eed0b5af685, type: 3}
+  kineticLaunchClip: {fileID: 8300000, guid: 8e6459d7b454eec4798fe518c66cd582, type: 3}
+  directionalSpikesClip: {fileID: 8300000, guid: 9de20c15eb182444d968f982ecc9a4bd, type: 3}
+  magicHarpoonClip: {fileID: 8300000, guid: cf2de16f5cfcdc64eb1bc7c28ddfb3cb, type: 3}
+  fanGuardClip: {fileID: 8300000, guid: 086531c361e4d1944bea51aed78d5f0a, type: 3}
+  masterVolume: 1
+  sfxVolume: 1
+  footstepsVolume: 0.85

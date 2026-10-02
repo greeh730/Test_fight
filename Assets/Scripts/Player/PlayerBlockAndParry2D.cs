@@ -74,6 +74,20 @@ namespace Combat.Player
         [SerializeField] private Color blockChipColor = new Color(1f, 0.35f, 0.15f, 0.85f);
         [SerializeField] private Color parryActiveColor = new Color(1f, 0.92f, 0.3f, 0.95f);
 
+        [Header("--- Hotkeys & Quick Input ---")]
+        [Tooltip("Клавиша быстрого мгновенного парирования (по умолчанию Q)")]
+        [SerializeField] private KeyCode parryHotkey = KeyCode.Q;
+
+        [Tooltip("Альтернативная клавиша быстрого парирования (по умолчанию F)")]
+        [SerializeField] private KeyCode parryAltHotkey = KeyCode.F;
+
+        [Header("--- Parry Indicator (Значок парирования над игроком) ---")]
+        [Tooltip("Показывать значок активной фазы парирования над головой игрока")]
+        [SerializeField] private bool showParryIndicator = true;
+
+        [Tooltip("Смещение значка парирования относительно центра игрока")]
+        [SerializeField] private Vector3 parryIndicatorOffset = new Vector3(0f, 1.55f, 0f);
+
         [Header("--- Events ---")]
         public UnityEvent<bool> onBlockStateChanged;
         public UnityEvent onParryStarted;
@@ -94,6 +108,8 @@ namespace Combat.Player
         public bool IsParryStaggered { get; private set; }
         public float BlockMoveSpeedMultiplier => blockMoveSpeedMultiplier;
         public Vector2 CurrentParryDirection => _parryDirection;
+        public KeyCode ParryHotkey => parryHotkey;
+        public KeyCode ParryAltHotkey => parryAltHotkey;
 
         public float GetCurrentFacing()
         {
@@ -116,10 +132,20 @@ namespace Combat.Player
         private SpriteRenderer _shieldRenderer;
         private LineRenderer _shieldOutlineRenderer;
 
+        // Visual Overhead Parry Indicator
+        private GameObject _parryIndicatorRoot;
+        private TextMesh _parryIndicatorText;
+        private MeshRenderer _parryTextRenderer;
+        private LineRenderer _parryDiamondOutline;
+        private SpriteRenderer _parryDiamondCore;
+        private LineRenderer _parryTimerBar;
+        private Coroutine _parryIndicatorAnimRoutine;
+
         private void Awake()
         {
             EnsureComponents();
             BuildProceduralShieldVisual();
+            BuildProceduralParryIndicator();
         }
 
         private void EnsureComponents()
@@ -243,7 +269,55 @@ namespace Combat.Player
             if (IsParryStaggered) return;
 
             StopBlocking();
+            if (dirVec.sqrMagnitude < 0.001f)
+            {
+                dirVec = GetParryAimDirection();
+            }
             ExecuteParry(dirVec);
+        }
+
+        public Vector2 GetParryAimDirection()
+        {
+            Vector2 mouseScreen = GetMousePosition();
+            if (Camera.main != null)
+            {
+                Vector3 worldMouse = Camera.main.ScreenToWorldPoint(mouseScreen);
+                Vector2 dir = ((Vector2)worldMouse - (Vector2)transform.position).normalized;
+                if (dir.sqrMagnitude > 0.01f)
+                {
+                    return dir;
+                }
+            }
+            float facing = GetCurrentFacing();
+            return new Vector2(facing, 0f);
+        }
+
+        private bool IsParryHotkeyDown()
+        {
+#if ENABLE_INPUT_SYSTEM
+            var kb = UnityEngine.InputSystem.Keyboard.current;
+            if (kb != null)
+            {
+                if (kb.qKey.wasPressedThisFrame || kb.fKey.wasPressedThisFrame) return true;
+            }
+            var mouse = UnityEngine.InputSystem.Mouse.current;
+            if (mouse != null && mouse.middleButton.wasPressedThisFrame) return true;
+
+            var gp = UnityEngine.InputSystem.Gamepad.current;
+            if (gp != null)
+            {
+                if (gp.leftShoulder.wasPressedThisFrame || gp.buttonNorth.wasPressedThisFrame) return true;
+            }
+#endif
+            try
+            {
+                if (Input.GetKeyDown(parryHotkey) || Input.GetKeyDown(parryAltHotkey) || Input.GetMouseButtonDown(2))
+                {
+                    return true;
+                }
+            }
+            catch { }
+            return false;
         }
 
         private void Update()
@@ -259,6 +333,14 @@ namespace Combat.Player
                 if (IsBlocking) StopBlocking();
                 CancelParryAndStagger();
                 return;
+            }
+
+            // Быстрое парирование по выделенной клавише (Q / F / СКМ / геймпад)
+            if (IsParryHotkeyDown() && !IsParrying && !IsParryStaggered)
+            {
+                Vector2 parryDir = GetParryAimDirection();
+                StopBlocking();
+                ExecuteParry(parryDir);
             }
 
             // Если Векторное Колесо подключено, оно управляет жестами и событиями блока/парирования
@@ -439,13 +521,15 @@ namespace Combat.Player
                 yield return new WaitForSeconds(startup);
             }
 
-            // 2. Активное окно парирования (золотое сияние щита вместо текстового спама)
-            float timer = active;
+            // 2. Активное окно парирования
+            ShowParryIndicator(active);
             StartCoroutine(ShieldFlashRoutine(parryActiveColor, 0.25f));
 
+            float timer = active;
             while (timer > 0f)
             {
                 timer -= Time.deltaTime;
+                UpdateParryIndicatorProgress(timer, active);
                 yield return null;
             }
 
@@ -453,6 +537,7 @@ namespace Combat.Player
             IsParrying = false;
             _parryRoutine = null;
 
+            NotifyParryIndicatorWhiff();
             TriggerParryWhiff(slowdownFactor);
         }
 
@@ -604,6 +689,8 @@ namespace Combat.Player
             IsParrying = false;
             IsParryStaggered = false;
 
+            NotifyParryIndicatorSuccess();
+
             if (Combat.Audio.SoundManager.Instance != null)
             {
                 Combat.Audio.SoundManager.Instance.PlayParry();
@@ -726,20 +813,30 @@ namespace Combat.Player
 
         private void UpdateVisuals()
         {
-            if (_shieldRootObj == null || !_shieldRootObj.activeSelf) return;
-
-            float facing = GetCurrentFacing();
-            _shieldRootObj.transform.localPosition = new Vector3(facing * 0.42f, 0.05f, 0f);
-
-            // Пульсация щита при удержании с ориентацией в сторону взгляда
-            float pulse = 0.9f + 0.12f * Mathf.Sin(Time.time * 7f);
-            _shieldRootObj.transform.localScale = new Vector3(facing * pulse, pulse, 1f);
-
-            Color targetColor = (_stamina != null && _stamina.CurrentStamina <= 0.05f) ? blockChipColor : blockNormalColor;
-            if (_shieldOutlineRenderer != null && _shieldOutlineRenderer.startColor != Color.white)
+            if (_shieldRootObj != null && _shieldRootObj.activeSelf)
             {
-                _shieldOutlineRenderer.startColor = targetColor;
-                _shieldOutlineRenderer.endColor = targetColor;
+                float facing = GetCurrentFacing();
+                _shieldRootObj.transform.localPosition = new Vector3(facing * 0.42f, 0.05f, 0f);
+
+                // Пульсация щита при удержании с ориентацией в сторону взгляда
+                float pulse = 0.9f + 0.12f * Mathf.Sin(Time.time * 7f);
+                _shieldRootObj.transform.localScale = new Vector3(facing * pulse, pulse, 1f);
+
+                Color targetColor = (_stamina != null && _stamina.CurrentStamina <= 0.05f) ? blockChipColor : blockNormalColor;
+                if (_shieldOutlineRenderer != null && _shieldOutlineRenderer.startColor != Color.white)
+                {
+                    _shieldOutlineRenderer.startColor = targetColor;
+                    _shieldOutlineRenderer.endColor = targetColor;
+                }
+            }
+
+            if (_parryIndicatorRoot != null && _parryIndicatorRoot.activeSelf)
+            {
+                // Позиционируем над игроком и компенсируем flipX/инверсию родительского спрайта, чтобы текст не зеркалился
+                float sign = Mathf.Sign(transform.lossyScale.x);
+                if (Mathf.Abs(sign) < 0.001f) sign = 1f;
+                Vector3 cur = _parryIndicatorRoot.transform.localScale;
+                _parryIndicatorRoot.transform.localScale = new Vector3(sign * Mathf.Abs(cur.y), cur.y, 1f);
             }
         }
 
@@ -749,6 +846,269 @@ namespace Combat.Player
             if (_staggerRoutine != null) { StopCoroutine(_staggerRoutine); _staggerRoutine = null; }
             IsParrying = false;
             IsParryStaggered = false;
+            HideParryIndicator();
+        }
+
+        private void BuildProceduralParryIndicator()
+        {
+            if (_parryIndicatorRoot != null) return;
+
+            _parryIndicatorRoot = new GameObject("Player_ParryIndicator_Visual");
+            _parryIndicatorRoot.transform.SetParent(transform, false);
+            _parryIndicatorRoot.transform.localPosition = parryIndicatorOffset;
+
+            // 1. Текстовая плашка сверху
+            var textGo = new GameObject("Indicator_Text");
+            textGo.transform.SetParent(_parryIndicatorRoot.transform, false);
+            textGo.transform.localPosition = new Vector3(0f, 0.30f, 0f);
+
+            _parryIndicatorText = textGo.AddComponent<TextMesh>();
+            _parryIndicatorText.text = "⚡ ПАРИРОВАНИЕ ⚡";
+            _parryIndicatorText.fontSize = 40;
+            _parryIndicatorText.characterSize = 0.072f;
+            _parryIndicatorText.alignment = TextAlignment.Center;
+            _parryIndicatorText.anchor = TextAnchor.MiddleCenter;
+            _parryIndicatorText.fontStyle = FontStyle.Bold;
+            _parryIndicatorText.color = parryActiveColor;
+
+            _parryTextRenderer = textGo.GetComponent<MeshRenderer>();
+            if (_parryTextRenderer != null) _parryTextRenderer.sortingOrder = 83;
+
+            // 2. Ромбовидная рамка щита
+            var diamondGo = new GameObject("Indicator_Diamond");
+            diamondGo.transform.SetParent(_parryIndicatorRoot.transform, false);
+            diamondGo.transform.localPosition = Vector3.zero;
+
+            _parryDiamondOutline = diamondGo.AddComponent<LineRenderer>();
+            _parryDiamondOutline.positionCount = 5;
+            _parryDiamondOutline.useWorldSpace = false;
+            _parryDiamondOutline.loop = true;
+            _parryDiamondOutline.startWidth = 0.035f;
+            _parryDiamondOutline.endWidth = 0.035f;
+            _parryDiamondOutline.sortingOrder = 82;
+            _parryDiamondOutline.material = new Material(Shader.Find("Sprites/Default"));
+            _parryDiamondOutline.startColor = parryActiveColor;
+            _parryDiamondOutline.endColor = parryActiveColor;
+
+            float s = 0.20f;
+            _parryDiamondOutline.SetPositions(new Vector3[] {
+                new Vector3(0f, s, 0f),
+                new Vector3(s, 0f, 0f),
+                new Vector3(0f, -s, 0f),
+                new Vector3(-s, 0f, 0f),
+                new Vector3(0f, s, 0f)
+            });
+
+            // 3. Внутреннее светящееся ядро ромба
+            var coreGo = new GameObject("Indicator_Core");
+            coreGo.transform.SetParent(diamondGo.transform, false);
+            coreGo.transform.localPosition = Vector3.zero;
+            coreGo.transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+            coreGo.transform.localScale = new Vector3(0.16f, 0.16f, 1f);
+
+            _parryDiamondCore = coreGo.AddComponent<SpriteRenderer>();
+            _parryDiamondCore.sprite = CombatSprites.WhiteBox;
+            _parryDiamondCore.color = new Color(1f, 0.95f, 0.5f, 0.9f);
+            _parryDiamondCore.sortingOrder = 81;
+
+            // 4. Полоска времени активного окна (Timer Bar)
+            var barGo = new GameObject("Indicator_TimerBar");
+            barGo.transform.SetParent(_parryIndicatorRoot.transform, false);
+            barGo.transform.localPosition = new Vector3(0f, -0.28f, 0f);
+
+            _parryTimerBar = barGo.AddComponent<LineRenderer>();
+            _parryTimerBar.positionCount = 2;
+            _parryTimerBar.useWorldSpace = false;
+            _parryTimerBar.startWidth = 0.035f;
+            _parryTimerBar.endWidth = 0.035f;
+            _parryTimerBar.sortingOrder = 82;
+            _parryTimerBar.material = new Material(Shader.Find("Sprites/Default"));
+            _parryTimerBar.startColor = new Color(1f, 0.95f, 0.35f, 0.95f);
+            _parryTimerBar.endColor = new Color(1f, 0.95f, 0.35f, 0.95f);
+            _parryTimerBar.SetPositions(new Vector3[] { new Vector3(-0.35f, 0f, 0f), new Vector3(0.35f, 0f, 0f) });
+
+            _parryIndicatorRoot.SetActive(false);
+        }
+
+        private void ShowParryIndicator(float duration)
+        {
+            if (!showParryIndicator) return;
+            if (_parryIndicatorRoot == null) BuildProceduralParryIndicator();
+
+            _parryIndicatorRoot.SetActive(true);
+            if (_parryIndicatorText != null)
+            {
+                _parryIndicatorText.text = "⚡ ПАРИРОВАНИЕ ⚡";
+                _parryIndicatorText.color = parryActiveColor;
+            }
+
+            if (_parryDiamondOutline != null)
+            {
+                _parryDiamondOutline.startColor = parryActiveColor;
+                _parryDiamondOutline.endColor = parryActiveColor;
+            }
+
+            if (_parryDiamondCore != null)
+            {
+                _parryDiamondCore.color = new Color(1f, 0.95f, 0.5f, 0.9f);
+            }
+
+            if (_parryTimerBar != null)
+            {
+                _parryTimerBar.startColor = new Color(1f, 0.95f, 0.35f, 0.95f);
+                _parryTimerBar.endColor = new Color(1f, 0.95f, 0.35f, 0.95f);
+                _parryTimerBar.SetPositions(new Vector3[] { new Vector3(-0.35f, 0f, 0f), new Vector3(0.35f, 0f, 0f) });
+            }
+
+            if (_parryIndicatorAnimRoutine != null) StopCoroutine(_parryIndicatorAnimRoutine);
+            _parryIndicatorAnimRoutine = StartCoroutine(ParryIndicatorPopRoutine());
+        }
+
+        private IEnumerator ParryIndicatorPopRoutine()
+        {
+            float elapsed = 0f;
+            float punchDuration = 0.08f;
+            while (elapsed < punchDuration)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / punchDuration;
+                float s = Mathf.Lerp(1.35f, 1.0f, t);
+                float sign = Mathf.Sign(transform.lossyScale.x);
+                if (Mathf.Abs(sign) < 0.001f) sign = 1f;
+                _parryIndicatorRoot.transform.localScale = new Vector3(sign * s, s, 1f);
+                yield return null;
+            }
+            float finalSign = Mathf.Sign(transform.lossyScale.x);
+            if (Mathf.Abs(finalSign) < 0.001f) finalSign = 1f;
+            _parryIndicatorRoot.transform.localScale = new Vector3(finalSign, 1f, 1f);
+            _parryIndicatorAnimRoutine = null;
+        }
+
+        private void UpdateParryIndicatorProgress(float remaining, float total)
+        {
+            if (_parryIndicatorRoot == null || !_parryIndicatorRoot.activeSelf) return;
+
+            float ratio = Mathf.Clamp01(remaining / Mathf.Max(0.01f, total));
+            float halfWidth = 0.35f * ratio;
+            if (_parryTimerBar != null)
+            {
+                _parryTimerBar.SetPositions(new Vector3[] { new Vector3(-halfWidth, 0f, 0f), new Vector3(halfWidth, 0f, 0f) });
+            }
+
+            // Мягкая пульсация ромба во время активного окна
+            float pulse = 1f + 0.07f * Mathf.Sin(Time.time * 25f);
+            float sign = Mathf.Sign(transform.lossyScale.x);
+            if (Mathf.Abs(sign) < 0.001f) sign = 1f;
+            _parryIndicatorRoot.transform.localScale = new Vector3(sign * pulse, pulse, 1f);
+        }
+
+        private void NotifyParryIndicatorSuccess()
+        {
+            if (_parryIndicatorRoot == null || !_parryIndicatorRoot.activeSelf) return;
+
+            if (_parryIndicatorAnimRoutine != null) StopCoroutine(_parryIndicatorAnimRoutine);
+            _parryIndicatorAnimRoutine = StartCoroutine(ParrySuccessIndicatorRoutine());
+        }
+
+        private IEnumerator ParrySuccessIndicatorRoutine()
+        {
+            if (_parryIndicatorText != null)
+            {
+                _parryIndicatorText.text = "★ ПАРИРОВАНО! ★";
+                _parryIndicatorText.color = Color.white;
+            }
+
+            if (_parryDiamondOutline != null)
+            {
+                _parryDiamondOutline.startColor = Color.white;
+                _parryDiamondOutline.endColor = Color.white;
+            }
+
+            if (_parryDiamondCore != null)
+            {
+                _parryDiamondCore.color = Color.white;
+            }
+
+            // Вспышка и масштабирование до 1.5x
+            float elapsed = 0f;
+            float dur = 0.35f;
+            while (elapsed < dur)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / dur;
+                float s = Mathf.Lerp(1.5f, 1.0f, t);
+                float sign = Mathf.Sign(transform.lossyScale.x);
+                if (Mathf.Abs(sign) < 0.001f) sign = 1f;
+                _parryIndicatorRoot.transform.localScale = new Vector3(sign * s, s, 1f);
+
+                Color c = Color.Lerp(Color.white, new Color(1f, 0.85f, 0.1f), t);
+                if (_parryIndicatorText != null) _parryIndicatorText.color = c;
+                if (_parryDiamondOutline != null)
+                {
+                    _parryDiamondOutline.startColor = c;
+                    _parryDiamondOutline.endColor = c;
+                }
+                yield return null;
+            }
+
+            HideParryIndicator();
+        }
+
+        private void NotifyParryIndicatorWhiff()
+        {
+            if (_parryIndicatorRoot == null || !_parryIndicatorRoot.activeSelf) return;
+
+            if (_parryIndicatorAnimRoutine != null) StopCoroutine(_parryIndicatorAnimRoutine);
+            _parryIndicatorAnimRoutine = StartCoroutine(ParryWhiffIndicatorRoutine());
+        }
+
+        private IEnumerator ParryWhiffIndicatorRoutine()
+        {
+            Color whiffC = new Color(0.95f, 0.35f, 0.15f, 0.9f);
+            if (_parryIndicatorText != null)
+            {
+                _parryIndicatorText.text = "✕ ПРОМАХ";
+                _parryIndicatorText.color = whiffC;
+            }
+
+            if (_parryDiamondOutline != null)
+            {
+                _parryDiamondOutline.startColor = whiffC;
+                _parryDiamondOutline.endColor = whiffC;
+            }
+
+            if (_parryDiamondCore != null)
+            {
+                _parryDiamondCore.color = new Color(0.8f, 0.2f, 0.1f, 0.7f);
+            }
+
+            float elapsed = 0f;
+            float dur = 0.24f;
+            while (elapsed < dur)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / dur;
+                float s = Mathf.Lerp(1.0f, 0.2f, t);
+                float sign = Mathf.Sign(transform.lossyScale.x);
+                if (Mathf.Abs(sign) < 0.001f) sign = 1f;
+                _parryIndicatorRoot.transform.localScale = new Vector3(sign * s, s, 1f);
+                yield return null;
+            }
+
+            HideParryIndicator();
+        }
+
+        private void HideParryIndicator()
+        {
+            if (_parryIndicatorAnimRoutine != null)
+            {
+                StopCoroutine(_parryIndicatorAnimRoutine);
+                _parryIndicatorAnimRoutine = null;
+            }
+            if (_parryIndicatorRoot != null)
+            {
+                _parryIndicatorRoot.SetActive(false);
+            }
         }
 
         private static Vector2 GetMousePosition()

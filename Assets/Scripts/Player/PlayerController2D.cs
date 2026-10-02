@@ -146,8 +146,8 @@ namespace Combat.Player
         private Collider2D _col;
         private SpriteRenderer _sr;
         private ContactFilter2D _groundFilter;
-        private readonly RaycastHit2D[] _groundHits = new RaycastHit2D[6];
-        private readonly RaycastHit2D[] _footRayHits = new RaycastHit2D[4];
+        private readonly RaycastHit2D[] _groundHits = new RaycastHit2D[8];
+        private readonly RaycastHit2D[] _footRayHits = new RaycastHit2D[8];
 
         // State
         public bool IsGrounded { get; private set; }
@@ -221,6 +221,7 @@ namespace Combat.Player
         private float _coyoteTimer;
         private float _jumpBufferTimer;
         private float _hitstunTimer;
+        private float _timeSinceJump = 10f;
         private bool _isJumping;
         private int _airJumpsLeft;
 
@@ -312,7 +313,8 @@ namespace Combat.Player
 
             _groundFilter = new ContactFilter2D();
             _groundFilter.useTriggers = false;
-            _groundFilter.SetLayerMask(groundLayer);
+            LayerMask effectiveGroundMask = groundLayer & ~(1 << 2);
+            _groundFilter.SetLayerMask(effectiveGroundMask);
 
             _airJumpsLeft = maxAirJumps;
             _airDashesLeft = maxAirDashes;
@@ -589,14 +591,16 @@ namespace Combat.Player
 
         private void UpdateTimers()
         {
+            _timeSinceJump += Time.deltaTime;
+
             // Hitstun Timer
             if (_hitstunTimer > 0f)
             {
                 _hitstunTimer -= Time.deltaTime;
             }
 
-            // Coyote Timer
-            if (IsGrounded)
+            // Coyote Timer: доступен только когда игрок твердо стоит на земле и не совершает активный прыжок
+            if (IsGrounded && !_isJumping)
             {
                 _coyoteTimer = coyoteTime;
             }
@@ -618,6 +622,29 @@ namespace Combat.Player
             }
         }
 
+        private bool IsValidGroundHit(RaycastHit2D hit, Bounds bounds)
+        {
+            if (hit.collider == null || hit.collider == _col || hit.collider.isTrigger)
+                return false;
+
+            // Коллайдеры, с которыми у игрока отключена коллизия (барьеры EnemyBlockerBarrier2D и др.)
+            if (Physics2D.GetIgnoreCollision(_col, hit.collider))
+                return false;
+
+            if (hit.collider.GetComponent<LevelGeneration.EnemyBlockerBarrier2D>() != null)
+                return false;
+
+            // Направление нормали: угол наклона опоры (нормаль направлена вверх, уклон до ~53°)
+            if (hit.normal.y < 0.60f)
+                return false;
+
+            // Точка контакта должна быть строго под ногами игрока (не на уровне пояса или головы внутри стены)
+            if (hit.point.y > bounds.min.y + 0.08f)
+                return false;
+
+            return true;
+        }
+
         private void CheckGrounded()
         {
             if (_col == null) _col = GetComponent<Collider2D>();
@@ -625,17 +652,29 @@ namespace Combat.Player
             if (_col == null || _rb == null) return;
 
             Bounds bounds = _col.bounds;
-            float totalCheckDist = bounds.extents.y + groundCheckDistance + 0.04f;
-            float footInset = bounds.extents.x * 0.72f;
 
-            // 3 вертикальных луча от центра массы вниз через ступни: Центр, Лево, Право
-            Vector2 centerOrigin = new Vector2(bounds.center.x, bounds.center.y);
-            Vector2 leftOrigin = new Vector2(bounds.center.x - footInset, bounds.center.y);
-            Vector2 rightOrigin = new Vector2(bounds.center.x + footInset, bounds.center.y);
+            // Если игрок активно летит вверх в прыжке или только что оттолкнулся — он не может считаться приземленным
+            if (_timeSinceJump < 0.08f || (_isJumping && _rb.linearVelocity.y > 0.15f))
+            {
+                IsGrounded = false;
+                _isEdgeSlipping = false;
+                _edgeSlipDirection = 0f;
+                _currentSurfaceFriction = 1f;
+                return;
+            }
 
-            RaycastHit2D hitCenter = RaycastFootGround(centerOrigin, totalCheckDist);
-            RaycastHit2D hitLeft = RaycastFootGround(leftOrigin, totalCheckDist);
-            RaycastHit2D hitRight = RaycastFootGround(rightOrigin, totalCheckDist);
+            float footInset = bounds.extents.x * 0.60f;
+            float footOriginY = bounds.min.y + 0.14f;
+            float footCheckDist = 0.14f + groundCheckDistance + 0.04f;
+
+            // 3 вертикальных луча от нижней части тела вниз через ступни: Центр, Лево, Право
+            Vector2 centerOrigin = new Vector2(bounds.center.x, footOriginY);
+            Vector2 leftOrigin = new Vector2(bounds.center.x - footInset, footOriginY);
+            Vector2 rightOrigin = new Vector2(bounds.center.x + footInset, footOriginY);
+
+            RaycastHit2D hitCenter = RaycastFootGround(centerOrigin, footCheckDist, bounds);
+            RaycastHit2D hitLeft = RaycastFootGround(leftOrigin, footCheckDist, bounds);
+            RaycastHit2D hitRight = RaycastFootGround(rightOrigin, footCheckDist, bounds);
 
             bool validCenter = hitCenter.collider != null;
             bool validLeft = hitLeft.collider != null;
@@ -648,7 +687,7 @@ namespace Combat.Player
             for (int i = 0; i < castCount; i++)
             {
                 var hit = _groundHits[i];
-                if (hit.collider != null && hit.collider != _col && !hit.collider.isTrigger && hit.normal.y > 0.45f)
+                if (IsValidGroundHit(hit, bounds))
                 {
                     castHitSurface = true;
                     bestCastHit = hit;
@@ -667,33 +706,28 @@ namespace Combat.Player
                 RaycastHit2D mainHit = validCenter ? hitCenter : (validLeft ? hitLeft : hitRight);
                 UpdateSurfaceFriction(mainHit);
             }
-            // Сценарий 2: Опасный край/угол платформы (центр висит в воздухе над обрывом)
-            else if (enableEdgeSlip && (validLeft || validRight || castHitSurface))
+            // Сценарий 2: Опора через форму капсулы (стык между коллайдерами, где лучи попали в микро-шов)
+            else if (castHitSurface && Mathf.Abs(bestCastHit.point.x - bounds.center.x) < bounds.extents.x * 0.80f)
             {
-                if (!validCenter)
+                groundedNow = true;
+                UpdateSurfaceFriction(bestCastHit);
+            }
+            // Сценарий 3: Опасный край/угол платформы (центр висит в воздухе над обрывом, опора только на один край)
+            else if (enableEdgeSlip && (validLeft ^ validRight))
+            {
+                // Проверяем, есть ли земля чуть глубже под центром (стык или микро-ступенька)
+                RaycastHit2D deeperCheck = RaycastFootGround(centerOrigin, footCheckDist + 0.15f, bounds);
+                if (deeperCheck.collider == null)
                 {
-                    // Левая нога цепляет угол, а центр и правая нога над пустотой -> соскальзываем ВПРАВО
-                    if (validLeft && !validRight)
-                    {
-                        _isEdgeSlipping = true;
-                        _edgeSlipDirection = 1f;
-                    }
-                    // Правая нога цепляет угол, а центр и левая нога над пустотой -> соскальзываем ВЛЕВО
-                    else if (validRight && !validLeft)
-                    {
-                        _isEdgeSlipping = true;
-                        _edgeSlipDirection = -1f;
-                    }
-                    // Лучи ступней мимо, но край закругления капсулы коснулся угла
-                    else if (castHitSurface)
-                    {
-                        _isEdgeSlipping = true;
-                        _edgeSlipDirection = bestCastHit.point.x < bounds.center.x ? 1f : -1f;
-                    }
+                    // Реальный обрыв: соскальзываем
+                    _isEdgeSlipping = true;
+                    _edgeSlipDirection = validLeft ? 1f : -1f;
                 }
                 else
                 {
+                    // Под центром есть продолжение пола (стык) -> надежная опора
                     groundedNow = true;
+                    UpdateSurfaceFriction(deeperCheck);
                 }
             }
             else if (castHitSurface)
@@ -702,22 +736,23 @@ namespace Combat.Player
                 UpdateSurfaceFriction(bestCastHit);
             }
 
-            // Прилипание к спускам (Slope Down Snapping): работает ТОЛЬКО если игрок НЕ соскальзывает с края!
-            if (!groundedNow && !_isEdgeSlipping && _wasGroundedLastFrame && !_isJumping && !_isDashing && _rb.linearVelocity.y <= 0.1f)
+            // Прилипание к спускам (Slope Down Snapping): работает ТОЛЬКО если игрок на пологом склоне и НЕ прыгает
+            if (!groundedNow && !_isEdgeSlipping && _wasGroundedLastFrame && !_isJumping && !_isDashing && _rb.linearVelocity.y <= 0.1f && _timeSinceJump > 0.1f)
             {
                 int snapCount = _col.Cast(Vector2.down, _groundFilter, _groundHits, slopeDownSnapDistance);
                 for (int i = 0; i < snapCount; i++)
                 {
                     var snapHit = _groundHits[i];
-                    if (snapHit.collider != null && snapHit.collider != _col && !snapHit.collider.isTrigger && snapHit.normal.y > 0.45f)
+                    if (IsValidGroundHit(snapHit, bounds))
                     {
-                        // Проверяем, что под центром действительно есть продолжение поверхности, а не край обрыва
-                        RaycastHit2D centerSnapCheck = RaycastFootGround(centerOrigin, bounds.extents.y + slopeDownSnapDistance + 0.05f);
-                        if (centerSnapCheck.collider != null)
+                        float currentBottomY = bounds.min.y;
+                        float deltaY = snapHit.point.y - currentBottomY;
+
+                        // Смещаем строго вниз и не глубже slopeDownSnapDistance
+                        if (deltaY <= 0.005f && deltaY >= -slopeDownSnapDistance)
                         {
                             groundedNow = true;
-                            float snapY = snapHit.point.y + (_col.bounds.extents.y);
-                            _rb.position = new Vector2(_rb.position.x, snapY);
+                            _rb.position = new Vector2(_rb.position.x, _rb.position.y + deltaY);
 
                             Vector2 tangent = new Vector2(snapHit.normal.y, -snapHit.normal.x);
                             _rb.linearVelocity = tangent * Vector2.Dot(_rb.linearVelocity, tangent);
@@ -728,11 +763,12 @@ namespace Combat.Player
                 }
             }
 
-            // Детекция приземления (для эффекта squash и сброса воздушных ресурсов)
-            if (!IsGrounded && groundedNow && _rb.linearVelocity.y <= 0.1f)
+            // Детекция приземления (сброс воздушных ресурсов)
+            if (!IsGrounded && groundedNow && _rb.linearVelocity.y <= 0.15f)
             {
                 _airJumpsLeft = maxAirJumps;
                 _airDashesLeft = maxAirDashes;
+                _isJumping = false;
 
                 if (enableJuiceSquashStretch)
                 {
@@ -777,13 +813,13 @@ namespace Combat.Player
             return default(RaycastHit2D);
         }
 
-        private RaycastHit2D RaycastFootGround(Vector2 origin, float distance)
+        private RaycastHit2D RaycastFootGround(Vector2 origin, float distance, Bounds bounds)
         {
             int hitCount = Physics2D.Raycast(origin, Vector2.down, _groundFilter, _footRayHits, distance);
             for (int i = 0; i < hitCount; i++)
             {
                 var hit = _footRayHits[i];
-                if (hit.collider != null && hit.collider != _col && !hit.collider.isTrigger && hit.normal.y > 0.45f)
+                if (IsValidGroundHit(hit, bounds))
                 {
                     return hit;
                 }
@@ -986,7 +1022,9 @@ namespace Combat.Player
             _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, jumpForce);
             _jumpBufferTimer = 0f;
             _coyoteTimer = 0f;
+            _timeSinceJump = 0f;
             _isJumping = true;
+            IsGrounded = false;
             OnJumpStarted?.Invoke();
             if (Combat.Audio.SoundManager.Instance != null)
             {
@@ -1012,7 +1050,9 @@ namespace Combat.Player
             _rb.linearVelocity = new Vector2(_rb.linearVelocity.x, jumpForce * airJumpForceMultiplier);
             _jumpBufferTimer = 0f;
             _coyoteTimer = 0f;
+            _timeSinceJump = 0f;
             _isJumping = true;
+            IsGrounded = false;
             OnJumpStarted?.Invoke();
             if (Combat.Audio.SoundManager.Instance != null)
             {

@@ -79,6 +79,7 @@ namespace Combat.UI
             {
                 bool isTutorialDisabled = PlayerPrefs.GetInt("DisableTutorial", 0) == 1;
                 disableTutorialToggle.isOn = isTutorialDisabled;
+                UpdateToggleVisuals(disableTutorialToggle, isTutorialDisabled);
                 disableTutorialToggle.onValueChanged.AddListener(OnDisableTutorialToggleChanged);
             }
 
@@ -92,7 +93,24 @@ namespace Combat.UI
         {
             PlayerPrefs.SetInt("DisableTutorial", isDisabled ? 1 : 0);
             PlayerPrefs.Save();
+            if (disableTutorialToggle != null)
+            {
+                UpdateToggleVisuals(disableTutorialToggle, isDisabled);
+            }
             Debug.Log($"<color=#4EE2EC>[MainMenuController] Отключение обучения: {isDisabled} (сохранено в PlayerPrefs)</color>");
+        }
+
+        private static void UpdateToggleVisuals(Toggle toggle, bool isOn)
+        {
+            if (toggle == null) return;
+            if (toggle.graphic != null)
+            {
+                toggle.graphic.gameObject.SetActive(isOn);
+                if (toggle.graphic.canvasRenderer != null)
+                {
+                    toggle.graphic.canvasRenderer.SetAlpha(isOn ? 1f : 0f);
+                }
+            }
         }
 
         private void Start()

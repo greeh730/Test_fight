@@ -52,6 +52,7 @@ namespace LevelGeneration
                 }
             }
             _collider.isTrigger = false;
+            gameObject.layer = 2; // Built-in "Ignore Raycast"
         }
 
         /// <summary>

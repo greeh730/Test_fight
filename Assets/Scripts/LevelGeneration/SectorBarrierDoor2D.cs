@@ -173,6 +173,7 @@ namespace LevelGeneration
             {
                 _enemyBlockerComponent = blockerTform.gameObject.AddComponent<EnemyBlockerBarrier2D>();
             }
+            blockerTform.gameObject.layer = 2; // Built-in "Ignore Raycast"
 
             float totalHeight = barrierHeight + extraBottomDepth;
             float centerY = (barrierHeight - extraBottomDepth) * 0.5f;

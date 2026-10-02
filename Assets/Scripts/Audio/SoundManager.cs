@@ -14,25 +14,64 @@ namespace Combat.Audio
     [DisallowMultipleComponent]
     public class SoundManager : MonoBehaviour
     {
+        private static bool _applicationIsQuitting = false;
         private static SoundManager _instance;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStaticsOnSubsystemRegistration()
+        {
+            _applicationIsQuitting = false;
+            _instance = null;
+        }
+
         public static SoundManager Instance
         {
             get
             {
+                if (_applicationIsQuitting) return null;
+
                 if (_instance == null)
                 {
                     _instance = FindAnyObjectByType<SoundManager>();
                     if (_instance == null)
                     {
-                        var go = new GameObject("[SoundManager]");
-                        _instance = go.AddComponent<SoundManager>();
-                        if (Application.isPlaying)
+                        var prefab = Resources.Load<GameObject>("SoundManager");
+                        if (prefab != null)
                         {
-                            DontDestroyOnLoad(go);
+                            var go = Instantiate(prefab);
+                            go.name = "[SoundManager]";
+                            _instance = go.GetComponent<SoundManager>();
                         }
+                        else
+                        {
+                            var go = new GameObject("[SoundManager]");
+                            _instance = go.AddComponent<SoundManager>();
+                        }
+                    }
+
+                    if (Application.isPlaying && _instance != null && _instance.transform.parent == null)
+                    {
+                        DontDestroyOnLoad(_instance.gameObject);
                     }
                 }
                 return _instance;
+            }
+        }
+
+        private void OnApplicationQuit()
+        {
+            _applicationIsQuitting = true;
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void AutoInitializeAudioSystem()
+        {
+            _applicationIsQuitting = false;
+            var sm = Instance;
+            if (sm != null)
+            {
+                sm.InitializeAudioSources();
+                sm.EnsureClipsLoaded();
             }
         }
 
@@ -179,12 +218,63 @@ namespace Combat.Audio
             }
             else if (_instance != this)
             {
+                CopyClipsIfMissing(_instance, this);
                 Destroy(gameObject);
                 return;
             }
 
             InitializeAudioSources();
             EnsureClipsLoaded();
+        }
+
+        private static void CopyClipsIfMissing(SoundManager target, SoundManager source)
+        {
+            if (target == null || source == null) return;
+            if (target.walkClip == null) target.walkClip = source.walkClip;
+            if (target.runClip == null) target.runClip = source.runClip;
+            if (target.jumpClip == null) target.jumpClip = source.jumpClip;
+            if (target.attackSwingClip == null) target.attackSwingClip = source.attackSwingClip;
+            if (target.parryClip == null) target.parryClip = source.parryClip;
+            if (target.blockHitClip == null) target.blockHitClip = source.blockHitClip;
+            if (target.enemyStunClip == null) target.enemyStunClip = source.enemyStunClip;
+            if (target.skeletonDeathClip == null) target.skeletonDeathClip = source.skeletonDeathClip;
+            if (target.probingThrustClip == null) target.probingThrustClip = source.probingThrustClip;
+            if (target.abyssalTrapClip == null) target.abyssalTrapClip = source.abyssalTrapClip;
+            if (target.gravityAnchorClip == null) target.gravityAnchorClip = source.gravityAnchorClip;
+            if (target.tacticalSmokeClip == null) target.tacticalSmokeClip = source.tacticalSmokeClip;
+            if (target.kineticLaunchClip == null) target.kineticLaunchClip = source.kineticLaunchClip;
+            if (target.directionalSpikesClip == null) target.directionalSpikesClip = source.directionalSpikesClip;
+            if (target.magicHarpoonClip == null) target.magicHarpoonClip = source.magicHarpoonClip;
+            if (target.fanGuardClip == null) target.fanGuardClip = source.fanGuardClip;
+
+            if (target.skeletonDamageClips == null || target.skeletonDamageClips.Length < 4)
+                target.skeletonDamageClips = new AudioClip[4];
+            if (source.skeletonDamageClips != null)
+            {
+                for (int i = 0; i < Mathf.Min(target.skeletonDamageClips.Length, source.skeletonDamageClips.Length); i++)
+                {
+                    if (target.skeletonDamageClips[i] == null)
+                        target.skeletonDamageClips[i] = source.skeletonDamageClips[i];
+                }
+            }
+        }
+
+        private void OnEnable()
+        {
+            Combat.Settings.CombatSettingsManager.OnSettingsChanged += HandleSettingsChanged;
+        }
+
+        private void OnDisable()
+        {
+            Combat.Settings.CombatSettingsManager.OnSettingsChanged -= HandleSettingsChanged;
+        }
+
+        private void HandleSettingsChanged(Combat.Settings.WheelSettingsData data)
+        {
+            if (data != null)
+            {
+                ApplyVolumeSettings(data.masterVolume, data.sfxVolume, data.footstepsVolume, data.isMuted);
+            }
         }
 
         private void Start()
@@ -299,6 +389,34 @@ namespace Combat.Audio
             if (fanGuardClip == null)
                 fanGuardClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Magic/Веерная защита.mp3");
 #endif
+
+            // Рантайм-фоллбэк для автономных билдов (Standalone Build) через Resources
+            if (walkClip == null) walkClip = Resources.Load<AudioClip>("Sound/Move/Шаг");
+            if (runClip == null) runClip = Resources.Load<AudioClip>("Sound/Move/Бег");
+            if (jumpClip == null) jumpClip = walkClip;
+            if (attackSwingClip == null) attackSwingClip = Resources.Load<AudioClip>("Sound/Fight/Удар");
+            if (parryClip == null) parryClip = Resources.Load<AudioClip>("Sound/Fight/Парирование");
+            if (blockHitClip == null) blockHitClip = Resources.Load<AudioClip>("Sound/Fight/Звук удара в блок");
+            if (enemyStunClip == null) enemyStunClip = Resources.Load<AudioClip>("Sound/Fight/Оглушения противника");
+
+            if (skeletonDamageClips == null || skeletonDamageClips.Length < 4)
+                skeletonDamageClips = new AudioClip[4];
+
+            if (skeletonDamageClips[0] == null) skeletonDamageClips[0] = Resources.Load<AudioClip>("Sound/Sleketon_damage/Удар по скелету 1");
+            if (skeletonDamageClips[1] == null) skeletonDamageClips[1] = Resources.Load<AudioClip>("Sound/Sleketon_damage/Удар по скелету 2");
+            if (skeletonDamageClips[2] == null) skeletonDamageClips[2] = Resources.Load<AudioClip>("Sound/Sleketon_damage/Удар по скелету 3");
+            if (skeletonDamageClips[3] == null) skeletonDamageClips[3] = Resources.Load<AudioClip>("Sound/Sleketon_damage/Удар по скелету 4");
+
+            if (skeletonDeathClip == null) skeletonDeathClip = Resources.Load<AudioClip>("Sound/Skeleton_die/Смерть скелета");
+
+            if (probingThrustClip == null) probingThrustClip = Resources.Load<AudioClip>("Sound/Magic/Прощупывающий выпад");
+            if (abyssalTrapClip == null) abyssalTrapClip = Resources.Load<AudioClip>("Sound/Magic/Глубинная печать");
+            if (gravityAnchorClip == null) gravityAnchorClip = Resources.Load<AudioClip>("Sound/Magic/Гравитационный якорь");
+            if (tacticalSmokeClip == null) tacticalSmokeClip = Resources.Load<AudioClip>("Sound/Magic/дым");
+            if (kineticLaunchClip == null) kineticLaunchClip = Resources.Load<AudioClip>("Sound/Magic/Кинечитеский подброс_[cut_1sec]");
+            if (directionalSpikesClip == null) directionalSpikesClip = Resources.Load<AudioClip>("Sound/Magic/Направленные шипы");
+            if (magicHarpoonClip == null) magicHarpoonClip = Resources.Load<AudioClip>("Sound/Magic/Магический гарпун");
+            if (fanGuardClip == null) fanGuardClip = Resources.Load<AudioClip>("Sound/Magic/Веерная защита");
         }
 
         // ==========================================
@@ -363,7 +481,14 @@ namespace Combat.Audio
             {
                 _movementSource.Stop();
             }
-            PlayClip(jumpClip, 0.9f, 0.96f, 1.04f);
+            if (jumpClip != null)
+            {
+                PlayClip(jumpClip, 0.9f, 0.96f, 1.04f);
+            }
+            else if (walkClip != null)
+            {
+                PlayClip(walkClip, 0.85f, 1.25f, 1.35f);
+            }
         }
 
         // ==========================================
@@ -526,6 +651,11 @@ namespace Combat.Audio
             if (clip == null) return;
             if (_sfxPool.Count == 0) InitializeAudioSources();
             if (_sfxPool.Count == 0) return;
+
+            if (clip.loadState == AudioDataLoadState.Unloaded)
+            {
+                clip.LoadAudioData();
+            }
 
             var src = _sfxPool[_poolIndex];
             _poolIndex = (_poolIndex + 1) % _sfxPool.Count;

@@ -85,6 +85,7 @@ namespace Combat.UI
             }
 
             SetupControlListeners();
+            InitializeAllToggleStyles();
         }
 
         public void OnSaveAndCloseClicked()
@@ -299,10 +300,10 @@ namespace Combat.UI
                     activationModeDropdown.value = (int)data.activationMode;
                 }
 
-                if (invertXToggle != null) invertXToggle.isOn = data.invertX;
-                if (invertYToggle != null) invertYToggle.isOn = data.invertY;
-                if (quickCastToggle != null) quickCastToggle.isOn = data.quickCastOnEdge;
-                if (gamepadToggle != null) gamepadToggle.isOn = data.enableGamepad;
+                if (invertXToggle != null) { invertXToggle.isOn = data.invertX; UpdateToggleVisuals(invertXToggle, data.invertX); }
+                if (invertYToggle != null) { invertYToggle.isOn = data.invertY; UpdateToggleVisuals(invertYToggle, data.invertY); }
+                if (quickCastToggle != null) { quickCastToggle.isOn = data.quickCastOnEdge; UpdateToggleVisuals(quickCastToggle, data.quickCastOnEdge); }
+                if (gamepadToggle != null) { gamepadToggle.isOn = data.enableGamepad; UpdateToggleVisuals(gamepadToggle, data.enableGamepad); }
 
                 if (placementDropdown != null)
                 {
@@ -328,7 +329,7 @@ namespace Combat.UI
                         idleOpacityValueText.text = $"{Mathf.RoundToInt(data.idleOpacity * 100f)}%";
                 }
 
-                if (showPlaqueToggle != null) showPlaqueToggle.isOn = data.showAttackPlaque;
+                if (showPlaqueToggle != null) { showPlaqueToggle.isOn = data.showAttackPlaque; UpdateToggleVisuals(showPlaqueToggle, data.showAttackPlaque); }
 
                 if (masterVolumeSlider != null)
                 {
@@ -351,7 +352,7 @@ namespace Combat.UI
                         footstepsVolumeValueText.text = $"{Mathf.RoundToInt(data.footstepsVolume * 100f)}%";
                 }
 
-                if (muteAudioToggle != null) muteAudioToggle.isOn = data.isMuted;
+                if (muteAudioToggle != null) { muteAudioToggle.isOn = data.isMuted; UpdateToggleVisuals(muteAudioToggle, data.isMuted); }
 
                 if (Combat.Audio.SoundManager.Instance != null)
                 {
@@ -407,21 +408,29 @@ namespace Combat.UI
 
         private void OnInvertXChanged(bool val)
         {
+            if (_isUpdatingUI) return;
+            UpdateToggleVisuals(invertXToggle, val);
             CommitChange(s => s.invertX = val);
         }
 
         private void OnInvertYChanged(bool val)
         {
+            if (_isUpdatingUI) return;
+            UpdateToggleVisuals(invertYToggle, val);
             CommitChange(s => s.invertY = val);
         }
 
         private void OnQuickCastChanged(bool val)
         {
+            if (_isUpdatingUI) return;
+            UpdateToggleVisuals(quickCastToggle, val);
             CommitChange(s => s.quickCastOnEdge = val);
         }
 
         private void OnGamepadChanged(bool val)
         {
+            if (_isUpdatingUI) return;
+            UpdateToggleVisuals(gamepadToggle, val);
             CommitChange(s => s.enableGamepad = val);
         }
 
@@ -453,6 +462,8 @@ namespace Combat.UI
 
         private void OnShowPlaqueChanged(bool val)
         {
+            if (_isUpdatingUI) return;
+            UpdateToggleVisuals(showPlaqueToggle, val);
             CommitChange(s => s.showAttackPlaque = val);
         }
 
@@ -491,6 +502,9 @@ namespace Combat.UI
 
         private void OnMuteAudioChanged(bool val)
         {
+            if (_isUpdatingUI) return;
+            UpdateToggleVisuals(muteAudioToggle, val);
+
             if (Combat.Audio.SoundManager.Instance != null)
                 Combat.Audio.SoundManager.Instance.IsMuted = val;
 
@@ -512,6 +526,59 @@ namespace Combat.UI
                 CombatSettingsManager.Instance.ResetToDefaults();
                 UpdateUIFromSettings(CombatSettingsManager.Instance.CurrentSettings);
             }
+        }
+
+        private static void UpdateToggleVisuals(Toggle toggle, bool isOn)
+        {
+            if (toggle == null) return;
+            if (toggle.graphic != null)
+            {
+                toggle.graphic.gameObject.SetActive(isOn);
+                if (toggle.graphic.canvasRenderer != null)
+                {
+                    toggle.graphic.canvasRenderer.SetAlpha(isOn ? 1f : 0f);
+                }
+            }
+        }
+
+        private static void StyleToggle(Toggle toggle, Color checkmarkColor)
+        {
+            if (toggle == null) return;
+
+            var bg = toggle.targetGraphic as Image;
+            if (bg == null && toggle.transform.Find("Background") != null)
+            {
+                bg = toggle.transform.Find("Background").GetComponent<Image>();
+            }
+
+            if (bg != null)
+            {
+                bg.color = new Color(0.07f, 0.10f, 0.16f, 0.95f);
+                var outline = bg.GetComponent<Outline>();
+                if (outline == null) outline = bg.gameObject.AddComponent<Outline>();
+                outline.effectColor = new Color(0.35f, 0.45f, 0.60f, 0.8f);
+                outline.effectDistance = new Vector2(1f, -1f);
+            }
+
+            if (toggle.graphic is Image checkImg)
+            {
+                checkImg.color = checkmarkColor;
+            }
+
+            UpdateToggleVisuals(toggle, toggle.isOn);
+        }
+
+        private void InitializeAllToggleStyles()
+        {
+            Color neonCyan = new Color(0f, 0.95f, 1f, 1f);
+            Color crimsonRed = new Color(1f, 0.25f, 0.35f, 1f);
+
+            StyleToggle(invertXToggle, neonCyan);
+            StyleToggle(invertYToggle, neonCyan);
+            StyleToggle(quickCastToggle, neonCyan);
+            StyleToggle(gamepadToggle, neonCyan);
+            StyleToggle(showPlaqueToggle, neonCyan);
+            StyleToggle(muteAudioToggle, crimsonRed);
         }
     }
 }

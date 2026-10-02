@@ -155,6 +155,7 @@ namespace Combat.UI
         private Vector2 _penPosition = Vector2.zero;
         private Vector2 _lastMousePos = Vector2.zero;
         private Vector2 _accumulatedDelta = Vector2.zero;
+        private float _dragStartTime = 0f;
         private float _fadeAlpha = 0f;
         private float _currentScale = 1.0f;
         private float _targetScale = 1.0f;
@@ -527,6 +528,7 @@ namespace Combat.UI
         private void StartDrag(Vector2 mousePos)
         {
             IsDragging = true;
+            _dragStartTime = Time.time;
             _penPosition = Vector2.zero;
             _lastMousePos = mousePos;
             _fadeAlpha = 1f;
@@ -574,11 +576,17 @@ namespace Combat.UI
             float dist = _penPosition.magnitude;
             Direction8 releasedDir = CurrentDirection;
             Vector2 releasedVec = _penPosition.normalized;
+            float holdDuration = Time.time - _dragStartTime;
 
+            // 1. Направленный свайп ПКМ через колесо
             if (dist >= minSwipeDistance && releasedDir != Direction8.None)
             {
-                // Игрок выбрал направление на колесе и отпустил ПКМ -> Направленное Парирование!
                 onParrySwipeCompleted?.Invoke(releasedDir, releasedVec, dist);
+            }
+            // 2. Быстрый клик/тап ПКМ (без свайпа) -> Быстрое парирование!
+            else if (holdDuration <= 0.28f)
+            {
+                onParrySwipeCompleted?.Invoke(Direction8.None, Vector2.zero, 0f);
             }
 
             // В любом случае блок снимается
