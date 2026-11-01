@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using Combat.Player;
@@ -55,6 +55,7 @@ namespace Combat.UI
         private float _currentPunch = 1.0f;
         private float _lastHealth = 100f;
         private float _healFlashTimer = 0f;
+        private float _healthSearchTimer = 0f;
         private static Sprite _whiteSprite;
 
         public static Sprite GetWhiteSprite()

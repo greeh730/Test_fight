@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
@@ -7,9 +7,9 @@ namespace Combat.UI
 {
     /// <summary>
     /// Полноэкранный экран смерти игрока:
-    /// - Отображает затемненный кинематографичный фон с красным акцентом.
-    /// - Показывает надпись "ВЫ УМЕРЛИ".
-    /// - Предлагает нажать [ R ] или кнопку для перезапуска сцены.
+    /// - При гибели экран МОМЕНТАЛЬНО становится абсолютно чёрным (Snap to Black).
+    /// - Затем тьма МЕДЛЕННО развеивается (Smooth Dissolve), открывая экран смерти:
+    ///   кинематографичный фон, надпись "ВЫ УМЕРЛИ", кнопки перезапуска и выхода в меню.
     /// - Перезагружает активную сцену при нажатии R, Пробела, Enter или клике.
     /// </summary>
     [DisallowMultipleComponent]
@@ -18,18 +18,30 @@ namespace Combat.UI
         public static PlayerDeathScreenUI Instance { get; private set; }
 
         [Header("--- Настройки цветов ---")]
-        [SerializeField] private Color backdropColor = new Color(0.03f, 0.01f, 0.02f, 0.88f);
+        [SerializeField] private Color backdropColor = new Color(0.04f, 0.02f, 0.03f, 0.90f);
         [SerializeField] private Color titleColor = new Color(0.92f, 0.16f, 0.18f, 1.0f); // Crimson Red
         [SerializeField] private Color subtitleColor = new Color(0.95f, 0.92f, 0.88f, 0.95f);
         [SerializeField] private Color buttonBgColor = new Color(0.18f, 0.05f, 0.07f, 0.95f);
         [SerializeField] private Color buttonHoverColor = new Color(0.35f, 0.08f, 0.12f, 1.0f);
 
-        [Header("--- Настройки анимации ---")]
-        [SerializeField] private float fadeDuration = 0.5f;
+        [Header("--- Анимация гибели (Моментальное затемнение и развеивание) ---")]
+        [Tooltip("Время паузы в полной темноте перед началом развеивания (в секундах)")]
+        [Range(0f, 2.0f)]
+        [SerializeField] private float blackoutHoldDuration = 0.35f;
+
+        [Tooltip("Длительность медленного развеивания тьмы до полного проявления экрана смерти (в секундах)")]
+        [Range(0.5f, 5.0f)]
+        [SerializeField] private float dissolveDuration = 2.0f;
 
         private Canvas _canvas;
         private CanvasGroup _canvasGroup;
         private GameObject _screenRoot;
+        private GameObject _deathContentGo;
+        private CanvasGroup _contentCanvasGroup;
+        private RectTransform _contentContainerRect;
+        private GameObject _blackCurtainGo;
+        private CanvasGroup _curtainCanvasGroup;
+        private Image _curtainImage;
         private Text _titleText;
         private Text _subtitleText;
         private bool _isShowing = false;
@@ -58,6 +70,14 @@ namespace Combat.UI
             }
         }
 
+        private void OnDestroy()
+        {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
+        }
+
         private void EnsureAssets()
         {
             if (_uiFont == null)
@@ -79,13 +99,13 @@ namespace Combat.UI
         {
             if (_screenRoot != null) return;
 
-            // 1. Создаем Canvas, если отсутствует
+            // 1. Создаем Canvas поверх всех возможных виньеток и HUD (sortingOrder = 5000)
             _canvas = GetComponent<Canvas>();
             if (_canvas == null)
             {
                 _canvas = gameObject.AddComponent<Canvas>();
                 _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-                _canvas.sortingOrder = 3000; // Поверх всех UI
+                _canvas.sortingOrder = 5000;
             }
 
             var scaler = GetComponent<CanvasScaler>();
@@ -112,13 +132,24 @@ namespace Combat.UI
             rootRect.sizeDelta = Vector2.zero;
 
             _canvasGroup = _screenRoot.AddComponent<CanvasGroup>();
-            _canvasGroup.alpha = 0f;
+            _canvasGroup.alpha = 1f;
             _canvasGroup.blocksRaycasts = true;
             _canvasGroup.interactable = true;
 
-            // 3. Полноэкранный фон
+            // 3. Контейнер контента экрана смерти (фон, надписи, кнопки)
+            _deathContentGo = new GameObject("DeathContent");
+            _deathContentGo.transform.SetParent(_screenRoot.transform, false);
+            var contentRootRect = _deathContentGo.AddComponent<RectTransform>();
+            contentRootRect.anchorMin = Vector2.zero;
+            contentRootRect.anchorMax = Vector2.one;
+            contentRootRect.sizeDelta = Vector2.zero;
+
+            _contentCanvasGroup = _deathContentGo.AddComponent<CanvasGroup>();
+            _contentCanvasGroup.alpha = 0f;
+
+            // 3.1. Полупрозрачный темный кинематографичный фон
             var bgGo = new GameObject("Backdrop");
-            bgGo.transform.SetParent(_screenRoot.transform, false);
+            bgGo.transform.SetParent(_deathContentGo.transform, false);
             var bgRect = bgGo.AddComponent<RectTransform>();
             bgRect.anchorMin = Vector2.zero;
             bgRect.anchorMax = Vector2.one;
@@ -128,18 +159,18 @@ namespace Combat.UI
             bgImage.sprite = _whiteSprite;
             bgImage.color = backdropColor;
 
-            // 4. Контейнер контента по центру
+            // 3.2. Центровой контейнер текста и кнопок
             var contentGo = new GameObject("ContentContainer");
-            contentGo.transform.SetParent(_screenRoot.transform, false);
-            var contentRect = contentGo.AddComponent<RectTransform>();
-            contentRect.anchorMin = new Vector2(0.5f, 0.5f);
-            contentRect.anchorMax = new Vector2(0.5f, 0.5f);
-            contentRect.pivot = new Vector2(0.5f, 0.5f);
-            contentRect.sizeDelta = new Vector2(900f, 400f);
+            contentGo.transform.SetParent(_deathContentGo.transform, false);
+            _contentContainerRect = contentGo.AddComponent<RectTransform>();
+            _contentContainerRect.anchorMin = new Vector2(0.5f, 0.5f);
+            _contentContainerRect.anchorMax = new Vector2(0.5f, 0.5f);
+            _contentContainerRect.pivot = new Vector2(0.5f, 0.5f);
+            _contentContainerRect.sizeDelta = new Vector2(900f, 400f);
 
-            // 5. Заголовок "ВЫ УМЕРЛИ"
+            // 3.3. Заголовок "ВЫ УМЕРЛИ"
             var titleGo = new GameObject("TitleText");
-            titleGo.transform.SetParent(contentRect, false);
+            titleGo.transform.SetParent(_contentContainerRect, false);
             var titleRect = titleGo.AddComponent<RectTransform>();
             titleRect.anchorMin = new Vector2(0.5f, 0.72f);
             titleRect.anchorMax = new Vector2(0.5f, 0.72f);
@@ -148,19 +179,23 @@ namespace Combat.UI
 
             _titleText = titleGo.AddComponent<Text>();
             _titleText.font = _uiFont;
-            _titleText.fontSize = 72;
+            _titleText.fontSize = 76;
             _titleText.fontStyle = FontStyle.Bold;
             _titleText.alignment = TextAnchor.MiddleCenter;
             _titleText.text = "ВЫ УМЕРЛИ";
             _titleText.color = titleColor;
 
             var titleShadow = titleGo.AddComponent<Shadow>();
-            titleShadow.effectColor = new Color(0f, 0f, 0f, 0.85f);
+            titleShadow.effectColor = new Color(0f, 0f, 0f, 0.95f);
             titleShadow.effectDistance = new Vector2(3f, -3f);
 
-            // 6. Подзаголовок "Нажмите [ R ], чтобы начать заново"
+            var titleOutline = titleGo.AddComponent<Outline>();
+            titleOutline.effectColor = new Color(0.35f, 0.02f, 0.04f, 0.95f);
+            titleOutline.effectDistance = new Vector2(2f, -2f);
+
+            // 3.4. Подзаголовок "Нажмите [ R ], чтобы начать заново"
             var subGo = new GameObject("SubtitleText");
-            subGo.transform.SetParent(contentRect, false);
+            subGo.transform.SetParent(_contentContainerRect, false);
             var subRect = subGo.AddComponent<RectTransform>();
             subRect.anchorMin = new Vector2(0.5f, 0.42f);
             subRect.anchorMax = new Vector2(0.5f, 0.42f);
@@ -175,12 +210,12 @@ namespace Combat.UI
             _subtitleText.color = subtitleColor;
 
             var subShadow = subGo.AddComponent<Shadow>();
-            subShadow.effectColor = new Color(0f, 0f, 0f, 0.8f);
+            subShadow.effectColor = new Color(0f, 0f, 0f, 0.85f);
             subShadow.effectDistance = new Vector2(2f, -2f);
 
-            // 7. Кнопка "Начать заново"
+            // 3.5. Кнопка "Начать заново"
             var btnGo = new GameObject("RestartButton");
-            btnGo.transform.SetParent(contentRect, false);
+            btnGo.transform.SetParent(_contentContainerRect, false);
             var btnRect = btnGo.AddComponent<RectTransform>();
             btnRect.anchorMin = new Vector2(0.5f, 0.20f);
             btnRect.anchorMax = new Vector2(0.5f, 0.20f);
@@ -214,9 +249,9 @@ namespace Combat.UI
             btnText.text = "НАЧАТЬ ЗАНОВО [ R ]";
             btnText.color = Color.white;
 
-            // 8. Кнопка "В главное меню"
+            // 3.6. Кнопка "В главное меню"
             var menuBtnGo = new GameObject("MainMenuButton");
-            menuBtnGo.transform.SetParent(contentRect, false);
+            menuBtnGo.transform.SetParent(_contentContainerRect, false);
             var menuBtnRect = menuBtnGo.AddComponent<RectTransform>();
             menuBtnRect.anchorMin = new Vector2(0.5f, 0.10f);
             menuBtnRect.anchorMax = new Vector2(0.5f, 0.10f);
@@ -249,6 +284,24 @@ namespace Combat.UI
             menuBtnText.alignment = TextAnchor.MiddleCenter;
             menuBtnText.text = "В ГЛАВНОЕ МЕНЮ [ ESC ]";
             menuBtnText.color = new Color(0.85f, 0.88f, 0.94f, 0.9f);
+
+            // 4. Занавес моментального затемнения (рисуется ПОВЕРХ ВСЕГО и мгновенно гасит экран)
+            _blackCurtainGo = new GameObject("InstantBlackCurtain");
+            _blackCurtainGo.transform.SetParent(_screenRoot.transform, false);
+            _blackCurtainGo.transform.SetAsLastSibling();
+
+            var curtainRect = _blackCurtainGo.AddComponent<RectTransform>();
+            curtainRect.anchorMin = Vector2.zero;
+            curtainRect.anchorMax = Vector2.one;
+            curtainRect.sizeDelta = Vector2.zero;
+
+            _curtainImage = _blackCurtainGo.AddComponent<Image>();
+            _curtainImage.sprite = _whiteSprite;
+            _curtainImage.color = Color.black;
+            _curtainImage.raycastTarget = false;
+
+            _curtainCanvasGroup = _blackCurtainGo.AddComponent<CanvasGroup>();
+            _curtainCanvasGroup.alpha = 1f;
         }
 
         private void Update()
@@ -313,16 +366,10 @@ namespace Combat.UI
         }
 
         /// <summary>
-        /// Показать экран гибели с плавным появлением
+        /// Показать экран гибели: моментальная тьма с последующим медленным развеиванием.
         /// </summary>
         public static void ShowDeathScreen(string customTitle = null, string customSubtitle = null)
         {
-            var tutorial = FindAnyObjectByType<Combat.Tutorial.TutorialController2D>();
-            if (tutorial != null && tutorial.CurrentStage == Combat.Tutorial.TutorialStage.Completed)
-            {
-                return;
-            }
-
             if (Instance == null)
             {
                 var existing = FindAnyObjectByType<PlayerDeathScreenUI>();
@@ -344,7 +391,15 @@ namespace Combat.UI
             {
                 Instance._titleText.text = customTitle;
             }
-            if (!string.IsNullOrEmpty(customSubtitle) && Instance._subtitleText != null)
+            if (string.IsNullOrEmpty(customSubtitle))
+            {
+                var gen = LevelGeneration.LevelSequenceGenerator.Instance;
+                if (gen != null && Instance._subtitleText != null)
+                {
+                    Instance._subtitleText.text = $"Погиб на Арене {gen.CurrentRun} из {gen.MaxRooms}. Нажмите [R], чтобы начать заново.";
+                }
+            }
+            else if (Instance._subtitleText != null)
             {
                 Instance._subtitleText.text = customSubtitle;
             }
@@ -365,23 +420,88 @@ namespace Combat.UI
                 _screenRoot.SetActive(true);
             }
 
+            // 1. Моментальное затемнение: в кадр смерти экран мгновенно гаснет в 100% чёрный
+            if (_blackCurtainGo != null)
+            {
+                _blackCurtainGo.SetActive(true);
+                _blackCurtainGo.transform.SetAsLastSibling();
+            }
+            if (_curtainCanvasGroup != null)
+            {
+                _curtainCanvasGroup.alpha = 1.0f;
+            }
+            if (_curtainImage != null)
+            {
+                _curtainImage.color = Color.black;
+            }
+
+            // Содержимое экрана смерти под тьмой скрыто и плавно появится при развеивании
+            if (_contentCanvasGroup != null)
+            {
+                _contentCanvasGroup.alpha = 0f;
+            }
+            if (_contentContainerRect != null)
+            {
+                _contentContainerRect.localScale = new Vector3(0.92f, 0.92f, 1f);
+            }
+
             StopAllCoroutines();
-            StartCoroutine(FadeInRoutine());
+            StartCoroutine(DeathSequenceRoutine());
         }
 
-        private IEnumerator FadeInRoutine()
+        private IEnumerator DeathSequenceRoutine()
         {
-            if (_canvasGroup == null) yield break;
+            // 1. Моментальная тьма: удерживаем экран в абсолютной темноте
+            if (_curtainCanvasGroup != null) _curtainCanvasGroup.alpha = 1.0f;
+            if (_contentCanvasGroup != null) _contentCanvasGroup.alpha = 0f;
 
-            _canvasGroup.alpha = 0f;
+            if (blackoutHoldDuration > 0.001f)
+            {
+                float holdTimer = 0f;
+                while (holdTimer < blackoutHoldDuration)
+                {
+                    holdTimer += Time.unscaledDeltaTime;
+                    yield return null;
+                }
+            }
+
+            // 2. Медленное развеивание тьмы и проявление экрана смерти
             float elapsed = 0f;
-            while (elapsed < fadeDuration)
+            while (elapsed < dissolveDuration)
             {
                 elapsed += Time.unscaledDeltaTime;
-                _canvasGroup.alpha = Mathf.Clamp01(elapsed / fadeDuration);
+                float t = Mathf.Clamp01(elapsed / dissolveDuration);
+
+                // Плавная кинематографичная кривая рассеивания (SmoothStep)
+                float smoothT = Mathf.SmoothStep(0f, 1f, t);
+
+                // Тьма медленно развеивается (1.0 -> 0.0)
+                if (_curtainCanvasGroup != null)
+                {
+                    _curtainCanvasGroup.alpha = 1.0f - smoothT;
+                }
+
+                // Экран смерти плавно проявляется (0.0 -> 1.0)
+                if (_contentCanvasGroup != null)
+                {
+                    _contentCanvasGroup.alpha = Mathf.Clamp01(t * 1.15f);
+                }
+
+                // Легкое кинематографичное приближение текста "ВЫ УМЕРЛИ"
+                if (_contentContainerRect != null)
+                {
+                    float scale = Mathf.Lerp(0.92f, 1.0f, smoothT);
+                    _contentContainerRect.localScale = new Vector3(scale, scale, 1f);
+                }
+
                 yield return null;
             }
-            _canvasGroup.alpha = 1f;
+
+            // 3. Финал: тьма полностью рассеялась, экран смерти полностью открыт
+            if (_curtainCanvasGroup != null) _curtainCanvasGroup.alpha = 0f;
+            if (_blackCurtainGo != null) _blackCurtainGo.SetActive(false);
+            if (_contentCanvasGroup != null) _contentCanvasGroup.alpha = 1f;
+            if (_contentContainerRect != null) _contentContainerRect.localScale = Vector3.one;
         }
 
         /// <summary>
@@ -391,8 +511,15 @@ namespace Combat.UI
         {
             Debug.Log("<color=#FF3344><b>[DEATH SCREEN]</b></color> Перезагрузка сцены...");
             Time.timeScale = 1.0f;
-            int currentSceneIndex = SceneManager.GetActiveScene().buildIndex;
-            SceneManager.LoadScene(currentSceneIndex);
+            var activeScene = SceneManager.GetActiveScene();
+            if (activeScene.buildIndex >= 0)
+            {
+                SceneManager.LoadScene(activeScene.buildIndex);
+            }
+            else
+            {
+                SceneManager.LoadScene(activeScene.name);
+            }
         }
     }
 }

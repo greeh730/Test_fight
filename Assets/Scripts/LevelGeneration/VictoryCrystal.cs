@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using UnityEngine;
 using Combat.Player;
 
@@ -72,6 +72,12 @@ namespace LevelGeneration
 
             if (isPlayer)
             {
+                var sectorLock = CombatSectorLock2D.Instance;
+                if (sectorLock != null && sectorLock.IsLocked && !sectorLock.IsCleared)
+                {
+                    sectorLock.ShowBanner("[!] ПУТЬ ЗАБЛОКИРОВАН: УНИЧТОЖЬТЕ ВСЕХ ВРАГОВ НА АРЕНЕ!", new Color(1.0f, 0.35f, 0.35f, 1f), 2.5f);
+                    return;
+                }
                 // Полное восстановление здоровья игрока при сборе Кристалла Победы
                 var playerHealth = other.GetComponent<PlayerHealth2D>() ?? other.GetComponentInParent<PlayerHealth2D>();
                 if (playerHealth == null) playerHealth = FindAnyObjectByType<PlayerHealth2D>();
@@ -126,6 +132,20 @@ namespace LevelGeneration
 
         public void ExecuteVictoryRegeneration()
         {
+            if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "TutorialScene")
+            {
+                _isTriggered = true;
+                if (Combat.Tutorial.TutorialManager.Instance != null)
+                {
+                    Combat.Tutorial.TutorialManager.Instance.CompleteTutorialAndExit();
+                }
+                else
+                {
+                    UnityEngine.SceneManagement.SceneManager.LoadScene("SampleScene");
+                }
+                return;
+            }
+            
             _isTriggered = true;
 
             // Полное восстановление здоровья героя при сборе кристалла

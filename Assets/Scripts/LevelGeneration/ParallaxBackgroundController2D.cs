@@ -15,6 +15,7 @@ namespace Combat.Background
     /// </summary>
     [ExecuteAlways]
     [DisallowMultipleComponent]
+    [DefaultExecutionOrder(200)]
     [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
     public class ParallaxBackgroundController2D : MonoBehaviour
     {

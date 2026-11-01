@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
@@ -111,6 +111,46 @@ namespace Combat.UI
         /// <summary>
         /// Плавно проявить сцену из темноты (Fade In from Black)
         /// </summary>
+        public void SnapToBlack()
+        {
+            EnsureOverlayBuilt();
+            if (_fadeRoutine != null)
+            {
+                StopCoroutine(_fadeRoutine);
+                _fadeRoutine = null;
+            }
+
+            if (overlayCanvasGroup != null)
+            {
+                overlayCanvasGroup.alpha = 1.0f;
+                overlayCanvasGroup.blocksRaycasts = true;
+            }
+            if (overlayImage != null)
+            {
+                overlayImage.gameObject.SetActive(true);
+            }
+        }
+
+        public void SnapToClear()
+        {
+            EnsureOverlayBuilt();
+            if (_fadeRoutine != null)
+            {
+                StopCoroutine(_fadeRoutine);
+                _fadeRoutine = null;
+            }
+
+            if (overlayCanvasGroup != null)
+            {
+                overlayCanvasGroup.alpha = 0.0f;
+                overlayCanvasGroup.blocksRaycasts = false;
+            }
+            if (overlayImage != null)
+            {
+                overlayImage.gameObject.SetActive(false);
+            }
+        }
+
         public void StartFadeIn(float duration = 0.65f, float delay = 0f, Action onComplete = null)
         {
             EnsureOverlayBuilt();

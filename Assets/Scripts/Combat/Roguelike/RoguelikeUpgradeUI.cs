@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -21,7 +21,25 @@ namespace Combat.Roguelike
         [SerializeField] private Color combatBuffColor = new Color(0.2f, 1f, 0.55f, 1f);   // Emerald / Green
         [SerializeField] private Color riskColor = new Color(1f, 0.25f, 0.35f, 1f);        // Crimson Red
         [SerializeField] private Color panelBgColor = new Color(0.03f, 0.04f, 0.06f, 0.92f);
-        [SerializeField] private Color selectedColor = new Color(0f, 1.0f, 0.65f, 1f);
+        [SerializeField] private Color selectedColor = new Color(1f, 0.85f, 0.35f, 1f);
+
+        [Header("--- Card Frames (Vintage Playing Cards) ---")]
+        [SerializeField] private Sprite greenCardFrame;
+        [SerializeField] private Sprite redCardFrame;
+
+        [Header("--- Font Sizes (Размеры текста) ---")]
+        [Tooltip("Размер шрифта названия карточки")]
+        [SerializeField] private int titleFontSize = 16;
+        [Tooltip("Размер шрифта описания карточки")]
+        [SerializeField] private int descFontSize = 12;
+        [Tooltip("Размер шрифта положительного баффа (зеленый текст)")]
+        [SerializeField] private int buffFontSize = 14;
+        [Tooltip("Размер шрифта отрицательного дебаффа (красный текст)")]
+        [SerializeField] private int debuffFontSize = 14;
+        [Tooltip("Размер шрифта бейджа масти")]
+        [SerializeField] private int badgeFontSize = 11;
+        [Tooltip("Размер шрифта текста кнопки")]
+        [SerializeField] private int buttonFontSize = 13;
 
         [Header("--- Layout Dimensions (5 Cards Row) ---")]
         [Tooltip("Ширина каждой отдельной карточки")]
@@ -52,6 +70,7 @@ namespace Combat.Roguelike
         private Action _onSelectionFinished;
         private Font _uiFont;
         private Sprite _whiteSprite;
+        private readonly Dictionary<string, Sprite> _iconCache = new Dictionary<string, Sprite>();
         private readonly List<CardSlot> _cardSlots = new List<CardSlot>();
         private int _totalPicks = 2;
         private int _picksRemaining = 2;
@@ -82,6 +101,16 @@ namespace Combat.Roguelike
             {
                 var tex = Texture2D.whiteTexture;
                 _whiteSprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+            }
+
+            if (greenCardFrame == null)
+            {
+                greenCardFrame = LoadSpriteSafe("Cards/card_frame_green", "Assets/Resources/Cards/card_frame_green.png");
+            }
+
+            if (redCardFrame == null)
+            {
+                redCardFrame = LoadSpriteSafe("Cards/card_frame_red", "Assets/Resources/Cards/card_frame_red.png");
             }
         }
 
@@ -256,28 +285,9 @@ namespace Combat.Roguelike
 
         private CardSlot CreateCardView(UpgradeCardDefinition card, int index)
         {
-            Color themeColor;
-            string categoryLabel;
-
-            switch (card.category)
-            {
-                case UpgradeCategory.TacticianAbility:
-                    themeColor = tacticianColor;
-                    categoryLabel = "[СПОСОБНОСТЬ ТАКТИКА]";
-                    break;
-                case UpgradeCategory.CombatBuff:
-                    themeColor = combatBuffColor;
-                    categoryLabel = "[БОЕВОЙ БАФФ]";
-                    break;
-                case UpgradeCategory.RiskAndReward:
-                    themeColor = riskColor;
-                    categoryLabel = "[РИСК И НАГРАДА]";
-                    break;
-                default:
-                    themeColor = Color.white;
-                    categoryLabel = "[УЛУЧШЕНИЕ]";
-                    break;
-            }
+            bool isCombatBuff = IsBuffCard(card);
+            Color themeColor = isCombatBuff ? combatBuffColor : riskColor;
+            string categoryLabel = isCombatBuff ? "[ ♠ БОЕВОЙ БАФФ ♠ ]" : "[ ♦ РИСК И НАГРАДА ♦ ]";
 
             // 1. Корневой объект карточки (внутри HorizontalLayoutGroup)
             var cardObj = new GameObject($"Card_{index}_{card.id}", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Outline), typeof(LayoutElement));
@@ -289,13 +299,43 @@ namespace Combat.Roguelike
             le.minWidth = cardWidth;
             le.minHeight = cardHeight;
 
+            Sprite frameSprite = isCombatBuff ? greenCardFrame : redCardFrame;
+            Color innerParchmentColor = isCombatBuff
+                ? new Color(0.04f, 0.10f, 0.06f, 0.92f)
+                : new Color(0.12f, 0.03f, 0.05f, 0.92f);
+
             var cardImg = cardObj.GetComponent<Image>();
-            cardImg.sprite = _whiteSprite;
-            cardImg.color = new Color(0.06f, 0.08f, 0.12f, 0.95f);
+            if (frameSprite != null)
+            {
+                cardImg.sprite = frameSprite;
+                cardImg.color = Color.white;
+            }
+            else
+            {
+                cardImg.sprite = _whiteSprite;
+                cardImg.color = innerParchmentColor;
+            }
 
             var outline = cardObj.GetComponent<Outline>();
             outline.effectColor = themeColor;
-            outline.effectDistance = new Vector2(2f, 2f);
+            outline.effectDistance = new Vector2(2.5f, 2.5f);
+
+            var innerBgObj = new GameObject("InnerParchment", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            innerBgObj.transform.SetParent(cardObj.transform, false);
+            var innerRt = innerBgObj.GetComponent<RectTransform>();
+            innerRt.anchorMin = Vector2.zero;
+            innerRt.anchorMax = Vector2.one;
+            innerRt.offsetMin = new Vector2(10f, 10f);
+            innerRt.offsetMax = new Vector2(-10f, -10f);
+            var innerImg = innerBgObj.GetComponent<Image>();
+            innerImg.sprite = _whiteSprite;
+            innerImg.color = innerParchmentColor;
+            innerBgObj.transform.SetAsFirstSibling();
+
+            // Playing card corner indices
+            string suitSymbol = isCombatBuff ? "♠" : "♦";
+            CreateCornerIndex(cardObj.transform, suitSymbol + "\n" + (index + 1), new Vector2(0f, 1f), new Vector2(10f, -8f), TextAnchor.UpperCenter);
+            CreateCornerIndex(cardObj.transform, (index + 1) + "\n" + suitSymbol, new Vector2(1f, 0f), new Vector2(-10f, 8f), TextAnchor.LowerCenter);
 
             // 2. Внутренний контейнер контента
             var contentContainer = new GameObject("Content", typeof(RectTransform), typeof(VerticalLayoutGroup));
@@ -307,39 +347,51 @@ namespace Combat.Roguelike
             contentRt.offsetMax = new Vector2(-14f, -12f);
 
             var layout = contentContainer.GetComponent<VerticalLayoutGroup>();
-            layout.padding = new RectOffset(0, 0, 0, 0);
+            layout.padding = new RectOffset(4, 4, 4, 4);
             layout.spacing = 6f;
+            layout.childAlignment = TextAnchor.UpperCenter;
             layout.childControlWidth = true;
-            layout.childControlHeight = false;
+            layout.childControlHeight = true;
             layout.childForceExpandWidth = true;
             layout.childForceExpandHeight = false;
 
             // А. Бейдж категории
-            CreateTextElement(contentContainer.transform, "CategoryBadge", categoryLabel, 10, FontStyle.Bold, themeColor, TextAnchor.MiddleCenter, 18f);
+            CreateTextElement(contentContainer.transform, "CategoryBadge", categoryLabel, badgeFontSize, FontStyle.Bold, themeColor, TextAnchor.MiddleCenter, 18f);
 
             // Б. Иконка-символ
-            CreateTextElement(contentContainer.transform, "Icon", card.iconSymbol, 32, FontStyle.Bold, Color.white, TextAnchor.MiddleCenter, 38f);
+            // Pixel Art UI Icon in vignette medallion
+            CreateIconMedallion(contentContainer.transform, card, themeColor);
 
-            // В. Заголовок
-            CreateTextElement(contentContainer.transform, "Title", card.title, 16, FontStyle.Bold, Color.white, TextAnchor.MiddleCenter, 24f);
+            // C. Название улучшения
+            CreateTextElement(contentContainer.transform, "Title", card.title, titleFontSize, FontStyle.Bold, new Color(1f, 0.98f, 0.92f, 1f), TextAnchor.MiddleCenter, 34f);
 
-            // Г. Описание
-            CreateTextElement(contentContainer.transform, "Desc", card.description, 11, FontStyle.Normal, new Color(0.82f, 0.86f, 0.90f, 0.92f), TextAnchor.MiddleCenter, 48f);
+            // D. Винтажный декоративный разделитель
+            CreateTextElement(contentContainer.transform, "Divider", "── ✦ ──", 10, FontStyle.Normal, new Color(0.85f, 0.75f, 0.45f, 0.70f), TextAnchor.MiddleCenter, 12f);
 
-            // Д. Положительный эффект (зеленый / бирюзовый)
+            // E. Описание карты
+            CreateTextElement(contentContainer.transform, "Desc", card.description, descFontSize, FontStyle.Italic, new Color(0.85f, 0.88f, 0.92f, 0.95f), TextAnchor.MiddleCenter, 44f);
+
+            // F. Текст эффектов прямо на карточке (без отдельных прямоугольников)
             if (!string.IsNullOrEmpty(card.positiveEffectText))
             {
-                CreateTextElement(contentContainer.transform, "PositiveEffect", "✓ " + card.positiveEffectText, 11, FontStyle.Bold, new Color(0.25f, 1f, 0.55f, 1f), TextAnchor.MiddleCenter, 36f);
+                string pos = card.positiveEffectText.Trim();
+                if (!pos.StartsWith("+") && !pos.StartsWith("✓")) pos = "+ " + pos;
+                CreateEffectText(contentContainer.transform, "PositiveEffect", pos, new Color(0.25f, 1f, 0.55f, 1f), buffFontSize);
             }
 
-            // Е. Негативный эффект (красный / оранжевый)
             if (!string.IsNullOrEmpty(card.negativeEffectText))
             {
-                CreateTextElement(contentContainer.transform, "NegativeEffect", "⚠ " + card.negativeEffectText, 11, FontStyle.Bold, new Color(1f, 0.35f, 0.35f, 1f), TextAnchor.MiddleCenter, 32f);
+                string neg = card.negativeEffectText.Trim();
+                if (!neg.StartsWith("-") && !neg.StartsWith("⚠") && !neg.StartsWith("✖")) neg = "- " + neg;
+                CreateEffectText(contentContainer.transform, "NegativeEffect", neg, new Color(1f, 0.35f, 0.38f, 1f), debuffFontSize);
             }
 
-            // 3. Кнопка "ВЫБРАТЬ"
-            var btnObj = new GameObject("SelectButton", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+            // G. Vintage Card Seal Button
+            Color btnBaseColor = isCombatBuff
+                ? new Color(0.12f, 0.30f, 0.18f, 0.98f)
+                : new Color(0.34f, 0.08f, 0.12f, 0.98f);
+
+            var btnObj = new GameObject("SelectButton", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Outline), typeof(Button));
             btnObj.transform.SetParent(cardObj.transform, false);
 
             var btnRt = btnObj.GetComponent<RectTransform>();
@@ -351,16 +403,19 @@ namespace Combat.Roguelike
 
             var btnImg = btnObj.GetComponent<Image>();
             btnImg.sprite = _whiteSprite;
-            btnImg.color = themeColor * 0.82f;
+            btnImg.color = btnBaseColor;
+
+            var btnOutline = btnObj.GetComponent<Outline>();
+            btnOutline.effectColor = new Color(0.85f, 0.75f, 0.45f, 0.85f);
+            btnOutline.effectDistance = new Vector2(1.2f, 1.2f);
 
             var btn = btnObj.GetComponent<Button>();
             var colors = btn.colors;
-            colors.normalColor = themeColor * 0.82f;
-            colors.highlightedColor = themeColor;
+            colors.normalColor = btnBaseColor;
+            colors.highlightedColor = btnBaseColor * 1.35f;
             colors.pressedColor = Color.white;
             btn.colors = colors;
 
-            // Текст внутри кнопки
             var btnTextObj = new GameObject("BtnText", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
             btnTextObj.transform.SetParent(btnObj.transform, false);
             var bRt = btnTextObj.GetComponent<RectTransform>();
@@ -371,10 +426,10 @@ namespace Combat.Roguelike
 
             var bText = btnTextObj.GetComponent<Text>();
             bText.font = _uiFont;
-            bText.fontSize = 13;
+            bText.fontSize = buttonFontSize;
             bText.fontStyle = FontStyle.Bold;
             bText.alignment = TextAnchor.MiddleCenter;
-            bText.color = Color.black;
+            bText.color = new Color(1f, 0.98f, 0.92f, 1f);
             bText.text = "ВЫБРАТЬ";
 
             var slot = new CardSlot
@@ -399,6 +454,9 @@ namespace Combat.Roguelike
             var go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text), typeof(LayoutElement));
             go.transform.SetParent(parent, false);
 
+            var rt = go.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(0f, preferredHeight);
+
             var le = go.GetComponent<LayoutElement>();
             le.preferredHeight = preferredHeight;
             le.minHeight = preferredHeight;
@@ -410,6 +468,8 @@ namespace Combat.Roguelike
             txt.color = color;
             txt.alignment = alignment;
             txt.text = text;
+            txt.horizontalOverflow = HorizontalWrapMode.Wrap;
+            txt.verticalOverflow = VerticalWrapMode.Truncate;
 
             return txt;
         }
@@ -506,6 +566,263 @@ namespace Combat.Roguelike
             _onSelectionFinished = null;
             _finishRoutine = null;
         }
+
+        private static Sprite LoadSpriteSafe(string resourcePath, string fallbackDiskPath)
+        {
+            try
+            {
+                var s = Resources.Load<Sprite>(resourcePath);
+                if (s != null) return s;
+
+                var all = Resources.LoadAll<Sprite>(resourcePath);
+                if (all != null && all.Length > 0 && all[0] != null) return all[0];
+
+                string fullPath = System.IO.Path.Combine(Application.dataPath, "..", fallbackDiskPath);
+                fullPath = System.IO.Path.GetFullPath(fullPath);
+                if (System.IO.File.Exists(fullPath))
+                {
+                    byte[] bytes = System.IO.File.ReadAllBytes(fullPath);
+                    var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                    if (tex.LoadImage(bytes))
+                    {
+                        tex.filterMode = FilterMode.Point;
+                        return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("[RoguelikeUpgradeUI] РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё СЃРїСЂР°Р№С‚Р°: " + ex.Message);
+            }
+            return null;
+        }
+
+        private Sprite GetIconForCard(UpgradeCardDefinition card)
+        {
+            if (card == null) return null;
+            if (card.iconSprite != null) return card.iconSprite;
+
+            string id = card.id ?? "";
+            if (_iconCache.TryGetValue(id, out var cached) && cached != null)
+            {
+                return cached;
+            }
+
+            string iconFileName = GetIconFileName(id);
+            if (!string.IsNullOrEmpty(iconFileName))
+            {
+                var sprite = LoadSpriteSafe("Cards/Icons/" + iconFileName, "Assets/Resources/Cards/Icons/" + iconFileName + ".png");
+                if (sprite == null)
+                {
+                    sprite = LoadSpriteSafe("Cards/Icons/" + iconFileName, "Assets/Sprites/UI/Cards/Icons/" + iconFileName + ".png");
+                }
+                if (sprite != null)
+                {
+                    _iconCache[id] = sprite;
+                    return sprite;
+                }
+            }
+            return null;
+        }
+
+        private static string GetIconFileName(string cardId)
+        {
+            switch (cardId)
+            {
+                case "buff_vitality": return "icon_vitality";
+                case "buff_iron_lungs": return "icon_iron_lungs";
+                case "buff_focus": return "icon_focus";
+                case "buff_keen_edge": return "icon_keen_edge";
+                case "buff_wind_stride": return "icon_wind_stride";
+                case "risk_bloodlust": return "icon_bloodlust";
+                case "risk_glass_cannon": return "icon_glass_cannon";
+                case "risk_colossus_might": return "icon_colossus_might";
+                case "risk_adrenal_surge": return "icon_adrenal_surge";
+                default:
+                    if (cardId.StartsWith("buff_") || cardId.StartsWith("risk_"))
+                        return "icon_" + cardId.Substring(5);
+                    return "icon_" + cardId;
+            }
+        }
+
+        private void CreateIconMedallion(Transform parent, UpgradeCardDefinition card, Color themeColor)
+        {
+            var holder = new GameObject("IconMedallion", typeof(RectTransform), typeof(LayoutElement));
+            holder.transform.SetParent(parent, false);
+
+            var le = holder.GetComponent<LayoutElement>();
+            le.preferredHeight = 56f;
+            le.minHeight = 56f;
+
+            var rt = holder.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(56f, 56f);
+
+            var vignette = new GameObject("Vignette", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Outline));
+            vignette.transform.SetParent(holder.transform, false);
+            var vRt = vignette.GetComponent<RectTransform>();
+            vRt.anchorMin = new Vector2(0.5f, 0.5f);
+            vRt.anchorMax = new Vector2(0.5f, 0.5f);
+            vRt.pivot = new Vector2(0.5f, 0.5f);
+            vRt.sizeDelta = new Vector2(52f, 52f);
+            vRt.anchoredPosition = Vector2.zero;
+
+            var vImg = vignette.GetComponent<Image>();
+            vImg.sprite = _whiteSprite;
+            vImg.color = new Color(0.04f, 0.05f, 0.07f, 0.90f);
+
+            var vOutline = vignette.GetComponent<Outline>();
+            vOutline.effectColor = new Color(themeColor.r, themeColor.g, themeColor.b, 0.65f);
+            vOutline.effectDistance = new Vector2(1.5f, 1.5f);
+
+            var sprite = GetIconForCard(card);
+            if (sprite != null)
+            {
+                var iconObj = new GameObject("PixelArtIcon", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                iconObj.transform.SetParent(vignette.transform, false);
+                var iRt = iconObj.GetComponent<RectTransform>();
+                iRt.anchorMin = Vector2.zero;
+                iRt.anchorMax = Vector2.one;
+                iRt.offsetMin = new Vector2(4f, 4f);
+                iRt.offsetMax = new Vector2(-4f, -4f);
+
+                var img = iconObj.GetComponent<Image>();
+                img.sprite = sprite;
+                img.preserveAspect = true;
+                img.color = Color.white;
+            }
+            else
+            {
+                var textObj = new GameObject("FallbackSymbol", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+                textObj.transform.SetParent(vignette.transform, false);
+                var tRt = textObj.GetComponent<RectTransform>();
+                tRt.anchorMin = Vector2.zero;
+                tRt.anchorMax = Vector2.one;
+                tRt.offsetMin = Vector2.zero;
+                tRt.offsetMax = Vector2.zero;
+
+                var txt = textObj.GetComponent<Text>();
+                txt.font = _uiFont;
+                txt.fontSize = 24;
+                txt.alignment = TextAnchor.MiddleCenter;
+                txt.color = Color.white;
+                txt.text = !string.IsNullOrEmpty(card.iconSymbol) ? card.iconSymbol : "*";
+            }
+        }
+
+        private Text CreateEffectText(Transform parent, string name, string text, Color color, int fontSize)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text), typeof(Shadow), typeof(LayoutElement));
+            go.transform.SetParent(parent, false);
+
+            float h = 34f;
+            var rt = go.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(0f, h);
+
+            var le = go.GetComponent<LayoutElement>();
+            le.preferredHeight = h;
+            le.minHeight = h;
+
+            var shadow = go.GetComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.95f);
+            shadow.effectDistance = new Vector2(1f, -1f);
+
+            var txt = go.GetComponent<Text>();
+            txt.font = _uiFont;
+            txt.fontSize = fontSize;
+            txt.fontStyle = FontStyle.Bold;
+            txt.color = color;
+            txt.alignment = TextAnchor.MiddleCenter;
+            txt.text = text;
+            txt.horizontalOverflow = HorizontalWrapMode.Wrap;
+            txt.verticalOverflow = VerticalWrapMode.Truncate;
+
+            return txt;
+        }
+
+        private void CreateCornerIndex(Transform parent, string text, Vector2 anchor, Vector2 anchoredPos, TextAnchor align)
+        {
+            var go = new GameObject("CornerIndex", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+            go.transform.SetParent(parent, false);
+            var rt = go.GetComponent<RectTransform>();
+            rt.anchorMin = anchor;
+            rt.anchorMax = anchor;
+            rt.pivot = anchor;
+            rt.anchoredPosition = anchoredPos;
+            rt.sizeDelta = new Vector2(28f, 32f);
+
+            var txt = go.GetComponent<Text>();
+            txt.font = _uiFont;
+            txt.fontSize = 11;
+            txt.fontStyle = FontStyle.Bold;
+            txt.alignment = align;
+            txt.color = new Color(0.92f, 0.78f, 0.45f, 0.90f);
+            txt.text = text;
+        }
+
+        private void CreateEffectBox(Transform parent, string prefix, string effectText, Color boxBgColor, Color textColor, float preferredHeight)
+        {
+            var box = new GameObject("EffectBox", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Outline), typeof(LayoutElement));
+            box.transform.SetParent(parent, false);
+
+            var le = box.GetComponent<LayoutElement>();
+            le.preferredHeight = preferredHeight;
+            le.minHeight = preferredHeight;
+
+            var img = box.GetComponent<Image>();
+            img.sprite = _whiteSprite;
+            img.color = boxBgColor;
+
+            var outline = box.GetComponent<Outline>();
+            outline.effectColor = new Color(textColor.r, textColor.g, textColor.b, 0.35f);
+            outline.effectDistance = new Vector2(1f, 1f);
+
+            var textGo = new GameObject("Text", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+            textGo.transform.SetParent(box.transform, false);
+            var tRt = textGo.GetComponent<RectTransform>();
+            tRt.anchorMin = Vector2.zero;
+            tRt.anchorMax = Vector2.one;
+            tRt.offsetMin = new Vector2(6f, 2f);
+            tRt.offsetMax = new Vector2(-6f, -2f);
+
+            var txt = textGo.GetComponent<Text>();
+            txt.font = _uiFont;
+            txt.fontSize = 10;
+            txt.fontStyle = FontStyle.Bold;
+            txt.alignment = TextAnchor.MiddleCenter;
+            txt.color = textColor;
+            txt.text = prefix + effectText;
+        }
+
+                private static bool IsBuffCard(UpgradeCardDefinition card)
+        {
+            if (card == null) return true;
+            if (card.id != null && card.id.StartsWith("risk_")) return false;
+            if (!string.IsNullOrEmpty(card.negativeEffectText)) return false;
+            if (card.enemyHealthMult > 1.01f || card.enemySpeedMult > 1.01f || card.playerHealthDelta < -0.01f) return false;
+            if (card.category == UpgradeCategory.RiskAndReward && (card.id == null || !card.id.StartsWith("buff_"))) return false;
+            return true;
+        }
+
+                #region Editor Preview Helpers
+
+        [ContextMenu("Превью: Показать окно карточек")]
+        public void EditorPreviewShow()
+        {
+            EnsureAssets();
+            EnsureUIBuilt();
+            var mgr = FindAnyObjectByType<RoguelikeUpgradeManager>();
+            var cards = (mgr != null) ? mgr.GenerateUpgradeOffer(5) : RoguelikeUpgradeManager.GetDefaultCombatBuffs();
+            ShowSelection(cards, 2, () => {});
+            if (modalRoot != null) modalRoot.SetActive(true);
+        }
+
+        [ContextMenu("Превью: Скрыть окно карточек")]
+        public void EditorPreviewHide()
+        {
+            Hide();
+        }
+
+        #endregion
 
         public void Hide()
         {

@@ -294,18 +294,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f6ec1ba86e5f0fd43a847c64c2a4f955, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Combat.EnemyAIController2D
-  maxHealth: 140
-  currentHealth: 125
+  maxHealth: 280
+  currentHealth: 280
   resetHealthDelay: 7
-  maxStamina: 50
-  currentStamina: 40
+  maxStamina: 100
+  currentStamina: 100
   staminaDrainMultiplier: 1
-  staminaBreakStunDuration: 3
+  staminaBreakStunDuration: 1.5
   staminaRegenIdleDelay: 11
   staminaRegenRate: 30
-  knockbackMultAtFullStamina: 0.2
-  knockbackMultAtZeroStamina: 1
-  stunDurationMultAtZeroStamina: 1.5
+  knockbackMultAtFullStamina: 0
+  knockbackMultAtZeroStamina: 0
+  stunDurationMultAtZeroStamina: 0
   staminaBar: {fileID: 0}
   canDie: 1
   respawnOnDeath: 0
@@ -316,6 +316,10 @@ MonoBehaviour:
   visionObstacleLayers:
     serializedVersion: 2
     m_Bits: 0
+  enablePatrol: 1
+  patrolSpeed: 1.9
+  patrolRadius: 4
+  patrolWaitDuration: 1.4
   moveSpeed: 3.8
   jumpForce: 14.8
   jumpCooldown: 0.85
@@ -331,10 +335,10 @@ MonoBehaviour:
   combatLeapIntervalMax: 4.2
   separationDistance: 1.15
   attackRange: 2.11
-  telegraphDuration: 0.75
+  telegraphDuration: 0.4
   activeStrikeDuration: 0.15
   recoveryDuration: 0.55
-  attackDamage: 28
+  attackDamage: 40
   knockbackToPlayer: {x: 7, y: 3.5}
   strikeLungeForce: 2.8
   hitboxOffset: {x: 1.15, y: -0.4}
@@ -346,7 +350,7 @@ MonoBehaviour:
   lowHitboxSize: {x: 1.5, y: 0.6}
   normalColor: {r: 1, g: 1, b: 1, a: 1}
   stunColor: {r: 1, g: 0.88, b: 0.25, a: 1}
-  flashColor: {r: 1, g: 1, b: 1, a: 1}
+  flashColor: {r: 1, g: 0.22, b: 0.22, a: 1}
   faceTransform: {fileID: 768153362492686656}
   telegraphVisualizer: {fileID: 0}
   animationController: {fileID: 2921799208208971846}

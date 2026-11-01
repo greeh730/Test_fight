@@ -12,9 +12,9 @@ namespace LevelGeneration
     }
 
     /// <summary>
-    /// Энергетический барьер / дверь боевого сектора.
+    /// Энергетический барьер / дверь боевого сектора / железная решётка подземелья.
     /// Блокирует проход игрока и врагов физическим коллайдером в закрытом состоянии
-    /// и плавно растворяется в открытом.
+    /// и плавно поднимается/растворяется в открытом.
     /// Также содержит выделенный непробиваемый барьер врагов (EnemyBlocker),
     /// который всегда активен и не позволяет врагам покинуть боевую арену.
     /// </summary>
@@ -39,6 +39,16 @@ namespace LevelGeneration
         [Tooltip("Закрыта ли дверь в данный момент")]
         [SerializeField] private bool isClosed = true;
 
+        [Header("--- Железная решётка подземелья (Portcullis Grate) ---")]
+        [Tooltip("Использовать ли средневековую железную решётку вместо лазерного барьера")]
+        [SerializeField] private bool usePortcullisGrate = true;
+        [Tooltip("Спрайт кованой железной решётки")]
+        [SerializeField] private Sprite portcullisSprite;
+        [Tooltip("Высота подъема решётки вверх в открытом состоянии")]
+        [SerializeField] private float openSlideDistance = 4.4f;
+        [Tooltip("Центр спрайта по Y в закрытом состоянии (2.0м для 4-метрового спрайта, чтобы низ стоял ровно на полу)")]
+        [SerializeField] private float closedCenterY = 2.0f;
+
         [Header("--- Визуальные эффекты ---")]
         [Tooltip("Цвет запертого барьера (тревожный красный/оранжевый)")]
         [SerializeField] private Color closedColor = new Color(1.0f, 0.18f, 0.28f, 0.85f);
@@ -52,6 +62,7 @@ namespace LevelGeneration
         private BoxCollider2D _collider;
         private EnemyBlockerBarrier2D _enemyBlockerComponent;
         private SpriteRenderer _fieldRenderer;
+        private SpriteRenderer _portcullisRenderer;
         private List<SpriteRenderer> _laserBars = new List<SpriteRenderer>();
         private Transform _visualRoot;
         private Coroutine _transitionRoutine;
@@ -68,6 +79,56 @@ namespace LevelGeneration
 
         private void SetupComponents()
         {
+            if (usePortcullisGrate)
+            {
+                if (portcullisSprite == null)
+                {
+#if UNITY_EDITOR
+                    portcullisSprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/Tiles/DungeonPortcullis.png");
+#endif
+                }
+
+                // Настройка физического коллайдера под проём ворот (1.2м x 4.0м)
+                _collider = GetComponent<BoxCollider2D>();
+                if (_collider == null) _collider = gameObject.AddComponent<BoxCollider2D>();
+                _collider.size = new Vector2(barrierWidth, 4.0f);
+                _collider.offset = new Vector2(0f, 2.0f);
+                _collider.isTrigger = false;
+                _collider.enabled = isClosed;
+
+                if (_visualRoot == null)
+                {
+                    var existingVisual = transform.Find("VisualRoot");
+                    if (existingVisual != null) _visualRoot = existingVisual;
+                    else
+                    {
+                        var visualGo = new GameObject("VisualRoot");
+                        visualGo.transform.SetParent(transform, false);
+                        _visualRoot = visualGo.transform;
+                    }
+                }
+
+                var grateTform = _visualRoot.Find("PortcullisGrate");
+                if (grateTform == null)
+                {
+                    var grateGo = new GameObject("PortcullisGrate");
+                    grateGo.transform.SetParent(_visualRoot, false);
+                    _portcullisRenderer = grateGo.AddComponent<SpriteRenderer>();
+                    _portcullisRenderer.sprite = portcullisSprite;
+                    _portcullisRenderer.sortingOrder = 2;
+                }
+                else
+                {
+                    _portcullisRenderer = grateTform.GetComponent<SpriteRenderer>();
+                    _portcullisRenderer.sortingOrder = 2;
+                    if (_portcullisRenderer.sprite == null) _portcullisRenderer.sprite = portcullisSprite;
+                }
+
+                SetupEnemyBlocker();
+                ApplyVisualState(isClosed, isClosed ? 1.0f : 0.0f);
+                return;
+            }
+
             if (_sharedBoxSprite == null)
             {
                 Texture2D tex = new Texture2D(1, 1);
@@ -185,7 +246,7 @@ namespace LevelGeneration
                     new Vector2(enemyBlockerWidth, totalHeight),
                     new Vector2(-enemyBlockerWidth * 0.5f, centerY)
                 );
-                _enemyBlockerComponent.gameObject.SetActive(true);
+                _enemyBlockerComponent.gameObject.SetActive(isClosed);
             }
             else if (enemyBlocker == EnemyBlockerDirection.Exit)
             {
@@ -194,7 +255,7 @@ namespace LevelGeneration
                     new Vector2(enemyBlockerWidth, totalHeight),
                     new Vector2(enemyBlockerWidth * 0.5f, centerY)
                 );
-                _enemyBlockerComponent.gameObject.SetActive(true);
+                _enemyBlockerComponent.gameObject.SetActive(isClosed);
             }
             else
             {
@@ -214,11 +275,14 @@ namespace LevelGeneration
 
         public void ConfigureAsExit()
         {
-            enemyBlocker = EnemyBlockerDirection.Exit;
+            // На выходной двери барьер врагов не требуется: когда дверь открывается,
+            // все враги сектора уже уничтожены. Отключение барьера гарантирует,
+            // что игрок беспрепятственно пройдет в выходной коридор к кристаллу.
+            enemyBlocker = EnemyBlockerDirection.None;
             SetupComponents();
             if (_enemyBlockerComponent != null)
             {
-                _enemyBlockerComponent.IgnoreAllPlayerColliders();
+                _enemyBlockerComponent.gameObject.SetActive(false);
             }
         }
 
@@ -256,6 +320,8 @@ namespace LevelGeneration
 
         private void Update()
         {
+            if (usePortcullisGrate) return;
+
             if (isClosed && _fieldRenderer != null)
             {
                 // Легкая динамическая пульсация замкнутого лазерного барьера
@@ -276,6 +342,11 @@ namespace LevelGeneration
             isClosed = closed;
             _collider.enabled = isClosed;
 
+            if (_enemyBlockerComponent != null)
+            {
+                _enemyBlockerComponent.gameObject.SetActive(isClosed && enemyBlocker != EnemyBlockerDirection.None);
+            }
+
             if (_transitionRoutine != null)
             {
                 StopCoroutine(_transitionRoutine);
@@ -284,7 +355,7 @@ namespace LevelGeneration
 
             if (instant || !gameObject.activeInHierarchy)
             {
-                ApplyVisualState(isClosed, 1.0f);
+                ApplyVisualState(isClosed, isClosed ? 1.0f : 0.0f);
             }
             else
             {
@@ -316,6 +387,20 @@ namespace LevelGeneration
 
         private void ApplyVisualState(bool targetClosed, float closedFactor)
         {
+            if (usePortcullisGrate && _portcullisRenderer != null)
+            {
+                // При closedFactor = 0 (открыто): поднята вверх на openSlideDistance
+                // При closedFactor = 1 (закрыто): центр на closedCenterY (2.0м), низ ровно на полу (0.0м), верх у потолка (4.0м)
+                float y = Mathf.Lerp(closedCenterY + openSlideDistance, closedCenterY, closedFactor);
+                _portcullisRenderer.transform.localPosition = new Vector3(0f, y, 0f);
+
+                if (_collider != null)
+                {
+                    _collider.enabled = isClosed && (closedFactor > 0.4f);
+                }
+                return;
+            }
+
             if (_fieldRenderer == null) return;
 
             Color targetColor = Color.Lerp(openColor, closedColor, closedFactor);
@@ -336,6 +421,18 @@ namespace LevelGeneration
                     _laserBars[i].transform.localScale = new Vector3(0.08f, scaleY, 1f);
                 }
             }
+        }
+
+        private void OnDrawGizmosSelected()
+        {
+            Vector3 basePos = transform.position;
+            Gizmos.color = isClosed ? new Color(1f, 0.2f, 0.2f, 0.8f) : new Color(0.2f, 1f, 0.5f, 0.8f);
+            Gizmos.DrawWireCube(basePos + new Vector3(0f, 2.0f, 0f), new Vector3(barrierWidth, 4.0f, 0.1f));
+
+            Gizmos.color = new Color(0.2f, 0.8f, 1f, 0.6f);
+            Vector3 openPos = basePos + new Vector3(0f, openSlideDistance + 2.0f, 0f);
+            Gizmos.DrawWireCube(openPos, new Vector3(barrierWidth, 4.0f, 0.1f));
+            Gizmos.DrawLine(basePos + new Vector3(0f, 2.0f, 0f), openPos);
         }
     }
 }

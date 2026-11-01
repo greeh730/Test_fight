@@ -49,7 +49,6 @@ namespace Combat.Player
         private Rigidbody2D _rb;
         private SpriteRenderer _sr;
         private PlayerController2D _movement;
-        private PlayerCombatController2D _combat;
 
         private Color _originalColor = Color.white;
         private Vector3 _spawnPosition;
@@ -74,7 +73,6 @@ namespace Combat.Player
             _rb = GetComponent<Rigidbody2D>();
             _sr = GetComponent<SpriteRenderer>();
             _movement = GetComponent<PlayerController2D>();
-            _combat = GetComponent<PlayerCombatController2D>();
 
             if (_sr != null)
             {
@@ -146,25 +144,6 @@ namespace Combat.Player
             float damage = attack != null ? attack.damage : 15f;
             Vector2 effectiveKnockbackDir = knockbackDirection;
 
-            // Проверка перехвата удара Блоком или Парированием
-            var blockParry = GetComponent<PlayerBlockAndParry2D>();
-            if (blockParry != null && blockParry.TryInterceptAttack(attack, hitZone, hitPoint, knockbackDirection, out bool hitAbsorbed, out float damageMultiplier, out Vector2 modifiedKnockback))
-            {
-                if (hitAbsorbed)
-                {
-                    // Удар полностью спарирован или заблокирован (0 урона!)
-                    if (_rb != null && modifiedKnockback.sqrMagnitude > 0.001f)
-                    {
-                        _rb.linearVelocity = modifiedKnockback;
-                    }
-                    return;
-                }
-
-                // Частичный урон (Chip Damage) сквозь пробитый блок при нулевой выносливости
-                damage *= damageMultiplier;
-                effectiveKnockbackDir = modifiedKnockback;
-            }
-
             if (!canDie)
             {
                 // Режим бессмертия: HP не опускается ниже 1
@@ -184,9 +163,7 @@ namespace Combat.Player
 
             // Оглушение (стан) игрока от любого удара
             if (_movement == null) _movement = GetComponent<PlayerController2D>();
-            if (_combat == null) _combat = GetComponent<PlayerCombatController2D>();
             if (_movement != null) _movement.ApplyHitstun(hitstunDuration);
-            if (_combat != null) _combat.ApplyHitstun(hitstunDuration);
 
             onHealthChanged?.Invoke(currentHealth, maxHealth);
             onDamaged?.Invoke();
@@ -205,6 +182,36 @@ namespace Combat.Player
             }
         }
 
+        /// <summary>
+        /// Прямое получение урона (например, от периодического горения DoT).
+        /// </summary>
+        public void TakeDirectDamage(float damage)
+        {
+            if (_isInvulnerable || IsDead) return;
+
+            if (!canDie)
+            {
+                currentHealth = Mathf.Max(1f, currentHealth - damage);
+            }
+            else
+            {
+                currentHealth = Mathf.Max(0f, currentHealth - damage);
+            }
+
+            onHealthChanged?.Invoke(currentHealth, maxHealth);
+            onDamaged?.Invoke();
+
+            if (_flashRoutine != null) StopCoroutine(_flashRoutine);
+            _flashRoutine = StartCoroutine(FlashRoutine());
+
+            Debug.Log($"[PLAYER HIT!] Получен периодический урон горения: {damage:F0} HP. Текущее HP: {currentHealth:F0}/{maxHealth:F0}");
+
+            if (canDie && currentHealth <= 0f && !IsDead)
+            {
+                Die();
+            }
+        }
+
         public void Die()
         {
             if (IsDead) return;
@@ -215,11 +222,10 @@ namespace Combat.Player
 
             // Отключаем управление и боевые действия
             if (_movement != null) _movement.enabled = false;
-            if (_combat != null)
-            {
-                _combat.CancelAttack();
-                _combat.enabled = false;
-            }
+            var wheel = GetComponentInChildren<Fencing.FencingWheel>();
+            if (wheel != null) wheel.enabled = false;
+            var orb = GetComponentInChildren<Fencing.AttackOrb>();
+            if (orb != null) orb.enabled = false;
 
             // Физика: падение на бок
             if (_rb != null)
@@ -310,7 +316,6 @@ namespace Combat.Player
                 transform.rotation = _spawnRotation;
 
                 if (_movement != null) _movement.enabled = true;
-                if (_combat != null) _combat.enabled = true;
 
                 currentHealth = Mathf.Clamp(health, 1f, maxHealth);
                 _isInvulnerable = false;

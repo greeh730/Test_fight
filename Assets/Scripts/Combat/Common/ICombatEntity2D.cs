@@ -12,6 +12,7 @@ namespace Combat.Common
         Rigidbody2D Rigidbody { get; }
         GameObject gameObject { get; }
         bool IsDead { get; }
+        bool IsStunned { get; }
         float CurrentHealth { get; }
         AirJuggleReceiver2D AirJuggle { get; }
 

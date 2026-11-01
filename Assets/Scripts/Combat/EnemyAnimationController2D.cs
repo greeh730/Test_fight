@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using UnityEngine;
 
 namespace Combat
@@ -170,7 +170,7 @@ namespace Combat
 
             // На земле: движение (бег/ходьба) или покой (Idle)
             float speedX = rb != null ? Mathf.Abs(rb.linearVelocity.x) : 0f;
-            if (speedX > 0.18f && enemyAI.CurrentState == EnemyState.Chasing)
+            if (speedX > 0.18f && (enemyAI.CurrentState == EnemyState.Chasing || enemyAI.CurrentState == EnemyState.Patrolling))
             {
                 // Скорость воспроизведения анимации шагов пропорциональна скорости движения бота
                 float walkSpeed = Mathf.Clamp(speedX / 3.4f, 0.75f, 1.45f);

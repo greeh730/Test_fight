@@ -26,7 +26,8 @@ namespace Combat
         [SerializeField] private Color brokenColor = new Color(0.4f, 0.4f, 0.4f, 0.7f);
 
         [Header("--- Visual Feedback ---")]
-        [SerializeField] private Color normalColor = new Color(0.85f, 0.85f, 0.85f, 1f);
+        [SerializeField] private Sprite dummySprite;
+        [SerializeField] private Color normalColor = new Color(1f, 1f, 1f, 1f);
         [SerializeField] private float flashDuration = 0.15f;
 
         [Header("--- 3 Zone Setup ---")]
@@ -38,6 +39,7 @@ namespace Combat
 
         private Rigidbody2D _rb;
         private SpriteRenderer _sr;
+        private DummyDamageFeedback _damageFeedback;
         private Coroutine _flashRoutine;
         private Coroutine _respawnRoutine;
         private Coroutine _statusEffectRoutine;
@@ -65,8 +67,13 @@ namespace Combat
             }
         }
         public bool IsDead { get; private set; }
+        private float _stunTimer;
+        public bool IsStunned => _stunTimer > 0f;
         public Rigidbody2D Rigidbody => _rb;
         public AirJuggleReceiver2D AirJuggle => _airJuggle;
+
+        public static event Action<CombatDummy2D, AttackConfig> OnAnyDummyHit;
+        public event Action<AttackConfig> OnDummyHit;
 
         private AirJuggleReceiver2D _airJuggle;
 
@@ -107,6 +114,27 @@ namespace Combat
             if (_airJuggle == null)
             {
                 _airJuggle = gameObject.AddComponent<AirJuggleReceiver2D>();
+            }
+
+            _damageFeedback = GetComponent<DummyDamageFeedback>();
+            if (_damageFeedback == null)
+            {
+                _damageFeedback = gameObject.AddComponent<DummyDamageFeedback>();
+            }
+
+            if (_sr != null && (_sr.sprite == null || _sr.sprite.name == "Square"))
+            {
+                if (dummySprite != null)
+                {
+                    _sr.sprite = dummySprite;
+                }
+#if UNITY_EDITOR
+                else
+                {
+                    var loaded = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/Dummy/TrainingDummy_PixelArt.png");
+                    if (loaded != null) _sr.sprite = loaded;
+                }
+#endif
             }
 
             _spawnPosition = transform.position;
@@ -214,6 +242,8 @@ namespace Combat
 
             float baseDamage = attack != null ? attack.damage : 20f;
             float damage = baseDamage * _vulnerabilityMultiplier;
+            OnDummyHit?.Invoke(attack);
+            OnAnyDummyHit?.Invoke(this, attack);
 
             if (!canDie)
             {
@@ -240,7 +270,7 @@ namespace Combat
             {
                 _airJuggle.OnAirHit(attack, false);
             }
-            else if (_rb != null && attack != null)
+            else if (_rb != null && attack != null && canDie)
             {
                 Vector2 force = new Vector2(
                     knockbackDirection.x * attack.knockbackForce.x,
@@ -250,14 +280,20 @@ namespace Combat
                 _rb.AddForce(force, ForceMode2D.Impulse);
             }
 
-            // Визуальная вспышка цветом зоны
+            // Обратная связь при ударе
+            if (_damageFeedback != null)
+            {
+                _damageFeedback.PlayHitFeedback(hitPoint, knockbackDirection, damage, hitZone);
+            }
             Color zoneColor = hitZone.GetZoneColor(1f);
+            if (_damageFeedback == null) {
             if (_flashRoutine != null) StopCoroutine(_flashRoutine);
             _flashRoutine = StartCoroutine(FlashColorRoutine(zoneColor));
 
             if (Combat.Audio.SoundManager.Instance != null && currentHealth > 0f)
             {
                 Combat.Audio.SoundManager.Instance.PlayEnemyHit();
+            }
             }
 
             Debug.Log($"<color=orange><b>[DUMMY HIT!]</b></color> Атака: <b>{attack?.attackName}</b> | Зона: <b><color=#{ColorUtility.ToHtmlStringRGB(zoneColor)}>{hitZone}</color></b> | Урон: <b>{damage:F0}</b> | HP: <b>{currentHealth:F0}/{maxHealth}</b>");
@@ -282,6 +318,7 @@ namespace Combat
             if (_flashRoutine != null) { StopCoroutine(_flashRoutine); _flashRoutine = null; }
             if (_statusEffectRoutine != null) { StopCoroutine(_statusEffectRoutine); _statusEffectRoutine = null; }
             _vulnerabilityMultiplier = 1.0f;
+            _stunTimer = 0f;
 
             // Отключаем хёртбоксы, чтобы удары не проходили сквозь разрушенный манекен
             for (int i = 0; i < _hurtboxColliders.Count; i++)
@@ -307,9 +344,9 @@ namespace Combat
             Debug.Log("<color=red><b>[DUMMY BROKEN]</b></color> Манекен разрушен! Восстановление через " + respawnDelay + " сек.");
 
             // Начисление очков стиля за разрушение тренировочного манекена
-            if (Combat.Style.StyleManager.Instance != null)
+            if (false)
             {
-                Combat.Style.StyleManager.Instance.AddDummyKill(this, transform.position);
+                { }
             }
 
             if (_respawnRoutine != null) StopCoroutine(_respawnRoutine);
@@ -333,6 +370,7 @@ namespace Combat
             }
 
             _vulnerabilityMultiplier = 1.0f;
+            _stunTimer = 0f;
 
             if (_spawnScale.sqrMagnitude < 0.001f)
             {
@@ -366,6 +404,7 @@ namespace Combat
             if (_flashRoutine != null) { StopCoroutine(_flashRoutine); _flashRoutine = null; }
 
             _vulnerabilityMultiplier = 1.0f;
+            _stunTimer = 0f;
 
             transform.position = new Vector3(position.x, position.y, transform.position.z);
             transform.rotation = _spawnRotation;
@@ -410,6 +449,7 @@ namespace Combat
             if (_sr != null) _sr.color = new Color(0.9f, 0.4f, 1f, 1f);
             yield return new WaitForSeconds(duration);
             _vulnerabilityMultiplier = 1.0f;
+            _stunTimer = 0f;
             if (!IsDead && _sr != null) _sr.color = normalColor;
             _statusEffectRoutine = null;
         }
@@ -470,6 +510,7 @@ namespace Combat
         public void Stun(float duration)
         {
             if (IsDead) return;
+            _stunTimer = duration;
             CombatFloatingText.Spawn(transform.position + Vector3.up * 1.5f, $"[ОГЛУШЕН! {duration:F1}с]", new Color(1f, 0.85f, 0.2f), 1.2f);
             if (_flashRoutine != null) StopCoroutine(_flashRoutine);
             _flashRoutine = StartCoroutine(FlashColorRoutine(new Color(1f, 0.85f, 0.2f)));
@@ -491,6 +532,11 @@ namespace Combat
         private void Update()
         {
             if (IsDead) return;
+
+            if (_stunTimer > 0f)
+            {
+                _stunTimer -= Time.deltaTime;
+            }
 
             // Автоматическое восстановление здоровья манекена после паузы
             if (currentHealth < maxHealth && Time.time - _lastHitTime > resetHealthDelay)

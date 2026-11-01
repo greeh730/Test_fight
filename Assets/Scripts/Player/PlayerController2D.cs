@@ -259,9 +259,7 @@ namespace Combat.Player
         private Vector3 _faceBaseLocalPos = new Vector3(0.16f, 0.14f, 0f);
         private Vector3 _faceBaseLocalScale = new Vector3(0.45f, 0.26f, 1f);
         private float _currentFacing = 1f;
-        private Combat.PlayerCombatController2D _combatController;
         private PlayerStamina2D _stamina;
-        private PlayerBlockAndParry2D _blockParry;
 
         public float CurrentFacing => _currentFacing;
 
@@ -284,11 +282,6 @@ namespace Combat.Player
                 faceTransform.localPosition = new Vector3(absX * _currentFacing, _faceBaseLocalPos.y, _faceBaseLocalPos.z);
                 faceTransform.localScale = new Vector3(absScaleX * _currentFacing, _faceBaseLocalScale.y, _faceBaseLocalScale.z);
             }
-
-            if (_combatController != null)
-            {
-                _combatController.SetFacingDirection(_currentFacing);
-            }
         }
 
         private void Awake()
@@ -307,9 +300,7 @@ namespace Combat.Player
                 _faceBaseLocalScale = faceTransform.localScale;
             }
 
-            _combatController = GetComponent<Combat.PlayerCombatController2D>();
             _stamina = GetComponent<PlayerStamina2D>();
-            _blockParry = GetComponent<PlayerBlockAndParry2D>();
 
             _groundFilter = new ContactFilter2D();
             _groundFilter.useTriggers = false;
@@ -473,6 +464,26 @@ namespace Combat.Player
             }
             catch { /* Игнорируем в случае строгого New Input System */ }
 
+            // Ограничения способностей (Обучение) и блокировка ввода активным диалогом
+            if (Combat.Dialogue.DialogueManager.Instance != null && Combat.Dialogue.DialogueManager.Instance.IsDialogueActive)
+            {
+                h = 0f;
+                jumpDown = false;
+                jumpHold = false;
+                downHold = false;
+                shiftHold = false;
+                aPressedThisFrame = false;
+                dPressedThisFrame = false;
+                shiftPressedThisFrame = false;
+            }
+            else if (Combat.Tutorial.PlayerCapabilityController.Instance != null)
+            {
+                var caps = Combat.Tutorial.PlayerCapabilityController.Instance;
+                if (!caps.AllowMovement) h = 0f;
+                if (!caps.AllowJump) { jumpDown = false; jumpHold = false; }
+                if (!caps.AllowDash) { shiftHold = false; aPressedThisFrame = false; dPressedThisFrame = false; shiftPressedThisFrame = false; }
+            }
+
             _horizontalInput = Mathf.Clamp(h, -1f, 1f);
             _jumpHeld = jumpHold;
             _downHeld = downHold;
@@ -540,7 +551,6 @@ namespace Combat.Player
             if (_isDashing) return false;
             if (_dashCooldownTimer > 0f) return false;
             if (!IsGrounded && _airDashesLeft <= 0) return false;
-            if (_blockParry != null && (_blockParry.IsBlocking || _blockParry.IsParrying || _blockParry.IsParryStaggered)) return false;
             if (_stamina != null && (_stamina.IsExhausted || !_stamina.CanAfford(dashStaminaCost))) return false;
             return true;
         }
@@ -875,19 +885,6 @@ namespace Combat.Player
                 speedMult *= _stamina.ActionSpeedMultiplier;
             }
 
-            // Ограничение скорости при блокировании, парировании или стаггере
-            if (_blockParry != null)
-            {
-                if (_blockParry.IsParryStaggered || _blockParry.IsParrying)
-                {
-                    speedMult = 0f;
-                }
-                else if (_blockParry.IsBlocking)
-                {
-                    speedMult *= _blockParry.BlockMoveSpeedMultiplier;
-                }
-            }
-
             // Бонус к скорости и управляемости в пике прыжка (Apex bonus)
             if (enableApexHang && !_isDashing && Mathf.Abs(_rb.linearVelocity.y) < apexVelocityThreshold)
             {
@@ -960,11 +957,6 @@ namespace Combat.Player
 
         private void HandleJumpAndGravity()
         {
-            if (_blockParry != null && (_blockParry.IsBlocking || _blockParry.IsParrying || _blockParry.IsParryStaggered))
-            {
-                _jumpBufferTimer = 0f;
-            }
-
             // 1. Обработка прыжка
             if (_jumpBufferTimer > 0f)
             {
@@ -1073,22 +1065,14 @@ namespace Combat.Player
 
         private void UpdateVisuals()
         {
-            if (_combatController == null) _combatController = GetComponent<Combat.PlayerCombatController2D>();
-
-            // Если персонаж атакует — лицо и поворот удерживаются в сторону удара
-            bool isAttacking = _combatController != null && _combatController.CurrentState != Combat.CombatState.Idle;
-
-            // 1. Поворот персонажа и лица по направлению движения (если сейчас не в атаке)
-            if (!isAttacking)
+            // 1. Поворот персонажа и лица по направлению движения
+            if (_isDashing)
             {
-                if (_isDashing)
-                {
-                    SetFacing(_dashDirection);
-                }
-                else if (Mathf.Abs(_horizontalInput) > 0.05f)
-                {
-                    SetFacing(_horizontalInput);
-                }
+                SetFacing(_dashDirection);
+            }
+            else if (Mathf.Abs(_horizontalInput) > 0.05f)
+            {
+                SetFacing(_horizontalInput);
             }
 
             // 2. Плавная интерполяция сжатия/растяжения (Squash & Stretch)

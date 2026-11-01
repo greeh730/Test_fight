@@ -1,5 +1,61 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!1 &1364427846803920842
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1045166640165954748}
+  - component: {fileID: 7455646371854767548}
+  m_Layer: 0
+  m_Name: AttackOrb
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1045166640165954748
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1364427846803920842}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 5096891300589852621}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &7455646371854767548
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1364427846803920842}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ac4d8dd66d9c9824595190b0343643e1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Fencing.AttackOrb
+  followSpeed: 20
+  weight: 0.2
+  drag: 4
+  returnSpeed: 6
+  resetOnRelease: 1
+  showWorldOrb: 0
+  wheel: {fileID: 6693219872543954894}
+  wheelUI: {fileID: 0}
+  mouseSensitivity: 1
+  localPosition: {x: 0, y: 0}
+  velocity: {x: 0, y: 0}
+  isHeld: 0
 --- !u!1 &1693687927268177281
 GameObject:
   m_ObjectHideFlags: 0
@@ -12,17 +68,18 @@ GameObject:
   - component: {fileID: 518859559587947167}
   - component: {fileID: 5093234279979707039}
   - component: {fileID: 6189675772627251683}
-  - component: {fileID: 4452880697814557267}
-  - component: {fileID: 1749160518794963003}
   - component: {fileID: 1313408006889401649}
-  - component: {fileID: 3856793759904963398}
   - component: {fileID: 5521885841028506410}
   - component: {fileID: 678814505128052338}
-  - component: {fileID: 7423464582729471053}
   - component: {fileID: 9130126875328064896}
   - component: {fileID: 8585465651835709706}
   - component: {fileID: 1660577626118555687}
-  - component: {fileID: 4505969943193177868}
+  - component: {fileID: 8980291291796893412}
+  - component: {fileID: 3162486556626929011}
+  - component: {fileID: -8507580941386612993}
+  - component: {fileID: 11304512718444232}
+  - component: {fileID: 8086608753887035741}
+  - component: {fileID: 3681334242951161897}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -44,6 +101,9 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2049131354317258528}
+  - {fileID: 1479583488858498147}
+  - {fileID: 5096891300589852621}
+  - {fileID: 709630847645065762}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!212 &518859559587947167
@@ -72,7 +132,7 @@ SpriteRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: a97c105638bdf8b4a8650670310a4cd3, type: 2}
+  - {fileID: 2100000, guid: 163bf8b1434b9924db1873c5f61ae186, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -121,7 +181,7 @@ Rigidbody2D:
   m_Mass: 1
   m_LinearDamping: 0
   m_AngularDamping: 0.05
-  m_GravityScale: 3.5
+  m_GravityScale: 1.225
   m_Material: {fileID: 6200000, guid: 83ce98459896b2e419d2011af6b27809, type: 2}
   m_IncludeLayers:
     serializedVersion: 2
@@ -188,58 +248,6 @@ MonoBehaviour:
   enableJuiceSquashStretch: 1
   squashStretchSpeed: 12
   faceTransform: {fileID: 2049131354317258528}
---- !u!114 &4452880697814557267
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1693687927268177281}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2ee5ce49129f9974ea789dedc126b5d9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Combat.PlayerCombatController2D
-  maxComboSteps: 3
-  comboResetTime: 10.5
-  comboStartupMultiplier: 0.65
-  finisherDamageMultiplier: 1.85
-  finisherKnockbackMultiplier: 2.2
-  inputBufferDuration: 0.55
-  recoveryCancelThreshold: 0.3
-  hitstopDuration: 0.045
-  targetLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  vectorWheel: {fileID: 0}
-  sequenceRecognizer: {fileID: 0}
-  visualizer: {fileID: 0}
-  faceTransform: {fileID: 0}
-  currentStance: 0
-  tacticianController: {fileID: 3856793759904963398}
-  onStanceChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  onComboStepChanged:
-    m_PersistentCalls:
-      m_Calls: []
---- !u!114 &1749160518794963003
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1693687927268177281}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 669b842d3cf295b419764d810d59a191, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Combat.HitboxVisualizer2D
-  showInGameVisuals: 1
-  inGameFillAlpha: 0.33
-  inGameBorderAlpha: 0.9
-  showSceneGizmos: 1
-  showAllAttacksInGizmos: 1
 --- !u!114 &1313408006889401649
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -273,71 +281,6 @@ MonoBehaviour:
   onRespawn:
     m_PersistentCalls:
       m_Calls: []
---- !u!114 &3856793759904963398
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1693687927268177281}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8f9c656dab4354446abc6a27362e6aff, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Combat.Tactician.TacticianCombatController2D
-  enemyLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  tacticianCyan: {r: 0, g: 0.95, b: 1, a: 1}
-  tacticianPurple: {r: 0.75, g: 0.35, b: 1, a: 1}
-  tacticianGold: {r: 1, g: 0.85, b: 0.2, a: 1}
-  thrustOffset: {x: 1.35, y: 0.05}
-  thrustSize: {x: 1.6, y: 0.65}
-  thrustLungeForce: 3.8
-  thrustDamage: 18
-  thrustKnockback: {x: 4, y: 1}
-  thrustVulnerabilityDuration: 7
-  thrustVulnerabilityMultiplier: 1.35
-  trapSpawnOffset: {x: 0.45, y: -0.6}
-  trapTriggerRadius: 1.1
-  trapDamage: 15
-  trapRootDuration: 1.5
-  trapLifetime: 25
-  anchorSpawnOffset: {x: 1.1, y: 2.35}
-  anchorCaptureRadius: 2
-  anchorSuspensionDuration: 2.5
-  anchorLifetime: 5
-  retreatVelocity: {x: 8.8, y: 3.2}
-  smokeRadius: 2
-  smokeDisorientDuration: 2
-  smokeLifetime: 3.2
-  launchDefaultOffset: {x: 2.6, y: -0.6}
-  launchGeyserRadius: 1.4
-  launchGeyserHeight: 3.2
-  launchDamage: 24
-  launchKnockback: {x: 1.5, y: 10.5}
-  launchAutoTargetRange: 7
-  spikesSpawnOffset: {x: 0.7, y: -0.55}
-  spikesSpeed: 9.5
-  spikesMaxDistance: 6
-  spikesHitRadius: 0.85
-  spikesDamage: 22
-  spikesKnockback: {x: 4.5, y: 2}
-  harpoonSpawnOffset: {x: 0.4, y: 0.1}
-  harpoonReachDistance: 6.5
-  harpoonPullSpeed: 13.5
-  harpoonDamage: 16
-  harpoonKnockback: {x: 8, y: 2}
-  fanArcOffset: {x: 0, y: 1.3}
-  fanArcSize: {x: 2.8, y: 2}
-  fanNormalDamage: 20
-  fanAntiAirDamage: 30
-  fanKnockdownForce: 7
-  fanAirRootDuration: 0.75
-  showGizmosInEditor: 0
-  showAllAbilitiesInGizmos: 0
-  selectedGizmoAbility: 1
-  gizmoFillAlpha: 0.18
 --- !u!114 &5521885841028506410
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -350,7 +293,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a68ef54ae21631b428afde9429718e1d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Combat.Player.PlayerStamina2D
-  maxStamina: 350
+  maxStamina: 325
   currentStamina: 200
   regenRate: 50
   regenDelay: 0.85
@@ -386,46 +329,6 @@ MonoBehaviour:
   ghostBarColor: {r: 1, g: 1, b: 1, a: 0.75}
   backgroundColor: {r: 0.08, g: 0.1, b: 0.14, a: 0.92}
   borderColor: {r: 0.25, g: 0.35, b: 0.45, a: 0.9}
---- !u!114 &7423464582729471053
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1693687927268177281}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 538d3f27313879d43bd5f7ec2a571738, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Combat.Player.PlayerBlockAndParry2D
-  blockStaminaCost: 20
-  chipDamageMultiplier: 0.45
-  blockMoveSpeedMultiplier: 0.35
-  blockPushbackMultiplier: 0.25
-  parryStartupDuration: 0.05
-  parryActiveDuration: 0.22
-  parryWhiffDuration: 0.35
-  parryWhiffStaminaCost: 20
-  parryStunDuration: 2
-  parryHitstopDuration: 0.12
-  gestureSwipeThreshold: 25
-  quickTapParryWindow: 0.26
-  vectorWheel: {fileID: 0}
-  blockNormalColor: {r: 0.15, g: 0.75, b: 1, a: 0.75}
-  blockChipColor: {r: 1, g: 0.35, b: 0.15, a: 0.85}
-  parryActiveColor: {r: 1, g: 0.92, b: 0.3, a: 0.95}
-  onBlockStateChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  onParryStarted:
-    m_PersistentCalls:
-      m_Calls: []
-  onParrySuccess:
-    m_PersistentCalls:
-      m_Calls: []
-  onParryWhiff:
-    m_PersistentCalls:
-      m_Calls: []
 --- !u!70 &9130126875328064896
 CapsuleCollider2D:
   m_ObjectHideFlags: 0
@@ -499,18 +402,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Combat.Player.PlayerAnimationController2D
   animator: {fileID: 0}
   animatorControllerAsset: {fileID: 9100000, guid: bd73ca833eb0d6942a8b3b8580ed172d, type: 2}
-  attackWindupHoldFrame: 2
-  attackFrameRate: 12
-  windupSpeed: 1.8
   damageDuration: 0.35
-  parryDuration: 0.35
   playerController: {fileID: 0}
-  playerCombat: {fileID: 0}
-  playerBlockParry: {fileID: 0}
   playerHealth: {fileID: 0}
-  vectorWheel: {fileID: 0}
   faceTransform: {fileID: 0}
---- !u!114 &4505969943193177868
+--- !u!114 &8980291291796893412
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -519,18 +415,417 @@ MonoBehaviour:
   m_GameObject: {fileID: 1693687927268177281}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c882ad2462ae07d47a0e174fdd42d6d5, type: 3}
+  m_Script: {fileID: 11500000, guid: 842c8861709625a4b846d296b514c157, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Combat.AttackHitboxVisualizer
-  database: {fileID: 11400000, guid: 93f5b07b9b8cc954ca4848689eae0cec, type: 2}
-  selectedAttackIndex: 0
-  previewFacingRight: 1
-  showAllHitboxes: 0
-  showLabels: 1
-  showKnockbackArrow: 1
-  enableSceneHandles: 1
-  alwaysDrawGizmos: 0
-  drawWhenSelected: 1
+  m_EditorClassIdentifier: Assembly-CSharp::Fencing.FencingPlayer
+  fencingWheel: {fileID: 6693219872543954894}
+  swordHitbox: {fileID: 7255155250421850136}
+--- !u!114 &3162486556626929011
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1693687927268177281}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 447e165ace6aa6443bab7f1ce04edbe9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Combat.Player.PlayerFocusController
+  maxFocus: 100
+  activationThreshold: 100
+  focusDrainRate: 20
+  startingFocus: 100
+  focusGainOnHit: 15
+  focusGainOnParry: 35
+  timeScaleInFocus: 0.2
+  cameraZoomMultiplier: 1.3
+  transitionDuration: 0.2
+  maxStretchDistance: 2.5
+  maxTensionThreshold: 0.85
+  tensionReturnSpeed: 8
+  strikeRange: 6
+  strikeWidth: 1.2
+  strikeDuration: 0.2
+  normalStrikeDamage: 35
+  missPenalty: 25
+  continueFocusAfterHit: 0
+  playerHoverRadius: 1.8
+--- !u!114 &-8507580941386612993
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1693687927268177281}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c54d4764bf8d8dd47ab4144e8dd7f58d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Magic.PlayerMagicManager
+  availableSpells:
+  - {fileID: 11304512718444232}
+  - {fileID: 8086608753887035741}
+  regenerationInterval: 10
+  lockoutDuration: 5
+  sequenceLength: 3
+  allowDuplicates: 1
+  failOnLMBRelease: 1
+  arrowSize: 20
+  arrowSpacing: 8
+  successColor: {r: 0.2, g: 1, b: 0.4, a: 1}
+  failureColor: {r: 1, g: 0.2, b: 0.25, a: 1}
+  dimmedBorderColor: {r: 0.35, g: 0.35, b: 0.4, a: 0.5}
+  dimmedFillColor: {r: 0.02, g: 0.02, b: 0.03, a: 0.45}
+  dimmedAlpha: 0.4
+  repeatDecayFactor: 0.5
+  minProbabilityFloor: 0.02
+  lockSpellRotation: 0
+  lockedSpell: {fileID: 0}
+  currentActiveSpell: {fileID: 0}
+  lastSelectedSpell: {fileID: 0}
+  consecutiveRepeatCount: 0
+  probabilityDebugList:
+  - "\u041E\u0433\u043E\u043D\u044C: 50,0%"
+  - "\u0422\u0443\u043C\u0430\u043D: 50,0%"
+  wheelUI: {fileID: 0}
+  wheel: {fileID: 0}
+--- !u!114 &11304512718444232
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1693687927268177281}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 467dc8b244902474f8f4d1bd66a8dd7a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Magic.FireSpell
+  spellName: "\u041E\u0433\u043E\u043D\u044C"
+  spellIcon: {fileID: 21300000, guid: fd279947598ae1444a16fc73c31636d5, type: 3}
+  borderColor: {r: 1, g: 0.42, b: 0.05, a: 1}
+  arrowColor: {r: 1, g: 0.68, b: 0.15, a: 1}
+  fillColor: {r: 0.04, g: 0.02, b: 0.01, a: 0.96}
+  themeWheelArrows: 1
+  successColor: {r: 0.2, g: 1, b: 0.4, a: 1}
+  failureColor: {r: 1, g: 0.2, b: 0.25, a: 1}
+  dimmedBorderColor: {r: 0.35, g: 0.35, b: 0.4, a: 0.5}
+  dimmedFillColor: {r: 0.02, g: 0.02, b: 0.03, a: 0.45}
+  dimmedAlpha: 0.4
+  regenerationInterval: 10
+  lockoutDuration: 5
+  sequenceLength: 3
+  allowDuplicates: 1
+  failOnLMBRelease: 1
+  arrowSize: 20
+  arrowSpacing: 8
+  timeRemaining: 10
+  isLockedOut: 0
+  lockoutTimeRemaining: 0
+  currentInputIndex: 0
+  currentSequence: 
+  wheel: {fileID: 0}
+  wheelUI: {fileID: 0}
+  magicManager: {fileID: -8507580941386612993}
+  fireballPrefab: {fileID: 0}
+  fireballSpawnOffset: {x: 0.9, y: 0.15}
+  fireballSpeed: 15
+  fireballScale: 1.6
+  fireballDamage: 50
+  burnDuration: 3
+  burnDamagePerTick: 5
+  burnSpreadRadius: 1.5
+  selfBurnOnFailure: 1
+  failSelfBurnDuration: 3
+  failSelfBurnDamage: 5
+  failEmberCount: 8
+  emberSpeedMin: 5
+  emberSpeedMax: 9
+  groundFireDuration: 3
+  emberPrefab: {fileID: 0}
+  enableExplosionOnFailure: 1
+  explosionDamage: 50
+  explosionRadius: 3
+  explosionKnockbackForce: 8
+  explosionPrefab: {fileID: 0}
+--- !u!114 &8086608753887035741
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1693687927268177281}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 881532771b5aebd4a8a2cb9d00f72cca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Magic.FogSpell
+  spellName: "\u0422\u0443\u043C\u0430\u043D"
+  spellIcon: {fileID: 21300000, guid: 14d52b0adccc8c848aa15ea9fc7a3420, type: 3}
+  borderColor: {r: 1, g: 1, b: 1, a: 1}
+  arrowColor: {r: 0.92, g: 0.96, b: 1, a: 1}
+  fillColor: {r: 0.04, g: 0.02, b: 0.01, a: 0.96}
+  themeWheelArrows: 1
+  successColor: {r: 0.2, g: 1, b: 0.4, a: 1}
+  failureColor: {r: 1, g: 0.2, b: 0.25, a: 1}
+  dimmedBorderColor: {r: 0.35, g: 0.35, b: 0.4, a: 0.5}
+  dimmedFillColor: {r: 0.02, g: 0.02, b: 0.03, a: 0.45}
+  dimmedAlpha: 0.4
+  regenerationInterval: 10
+  lockoutDuration: 5
+  sequenceLength: 3
+  allowDuplicates: 1
+  failOnLMBRelease: 1
+  arrowSize: 20
+  arrowSpacing: 8
+  timeRemaining: 10
+  isLockedOut: 0
+  lockoutTimeRemaining: 0
+  currentInputIndex: 0
+  currentSequence: 
+  wheel: {fileID: 0}
+  wheelUI: {fileID: 0}
+  magicManager: {fileID: -8507580941386612993}
+  fogDuration: 5
+  fogRadius: 4
+  fogSpawnOffset: {x: 0, y: 0}
+  fogCloudPrefab: {fileID: 3814584172939824619, guid: 2236760facdad924ba2c62dcf4964ba5, type: 3}
+  failDenseFogDuration: 6
+--- !u!114 &3681334242951161897
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1693687927268177281}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1ec72ce11d25db744b71125f13c7ef97, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Combat.Tutorial.PlayerCapabilityController
+  allowMovement: 1
+  allowJump: 1
+  allowDash: 1
+  allowSwordAttacks: 1
+  allowStanceToggle: 1
+  allowMagicCasting: 1
+  allowFocusMode: 1
+  isImmortal: 0
+--- !u!1 &1847929684724916691
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1479583488858498147}
+  - component: {fileID: 4338779118051241458}
+  - component: {fileID: 7692484242249499182}
+  - component: {fileID: 7255155250421850136}
+  m_Layer: 0
+  m_Name: SwordHitbox
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1479583488858498147
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1847929684724916691}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 5037072834114748338}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!33 &4338779118051241458
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1847929684724916691}
+  m_Mesh: {fileID: 0}
+--- !u!23 &7692484242249499182
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1847929684724916691}
+  m_Enabled: 0
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 0}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 8
+  m_MaskInteraction: 0
+  m_AdditionalVertexStreams: {fileID: 0}
+--- !u!114 &7255155250421850136
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1847929684724916691}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3ab144fb6d25e1d45bd2d857acbce6f7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Fencing.SwordHitbox
+  horizontalReach: 1.35
+  playerBodyEdge: 0.45
+  headHeight: 0.6
+  bodyHeight: 0
+  legsHeight: -0.6
+  boxSize: {x: 1.5, y: 0.38}
+  duration: 0.18
+  slashColor: {r: 0.2, g: 0.85, b: 1, a: 0.85}
+  damage: 25
+  knockbackForce: {x: 6.5, y: 2}
+--- !u!1 &2313528315671083169
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5096891300589852621}
+  - component: {fileID: 6693219872543954894}
+  m_Layer: 0
+  m_Name: FencingWheel
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5096891300589852621
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2313528315671083169}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1045166640165954748}
+  m_Father: {fileID: 5037072834114748338}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &6693219872543954894
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2313528315671083169}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1cb2cdf95a54c440bd7c40130ade13d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Fencing.FencingWheel
+  useInspectorSettings: 1
+  uiWheelRadius: 90
+  orbFollowSpeed: 20
+  orbWeight: 0.2
+  orbDrag: 4
+  orbReturnSpeed: 6
+  inspectorFreeZoneRadius: 0.8
+  arrowSize: 48
+  wheelRadius: 2
+  freeZoneRadius: 0.8
+  attackSectorAngle: 60
+  deadZoneAngle: 0
+  enableDeadZone: 0
+  attackAngles:
+  - 60
+  - 0
+  - -60
+  - -120
+  - 180
+  - 120
+  attackSectors:
+  - direction: 4
+    angleCenter: 60
+    angleWidth: 60
+    type: 0
+  - direction: 2
+    angleCenter: 0
+    angleWidth: 60
+    type: 0
+  - direction: 5
+    angleCenter: -60
+    angleWidth: 60
+    type: 0
+  - direction: 7
+    angleCenter: -120
+    angleWidth: 60
+    type: 0
+  - direction: 0
+    angleCenter: 180
+    angleWidth: 60
+    type: 0
+  - direction: 8
+    angleCenter: 120
+    angleWidth: 60
+    type: 0
+  deadSectors: []
+  orb: {fileID: 7455646371854767548}
+  wheelUI: {fileID: 0}
+  attackTriggerThreshold: 1
+  orbHitboxRadius: 0.15
+  includeOrbRadiusInTrigger: 1
+  hasAttacked: 0
+  isPanelOpen: 0
+  currentStance: 0
+  stanceToggleKey: 306
+  isMagicLocked: 0
 --- !u!1 &2622997433804372332
 GameObject:
   m_ObjectHideFlags: 0
@@ -589,7 +884,7 @@ SpriteRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: a97c105638bdf8b4a8650670310a4cd3, type: 2}
+  - {fileID: 2100000, guid: 163bf8b1434b9924db1873c5f61ae186, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -623,3 +918,107 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
   m_BlendShapeWeights: []
+--- !u!1 &6392760564421370007
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 709630847645065762}
+  - component: {fileID: 7383650258292840459}
+  m_Layer: 0
+  m_Name: Player_AuraLight
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &709630847645065762
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6392760564421370007}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0.5, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 5037072834114748338}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &7383650258292840459
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6392760564421370007}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 073797afb82c5a1438f328866b10b3f0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.2D.Runtime::UnityEngine.Rendering.Universal.Light2D
+  m_ComponentVersion: 4
+  m_LightType: 3
+  m_BlendStyleIndex: 0
+  m_Light2DProvider:
+    rid: -2
+  m_SelectionSources:
+    rid: 7293967265896071372
+  m_FalloffIntensity: 0.55
+  m_Color: {r: 1, g: 0.96, b: 0.88, a: 1}
+  m_Intensity: 1.85
+  m_LightVolumeIntensity: 1
+  m_LightVolumeEnabled: 0
+  m_ApplyToSortingLayers: 00000000i
+  m_LightCookieSprite: {fileID: 0}
+  m_DeprecatedPointLightCookieSprite: {fileID: 0}
+  m_LightOrder: 0
+  m_AlphaBlendOnOverlap: 0
+  m_OverlapOperation: 0
+  m_NormalMapDistance: 3
+  m_NormalMapQuality: 2
+  m_UseNormalMap: 0
+  m_ShadowsEnabled: 1
+  m_ShadowIntensity: 0.75
+  m_ShadowSoftness: 0.3
+  m_ShadowSoftnessFalloffIntensity: 0.5
+  m_ShadowVolumeIntensityEnabled: 0
+  m_ShadowVolumeIntensity: 0.75
+  m_RenderingLayersMask:
+    serializedVersion: 0
+    m_Bits: 1
+  m_LocalBounds:
+    m_Center: {x: 0, y: 0, z: 0}
+    m_Extent: {x: 0, y: 0, z: 0}
+  m_PointLightInnerAngle: 360
+  m_PointLightOuterAngle: 360
+  m_PointLightInnerRadius: 1.2
+  m_PointLightOuterRadius: 8.5
+  m_ShapeLightParametricSides: 5
+  m_ShapeLightParametricAngleOffset: 0
+  m_ShapeLightParametricRadius: 1
+  m_ShapeLightFalloffSize: 0.5
+  m_ShapeLightFalloffOffset: {x: 0, y: 0}
+  m_ShapePath:
+  - {x: -0.5, y: -0.5, z: 0}
+  - {x: 0.5, y: -0.5, z: 0}
+  - {x: 0.5, y: 0.5, z: 0}
+  - {x: -0.5, y: 0.5, z: 0}
+  references:
+    version: 2
+    RefIds:
+    - rid: -2
+      type: {class: , ns: , asm: }
+    - rid: 7293967265896071372
+      type: {class: Light2DProviderSources, ns: UnityEngine.Rendering.Universal, asm: Unity.RenderPipelines.Universal.2D.Runtime}
+      data:
+        m_SelectedHashCode: 3
+        m_SelectedSource:
+          rid: -2
+        m_Provider2DCache:
+          rid: -2

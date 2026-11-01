@@ -44,6 +44,18 @@ namespace LevelGeneration
         RandomFromPool = 2
     }
 
+    public enum SectorDoorSetupMode
+    {
+        [Tooltip("Ровно одна решётка на входе на арену (захлопывается при входе игрока, открывается при победе)")]
+        OnlyEntranceDoor = 0,
+
+        [Tooltip("Ровно одна решётка на выходе с арены (заперта до победы над врагами)")]
+        OnlyExitDoor = 1,
+
+        [Tooltip("Две решётки (на входе и на выходе)")]
+        BothDoors = 2
+    }
+
     [Serializable]
     public class LevelDifficultyTier
     {
@@ -175,6 +187,12 @@ namespace LevelGeneration
         [Tooltip("Текущий номер прохождения/забега (1..3 = Тир 1, 4..5 = Тир 2, 6+ = Тир 3)")]
         [SerializeField] private int currentRun = 1;
 
+        [Tooltip("Максимальное количество комнат/арен в забеге")]
+        [SerializeField] private int maxRooms = 13;
+
+        public int MaxRooms => maxRooms;
+        public static event System.Action<int, int> OnArenaProgressChanged;
+
         [Header("--- Папка с чанками уровней ---")]
         [Tooltip("Относительный путь к корневой папке с префабами чанков уровней (по умолчанию Assets/Prefabs/LevelChunks)")]
         [SerializeField] private string levelChunksFolderPath = "Assets/Prefabs/LevelChunks";
@@ -221,6 +239,13 @@ namespace LevelGeneration
                 crystalsCollected = Mathf.Max(0, value);
                 currentRun = crystalsCollected + 1;
                 currentCycle = currentRun;
+
+            if (currentRun > maxRooms)
+            {
+                Debug.Log($"<color=#FFD700><b>[LevelGen] Все {maxRooms} арен успешно пройдены! Забег завершен!</b></color>");
+                Combat.UI.RunVictoryScreenUI.ShowVictoryScreen();
+                return;
+            }
             }
         }
 
@@ -232,6 +257,13 @@ namespace LevelGeneration
                 currentRun = Mathf.Max(1, value);
                 crystalsCollected = currentRun - 1;
                 currentCycle = currentRun;
+
+            if (currentRun > maxRooms)
+            {
+                Debug.Log($"<color=#FFD700><b>[LevelGen] Все {maxRooms} арен успешно пройдены! Забег завершен!</b></color>");
+                Combat.UI.RunVictoryScreenUI.ShowVictoryScreen();
+                return;
+            }
             }
         }
 
@@ -332,6 +364,22 @@ namespace LevelGeneration
         [Tooltip("Автоматически ставить запирающиеся барьерные двери на входе и выходе боевой зоны")]
         [SerializeField] private bool enableSectorDoors = true;
 
+        [Tooltip("Режим расстановки дверей: BothDoors = две решётки (на входе и на выходе)")]
+        [SerializeField] private SectorDoorSetupMode doorSetupMode = SectorDoorSetupMode.BothDoors;
+        public SectorDoorSetupMode DoorSetupMode { get => doorSetupMode; set => doorSetupMode = value; }
+
+        [Tooltip("Автоматически сохранять смещение решёток при их перемещении в Scene View")]
+        [SerializeField] private bool autoSaveSceneDoorPositions = true;
+        public bool AutoSaveSceneDoorPositions { get => autoSaveSceneDoorPositions; set => autoSaveSceneDoorPositions = value; }
+
+        [Tooltip("Пользовательское смещение позиции входной решётки (сохраняется автоматически при перемещении в сцене)")]
+        [SerializeField] private Vector3 entranceDoorOffset = Vector3.zero;
+        public Vector3 EntranceDoorOffset { get => entranceDoorOffset; set => entranceDoorOffset = value; }
+
+        [Tooltip("Пользовательское смещение позиции выходной решётки (сохраняется автоматически при перемещении в сцене)")]
+        [SerializeField] private Vector3 exitDoorOffset = Vector3.zero;
+        public Vector3 ExitDoorOffset { get => exitDoorOffset; set => exitDoorOffset = value; }
+
         [Tooltip("Опциональный префаб барьерной двери (если не задан, создается процедурный объект)")]
         [SerializeField] private SectorBarrierDoor2D barrierDoorPrefab;
 
@@ -364,6 +412,13 @@ namespace LevelGeneration
                 return;
             }
 
+            if (Application.isPlaying)
+            {
+                crystalsCollected = 0;
+                currentRun = 1;
+                currentCycle = 1;
+            }
+
             EnsureDefaultLevelBuffs();
 
             if (resetForceVariantOnPlay)
@@ -372,6 +427,14 @@ namespace LevelGeneration
                 debugPrefabIndexInTier = -1;
                 tierOverrideMode = TierOverrideMode.AutoByProgress;
                 debugSpecificPrefab = null;
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (Instance == this)
+            {
+                Instance = null;
             }
         }
 
@@ -384,7 +447,7 @@ namespace LevelGeneration
         {
             if (levelBuffs == null || levelBuffs.Count == 0)
             {
-                EnsureDefaultLevelBuffs();
+            EnsureDefaultLevelBuffs();
             }
         }
 
@@ -400,11 +463,24 @@ namespace LevelGeneration
         {
             return new List<EnemyLevelBuffConfig>
             {
-                new EnemyLevelBuffConfig("Уровень 1 (Старт)", hp: 1.00f, dmg: 1.00f, moveSpd: 1.00f, stam: 1.00f, attackSpd: 1.00f, count: 1, style: 1.00f),
-                new EnemyLevelBuffConfig("Уровень 2 (Усиление)", hp: 1.35f, dmg: 1.15f, moveSpd: 1.08f, stam: 1.15f, attackSpd: 1.10f, count: 2, style: 1.25f),
-                new EnemyLevelBuffConfig("Уровень 3 (Ветеран)", hp: 1.70f, dmg: 1.30f, moveSpd: 1.15f, stam: 1.30f, attackSpd: 1.20f, count: 3, style: 1.50f),
-                new EnemyLevelBuffConfig("Уровень 4 (Мастер)", hp: 2.10f, dmg: 1.45f, moveSpd: 1.22f, stam: 1.50f, attackSpd: 1.30f, count: 4, style: 1.75f),
-                new EnemyLevelBuffConfig("Уровень 5 (Элита)", hp: 2.60f, dmg: 1.60f, moveSpd: 1.30f, stam: 1.70f, attackSpd: 1.40f, count: 5, style: 2.00f),
+                // ТИР 1: Вводные арены (1-4)
+                new EnemyLevelBuffConfig("Арена 1 (Старт)", hp: 1.00f, dmg: 1.00f, moveSpd: 1.00f, stam: 1.00f, attackSpd: 1.00f, count: 1, style: 1.00f),
+                new EnemyLevelBuffConfig("Арена 2", hp: 1.15f, dmg: 1.05f, moveSpd: 1.03f, stam: 1.10f, attackSpd: 1.05f, count: 2, style: 1.10f),
+                new EnemyLevelBuffConfig("Арена 3", hp: 1.30f, dmg: 1.10f, moveSpd: 1.06f, stam: 1.20f, attackSpd: 1.10f, count: 2, style: 1.20f),
+                new EnemyLevelBuffConfig("Арена 4 (Финал Тира 1)", hp: 1.45f, dmg: 1.15f, moveSpd: 1.10f, stam: 1.30f, attackSpd: 1.15f, count: 2, style: 1.30f),
+
+                // ТИР 2: Платформы и группы врагов (5-8)
+                new EnemyLevelBuffConfig("Арена 5 (Тир 2)", hp: 1.60f, dmg: 1.20f, moveSpd: 1.12f, stam: 1.40f, attackSpd: 1.20f, count: 3, style: 1.45f),
+                new EnemyLevelBuffConfig("Арена 6", hp: 1.80f, dmg: 1.25f, moveSpd: 1.15f, stam: 1.50f, attackSpd: 1.25f, count: 3, style: 1.60f),
+                new EnemyLevelBuffConfig("Арена 7", hp: 2.00f, dmg: 1.30f, moveSpd: 1.18f, stam: 1.60f, attackSpd: 1.30f, count: 3, style: 1.75f),
+                new EnemyLevelBuffConfig("Арена 8 (Финал Тира 2)", hp: 2.20f, dmg: 1.35f, moveSpd: 1.22f, stam: 1.70f, attackSpd: 1.35f, count: 4, style: 1.90f),
+
+                // ТИР 3: Сложные вертикальные платформы и элита (9-13)
+                new EnemyLevelBuffConfig("Арена 9 (Тир 3)", hp: 2.40f, dmg: 1.40f, moveSpd: 1.25f, stam: 1.80f, attackSpd: 1.40f, count: 4, style: 2.05f),
+                new EnemyLevelBuffConfig("Арена 10", hp: 2.60f, dmg: 1.45f, moveSpd: 1.28f, stam: 1.90f, attackSpd: 1.45f, count: 5, style: 2.20f),
+                new EnemyLevelBuffConfig("Арена 11", hp: 2.80f, dmg: 1.50f, moveSpd: 1.30f, stam: 2.00f, attackSpd: 1.50f, count: 5, style: 2.35f),
+                new EnemyLevelBuffConfig("Арена 12 (Предфинал)", hp: 3.00f, dmg: 1.55f, moveSpd: 1.32f, stam: 2.10f, attackSpd: 1.55f, count: 5, style: 2.50f),
+                new EnemyLevelBuffConfig("Арена 13 (Гранд-Финал)", hp: 3.25f, dmg: 1.65f, moveSpd: 1.35f, stam: 2.25f, attackSpd: 1.60f, count: 6, style: 2.75f)
             };
         }
 
@@ -537,6 +613,20 @@ namespace LevelGeneration
             }
 
             var tier = GetActiveTier();
+            if (tier == null || tier.chunkPool == null || tier.chunkPool.Count == 0)
+            {
+                if (difficultyTiers != null)
+                {
+                    for (int i = 0; i < difficultyTiers.Count; i++)
+                    {
+                        if (difficultyTiers[i] != null && difficultyTiers[i].chunkPool != null && difficultyTiers[i].chunkPool.Count > 0)
+                        {
+                            tier = difficultyTiers[i];
+                            break;
+                        }
+                    }
+                }
+            }
             if (tier == null || tier.chunkPool == null || tier.chunkPool.Count == 0)
             {
                 return null;
@@ -735,7 +825,20 @@ namespace LevelGeneration
             }
 
             // Удаляем лишние тиры, если папок стало меньше
-            if (difficultyTiers.Count > tierDirs.Count)
+            while (difficultyTiers.Count < 3)
+            {
+                int newTierNum = difficultyTiers.Count + 1;
+                var newT = new LevelDifficultyTier();
+                newT.tierName = $"Уровень {newTierNum} ({(newTierNum == 1 ? "1-3" : newTierNum == 2 ? "4-5" : "6+")} прохождений)";
+                newT.minRun = newTierNum == 1 ? 1 : (newTierNum == 2 ? 4 : 6);
+                newT.maxRun = newTierNum == 1 ? 3 : (newTierNum == 2 ? 5 : 9999);
+                if (difficultyTiers.Count > 0 && difficultyTiers[0].chunkPool != null)
+                {
+                    newT.chunkPool = new List<LevelChunk>(difficultyTiers[0].chunkPool);
+                }
+                difficultyTiers.Add(newT);
+            }
+            if (false && difficultyTiers.Count > tierDirs.Count)
             {
                 difficultyTiers.RemoveRange(tierDirs.Count, difficultyTiers.Count - tierDirs.Count);
             }
@@ -846,17 +949,17 @@ namespace LevelGeneration
         private static int GetDefaultMinRun(int tierNumber)
         {
             if (tierNumber == 1) return 1;
-            if (tierNumber == 2) return 4;
-            if (tierNumber == 3) return 6;
-            return 6 + (tierNumber - 3) * 2;
+            if (tierNumber == 2) return 5;
+            if (tierNumber == 3) return 9;
+            return 9 + (tierNumber - 3) * 2;
         }
 
         private static int GetDefaultMaxRun(int tierNumber, int totalTiers)
         {
             if (tierNumber >= totalTiers) return 9999;
-            if (tierNumber == 1) return 3;
-            if (tierNumber == 2) return 5;
-            return GetDefaultMinRun(tierNumber) + 1;
+            if (tierNumber == 1) return 4;
+            if (tierNumber == 2) return 8;
+            return GetDefaultMinRun(tierNumber) + 3;
         }
 
         private static string GetDefaultRunRangeForTier(int tierNumber, int totalTiers)
@@ -1003,6 +1106,7 @@ namespace LevelGeneration
 
             Physics2D.SyncTransforms();
 
+            OnArenaProgressChanged?.Invoke(currentRun, maxRooms);
             int tierNum = GetActiveTierIndex() + 1;
             Debug.Log($"<color=#00FFAA><b>[LevelGen]</b></color> Уровень успешно сгенерирован! Тир: {tierNum} (Забег #{currentRun}, Кристаллов: {crystalsCollected}). Секций: {_spawnedChunks.Count}. Конечная точка X={currentExitSocket.x:F1}, Y={currentExitSocket.y:F2}");
             onLevelGenerated?.Invoke(_spawnedChunks);
@@ -1070,6 +1174,13 @@ namespace LevelGeneration
             currentRun++;
             currentCycle = currentRun;
 
+            if (currentRun > maxRooms)
+            {
+                Debug.Log($"<color=#FFD700><b>[LevelGen] Все {maxRooms} арен успешно пройдены! Забег завершен!</b></color>");
+                Combat.UI.RunVictoryScreenUI.ShowVictoryScreen();
+                return;
+            }
+
             // Полное восстановление здоровья героя при переходе на новый цикл
             var playerHealth = FindAnyObjectByType<Combat.Player.PlayerHealth2D>();
             if (playerHealth != null)
@@ -1082,6 +1193,7 @@ namespace LevelGeneration
                 Combat.UI.PlayerHealthBarUI.Instance.TriggerHealFlash();
             }
 
+            OnArenaProgressChanged?.Invoke(currentRun, maxRooms);
             int tierIdx = GetActiveTierIndex();
             string tierName = (difficultyTiers != null && tierIdx >= 0 && tierIdx < difficultyTiers.Count) ? difficultyTiers[tierIdx].tierName : $"Тир {tierIdx + 1}";
             Debug.Log($"<color=#FF5555><b>[LevelGen]</b></color> 💎 <b>Кристалл Победы собран!</b> Всего кристаллов: <b>{crystalsCollected}</b>. Переход на забег <b>#{currentRun}</b> -> <b>{tierName}</b>!");
@@ -1189,23 +1301,28 @@ namespace LevelGeneration
             for (int i = 0; i < spawnCount; i++)
             {
                 var spawnTform = candidatePoints[i];
-                var enemyObj = Instantiate(enemyPrefab, spawnTform.position, Quaternion.identity, enemiesContainer);
+                var richSpawn = spawnTform != null ? spawnTform.GetComponent<ArenaEnemySpawnPoint2D>() : null;
+                var prefabToSpawn = (richSpawn != null && richSpawn.CustomEnemyPrefab != null) ? richSpawn.CustomEnemyPrefab : enemyPrefab;
+                var enemyObj = Instantiate(prefabToSpawn, spawnTform.position, Quaternion.identity, enemiesContainer);
                 enemyObj.name = $"Enemy_Fighter_Cycle{currentCycle}_{i + 1}";
+
+                if (richSpawn != null && richSpawn.FacingDirection == SpawnFacingDirection.Right)
+                {
+                    var s = enemyObj.transform.localScale;
+                    enemyObj.transform.localScale = new Vector3(-Mathf.Abs(s.x), s.y, s.z);
+                }
 
                 var enemyAI = enemyObj.GetComponent<Combat.EnemyAIController2D>();
                 if (enemyAI != null)
                 {
-                    enemyAI.ApplyDifficultyScaling(healthMult, staminaMult, speedMult, damageMult, moveSpeedMult);
+                    float pHealth = healthMult * (richSpawn != null ? richSpawn.HealthMultiplier : 1.0f);
+                    float pDmg = damageMult * (richSpawn != null ? richSpawn.DamageMultiplier : 1.0f);
+                    float pSpeed = speedMult * (richSpawn != null ? richSpawn.SpeedMultiplier : 1.0f);
+                    enemyAI.ApplyDifficultyScaling(pHealth, staminaMult, pSpeed, pDmg, moveSpeedMult);
                     enemyAI.RespawnOnDeath = false;
                 }
 
                 _spawnedEnemies.Add(enemyObj);
-            }
-
-            // Передаем множитель стиля
-            if (Combat.Style.StyleManager.Instance != null)
-            {
-                Combat.Style.StyleManager.Instance.SetCycleMultiplier(styleMult);
             }
 
             string levelName = buffConfig != null ? buffConfig.levelTitle : $"Круг {currentCycle}";
@@ -1221,11 +1338,25 @@ namespace LevelGeneration
             // Выходной порог боевой зоны: вход в финальный чанк с кристаллом
             Vector3 exitPos = chunks[chunks.Count - 1].EntryPoint.position;
 
-            _entranceDoorInstance = SpawnOrSetupDoor("[Entrance_Barrier_Door]", entrancePos);
-            _exitDoorInstance = SpawnOrSetupDoor("[Exit_Barrier_Door]", exitPos);
+            _entranceDoorInstance = null;
+            _exitDoorInstance = null;
 
-            if (_entranceDoorInstance != null) _entranceDoorInstance.ConfigureAsEntrance();
-            if (_exitDoorInstance != null) _exitDoorInstance.ConfigureAsExit();
+            if (doorSetupMode == SectorDoorSetupMode.OnlyEntranceDoor || doorSetupMode == SectorDoorSetupMode.BothDoors)
+            {
+                _entranceDoorInstance = SpawnOrSetupDoor("[Entrance_Portcullis]", entrancePos + entranceDoorOffset);
+                if (_entranceDoorInstance != null) _entranceDoorInstance.ConfigureAsEntrance();
+            }
+
+            if (doorSetupMode == SectorDoorSetupMode.OnlyExitDoor || doorSetupMode == SectorDoorSetupMode.BothDoors)
+            {
+                _exitDoorInstance = SpawnOrSetupDoor("[Exit_Portcullis]", exitPos + exitDoorOffset);
+                if (_exitDoorInstance != null) _exitDoorInstance.ConfigureAsExit();
+            }
+
+
+
+
+
 
             if (_combatLockInstance == null)
             {
@@ -1302,8 +1433,52 @@ namespace LevelGeneration
         /// Удаляет ранее сгенерированные чанки
         /// </summary>
         [ContextMenu("Очистить уровень (Clear Old Chunks)")]
+        /// <summary>
+        /// Захватывает текущее положение решёток из сцены, чтобы любые ваши перемещения в редакторе
+        /// автоматически сохранялись и не сбрасывались при старте Play Mode или перегенерации!
+        /// </summary>
+        [ContextMenu("Зафиксировать позиции решёток из сцены (Capture Door Positions)")]
+        public void CaptureDoorOffsetsFromScene()
+        {
+            Vector3 defaultEntrance = (_spawnedChunks != null && _spawnedChunks.Count > 0 && _spawnedChunks[0] != null) 
+                ? _spawnedChunks[0].ExitPoint.position 
+                : startOrigin + new Vector3(20f, 0f, 0f);
+
+            Vector3 defaultExit = (_spawnedChunks != null && _spawnedChunks.Count > 1 && _spawnedChunks[_spawnedChunks.Count - 1] != null)
+                ? _spawnedChunks[_spawnedChunks.Count - 1].EntryPoint.position
+                : startOrigin + new Vector3(40f, 0f, 0f);
+
+            var entranceDoor = _entranceDoorInstance;
+            if (entranceDoor == null && chunksContainer != null)
+            {
+                var t = chunksContainer.Find("[Entrance_Portcullis]") ?? chunksContainer.Find("[Dungeon_Portcullis]") ?? chunksContainer.Find("[Entrance_Barrier_Door]");
+                if (t != null) entranceDoor = t.GetComponent<SectorBarrierDoor2D>();
+            }
+
+            if (entranceDoor != null)
+            {
+                entranceDoorOffset = entranceDoor.transform.position - defaultEntrance;
+            }
+
+            var exitDoor = _exitDoorInstance;
+            if (exitDoor == null && chunksContainer != null)
+            {
+                var t = chunksContainer.Find("[Exit_Portcullis]") ?? chunksContainer.Find("[Exit_Barrier_Door]");
+                if (t != null) exitDoor = t.GetComponent<SectorBarrierDoor2D>();
+            }
+
+            if (exitDoor != null)
+            {
+                exitDoorOffset = exitDoor.transform.position - defaultExit;
+            }
+        }
+
         public void ClearOldChunks()
         {
+            if (autoSaveSceneDoorPositions)
+            {
+                CaptureDoorOffsetsFromScene();
+            }
             if (_combatLockInstance != null)
             {
                 _combatLockInstance.ClearSector();
@@ -1325,6 +1500,22 @@ namespace LevelGeneration
 
             ClearEnemies();
             _spawnedChunks.Clear();
+
+            // Защитная очистка: удаление любых потерянных объектов теней ShadowCaster в корне сцены
+            var activeScene = gameObject.scene;
+            if (activeScene.isLoaded)
+            {
+                var rootObjs = activeScene.GetRootGameObjects();
+                for (int i = rootObjs.Length - 1; i >= 0; i--)
+                {
+                    var rObj = rootObjs[i];
+                    if (rObj != null && rObj.name.StartsWith("ShadowCaster_Path_"))
+                    {
+                        if (Application.isPlaying) Destroy(rObj);
+                        else DestroyImmediate(rObj);
+                    }
+                }
+            }
 
             // Восстанавливаем видимость статичных объектов сцены
             if (staticObjectsToDisable != null)

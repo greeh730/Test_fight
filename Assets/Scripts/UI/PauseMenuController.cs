@@ -76,6 +76,12 @@ namespace Combat.UI
         {
             if (IsPaused)
             {
+                var tut = Combat.Tutorial.TutorialManager.Instance;
+                if (tut != null && tut.CurrentPhase == Combat.Tutorial.TutorialPhase.SettingsWheelStep)
+                {
+                    ResumeGame();
+                    return;
+                }
                 SetPanelVisible(true, instant: false);
             }
         }
@@ -127,8 +133,26 @@ namespace Combat.UI
                 if (settingsUI != null && settingsUI.IsOpen)
                 {
                     settingsUI.CloseSettings();
-                    SetPanelVisible(true, instant: false);
+                    var tut = Combat.Tutorial.TutorialManager.Instance;
+                if (tut != null && tut.CurrentPhase == Combat.Tutorial.TutorialPhase.SettingsWheelStep)
+                {
+                    ResumeGame();
                     return;
+                }
+                SetPanelVisible(true, instant: false);
+                    return;
+                }
+
+                var tutorialMgr = Combat.Tutorial.TutorialManager.Instance;
+                if (tutorialMgr != null && tutorialMgr.CurrentPhase == Combat.Tutorial.TutorialPhase.SettingsWheelStep)
+                {
+                    if (settingsUI != null && !settingsUI.IsOpen)
+                    {
+                        PauseGame();
+                        SetPanelVisible(false, instant: true);
+                        settingsUI.OpenSettings();
+                        return;
+                    }
                 }
 
                 TogglePause();

@@ -88,6 +88,9 @@ namespace Combat.Settings
         private void Start()
         {
             // Уведомляем слушателей о начальных настройках
+            ApplyHitboxSetting();
+            ApplyFencingSettings();
+            ApplyFocusBarSettings();
             OnSettingsChanged?.Invoke(settings);
         }
 
@@ -96,6 +99,9 @@ namespace Combat.Settings
             if (newSettings == null) return;
             settings = newSettings;
             SaveSettings();
+            ApplyHitboxSetting();
+            ApplyFencingSettings();
+            ApplyFocusBarSettings();
             OnSettingsChanged?.Invoke(settings);
         }
 
@@ -103,6 +109,9 @@ namespace Combat.Settings
         {
             settings = WheelSettingsData.CreateDefault();
             SaveSettings();
+            ApplyHitboxSetting();
+            ApplyFencingSettings();
+            ApplyFocusBarSettings();
             OnSettingsChanged?.Invoke(settings);
         }
 
@@ -120,6 +129,41 @@ namespace Combat.Settings
             }
         }
 
+        public void ApplyHitboxSetting()
+        {
+            // Устаревший визуализатор хитбоксов удален
+        }
+
+        public void ApplyFencingSettings()
+        {
+            var wheel = FindAnyObjectByType<Fencing.FencingWheel>();
+            if (wheel != null)
+            {
+                wheel.ApplySettings(settings);
+            }
+
+            var wheelUI = FindAnyObjectByType<Fencing.FencingWheelUI>();
+            if (wheelUI != null)
+            {
+                wheelUI.ApplySettings(settings);
+            }
+        }
+
+        public void ApplyFocusBarSettings()
+        {
+            var focusUI = FindAnyObjectByType<FocusUI>();
+            if (focusUI != null && settings != null)
+            {
+                if (settings.focusBarPosY < 75f)
+                {
+                    settings.focusBarPosY = 83.43f;
+                    settings.focusBarPosX = 18.08f;
+                    settings.focusBarScale = 1.91f;
+                }
+                focusUI.ApplySettings(settings.focusBarScale, settings.focusBarPosX, settings.focusBarPosY);
+            }
+        }
+
         public void LoadSettings()
         {
             if (PlayerPrefs.HasKey(PrefsKey))
@@ -130,6 +174,13 @@ namespace Combat.Settings
                     var loaded = JsonUtility.FromJson<WheelSettingsData>(json);
                     if (loaded != null)
                     {
+                        // Валидация координат шкалы фокуса: предотвращаем наложение на полоску здоровья
+                        if (loaded.focusBarPosY < 75f)
+                        {
+                            loaded.focusBarPosY = 83.43f;
+                            loaded.focusBarPosX = 18.08f;
+                            loaded.focusBarScale = 1.91f;
+                        }
                         settings = loaded;
                         return;
                     }

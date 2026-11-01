@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -51,6 +51,7 @@ namespace LevelGeneration
         private string _bannerText = "";
         private Color _bannerColor = Color.white;
         private float _bannerTimer = 0f;
+        private float _enemySanityTimer = 0f;
 
         public bool IsLocked => isLocked;
         public bool IsCleared => isCleared;

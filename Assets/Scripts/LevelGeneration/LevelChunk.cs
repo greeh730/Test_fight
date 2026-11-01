@@ -108,7 +108,7 @@ namespace LevelGeneration
                 {
                     var go = new GameObject("PlayerSpawnPoint");
                     go.transform.SetParent(transform, false);
-                    go.transform.localPosition = new Vector3(3.5f, 0.55f, 0f);
+                    go.transform.localPosition = new Vector3(3.5f, 1.55f, 0f);
                     playerSpawnPoint = go.transform;
                 }
                 else
@@ -149,6 +149,118 @@ namespace LevelGeneration
             go.transform.localPosition = pos;
             enemySpawnPoints.Add(go.transform);
             return go.transform;
+        }
+
+        /// <summary>
+        /// Автоматически находит все точки спавна врагов (включая ArenaEnemySpawnPoint2D)
+        /// среди дочерних объектов чанка и заносит их в список.
+        /// </summary>
+        [ContextMenu("Собрать все точки спавна (Scan & Collect Spawn Points)")]
+        public void CollectAllSpawnPoints()
+        {
+            if (enemySpawnPoints == null) enemySpawnPoints = new System.Collections.Generic.List<Transform>();
+            enemySpawnPoints.Clear();
+
+            var richSpawners = GetComponentsInChildren<ArenaEnemySpawnPoint2D>(true);
+            for (int i = 0; i < richSpawners.Length; i++)
+            {
+                if (richSpawners[i] != null && !enemySpawnPoints.Contains(richSpawners[i].transform))
+                {
+                    enemySpawnPoints.Add(richSpawners[i].transform);
+                }
+            }
+
+            // Дополнительно ищем старые объекты с именем EnemySpawnPoint
+            for (int i = 0; i < transform.childCount; i++)
+            {
+                var child = transform.GetChild(i);
+                if (child.name.IndexOf("EnemySpawnPoint", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    if (!enemySpawnPoints.Contains(child))
+                    {
+                        enemySpawnPoints.Add(child);
+                    }
+                }
+            }
+
+#if UNITY_EDITOR
+            UnityEditor.EditorUtility.SetDirty(this);
+#endif
+        }
+
+        /// <summary>
+        /// Сканирует тайлмап Tilemap_Solid, находит крайнюю правую плитку пола
+        /// и автоматически выставляет сокет выхода (Socket_Exit) точно на край арены!
+        /// Идеально для арен любого размера (наклонных, вертикальных, сверхшироких).
+        /// </summary>
+        [ContextMenu("Подогнать сокет выхода под край тайлов (Auto-Fit Exit Socket)")]
+        public bool AutoFitExitSocketToTilemap()
+        {
+            var tilemaps = GetComponentsInChildren<UnityEngine.Tilemaps.Tilemap>(true);
+            UnityEngine.Tilemaps.Tilemap solidTm = null;
+            for (int i = 0; i < tilemaps.Length; i++)
+            {
+                if (tilemaps[i].name.IndexOf("Solid", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    solidTm = tilemaps[i];
+                    break;
+                }
+            }
+
+            if (solidTm == null && tilemaps.Length > 0) solidTm = tilemaps[0];
+            if (solidTm == null)
+            {
+                Debug.LogWarning($"[LevelChunk] '{name}': Не найден тайлмап Solid для автоподгонки сокета выхода!");
+                return false;
+            }
+
+            solidTm.CompressBounds();
+            var bounds = solidTm.cellBounds;
+
+            int maxX = int.MinValue;
+            int rightmostFloorY = 0;
+            bool foundTile = false;
+
+            for (int x = bounds.xMax; x >= bounds.xMin; x--)
+            {
+                for (int y = bounds.yMin; y <= bounds.yMax; y++)
+                {
+                    var tile = solidTm.GetTile(new Vector3Int(x, y, 0));
+                    if (tile != null)
+                    {
+                        if (x > maxX)
+                        {
+                            maxX = x;
+                            rightmostFloorY = y;
+                            foundTile = true;
+                        }
+                    }
+                }
+                if (foundTile) break;
+            }
+
+            if (!foundTile)
+            {
+                Debug.LogWarning($"[LevelChunk] '{name}': В тайлмапе нет плиток для автоподгонки сокета выхода!");
+                return false;
+            }
+
+            CreateDefaultSockets();
+            if (exitPoint != null)
+            {
+                // Ставим сокет на стыке: следующий X за крайней плиткой, пол на уровне верхней грани плитки пола (+1 по Y)
+                Vector3Int cellPos = new Vector3Int(maxX + 1, rightmostFloorY + 1, 0);
+                Vector3 localPos = solidTm.transform.localPosition + solidTm.CellToLocal(cellPos);
+                exitPoint.localPosition = localPos;
+
+#if UNITY_EDITOR
+                UnityEditor.EditorUtility.SetDirty(this);
+#endif
+                Debug.Log($"<color=#00FFAA><b>[LevelChunk]</b></color> Сокет выхода '{name}' автоматически установлен на позицию: {localPos}");
+                return true;
+            }
+
+            return false;
         }
 
         public void ClearEnemySpawnPoints()

@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 7309928572368886005}
   - component: {fileID: 5993612520064429718}
   - component: {fileID: 969486663302844655}
+  - component: {fileID: -8255513104915936689}
   m_Layer: 0
   m_Name: CombatDummy
   m_TagString: Untagged
@@ -85,8 +86,8 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 7482667652216324306, guid: 311925a002f4447b3a28927169b83ea6, type: 3}
-  m_Color: {r: 0.85, g: 0.85, b: 0.85, a: 1}
+  m_Sprite: {fileID: -3810947609057372720, guid: c7c62d52db1a8374ba31aae9052387df, type: 3}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
@@ -161,13 +162,13 @@ BoxCollider2D:
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 1, y: 1}
+    oldSize: {x: 1.35, y: 2}
     newSize: {x: 1, y: 1}
     adaptiveTilingThreshold: 0.5
     drawMode: 0
     adaptiveTiling: 0
   m_AutoTiling: 0
-  m_Size: {x: 0.9, y: 1}
+  m_Size: {x: 0.9, y: 2}
   m_EdgeRadius: 0
 --- !u!114 &5993612520064429718
 MonoBehaviour:
@@ -187,7 +188,8 @@ MonoBehaviour:
   canDie: 0
   respawnDelay: 3
   brokenColor: {r: 0.4, g: 0.4, b: 0.4, a: 0.7}
-  normalColor: {r: 0.85, g: 0.85, b: 0.85, a: 1}
+  dummySprite: {fileID: -3810947609057372720, guid: c7c62d52db1a8374ba31aae9052387df, type: 3}
+  normalColor: {r: 1, g: 1, b: 1, a: 1}
   flashDuration: 0.15
   lowZoneTop: -0.2
   midZoneTop: 0.35
@@ -215,3 +217,27 @@ MonoBehaviour:
   enableHoverBob: 1
   hoverBobFrequency: 14
   hoverBobAmplitude: 0.05
+--- !u!114 &-8255513104915936689
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1289160035612553048}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f5d7ca236df03a1489d51e80ceb74027, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Combat.DummyDamageFeedback
+  baseTiltAngle: 18
+  wobbleFrequency: 24
+  wobbleDamping: 6
+  wobbleDuration: 0.7
+  squashScale: {x: 1.18, y: 0.82, z: 1}
+  stretchScale: {x: 0.92, y: 1.1, z: 1}
+  squashDuration: 0.06
+  stretchDuration: 0.08
+  hitFlashColor: {r: 1, g: 0.22, b: 0.22, a: 1}
+  flashDuration: 0.08
+  minParticles: 8
+  maxParticles: 14

@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
@@ -15,15 +15,15 @@ namespace Combat.UI
         [Tooltip("Имя сцены игрового процесса для загрузки")]
         [SerializeField] private string gameSceneName = "SampleScene";
 
-        [Tooltip("Имя сцены интерактивного обучения")]
+        [Tooltip("Имя сцены обучения для загрузки")]
         [SerializeField] private string tutorialSceneName = "TutorialScene";
 
-        [Header("--- Tutorial Settings ---")]
-        [Tooltip("Чекбокс отключения обучения")]
-        [SerializeField] private Toggle disableTutorialToggle;
+        [Tooltip("Если обучение ещё не пройдено, кнопка «Начать игру» запускает обучение")]
+        [SerializeField] private bool autoRouteFirstTimeTutorial = true;
 
         [Header("--- UI References ---")]
         [SerializeField] private Button startButton;
+        [SerializeField] private Button tutorialButton;
         [SerializeField] private Button controlsButton;
         [SerializeField] private Button quitButton;
         [SerializeField] private GameObject controlsPanel;
@@ -48,6 +48,11 @@ namespace Combat.UI
             if (startButton != null)
             {
                 startButton.onClick.AddListener(StartGame);
+            }
+
+            if (tutorialButton != null)
+            {
+                tutorialButton.onClick.AddListener(StartTutorial);
             }
 
             if (controlsButton != null)
@@ -75,50 +80,58 @@ namespace Combat.UI
                 basicsTabButton.onClick.AddListener(ShowBasicsTab);
             }
 
-            if (disableTutorialToggle != null)
-            {
-                bool isTutorialDisabled = PlayerPrefs.GetInt("DisableTutorial", 0) == 1;
-                disableTutorialToggle.isOn = isTutorialDisabled;
-                UpdateToggleVisuals(disableTutorialToggle, isTutorialDisabled);
-                disableTutorialToggle.onValueChanged.AddListener(OnDisableTutorialToggleChanged);
-            }
-
             if (controlsPanel != null)
             {
                 controlsPanel.SetActive(false);
             }
-        }
 
-        private void OnDisableTutorialToggleChanged(bool isDisabled)
-        {
-            PlayerPrefs.SetInt("DisableTutorial", isDisabled ? 1 : 0);
-            PlayerPrefs.Save();
-            if (disableTutorialToggle != null)
-            {
-                UpdateToggleVisuals(disableTutorialToggle, isDisabled);
-            }
-            Debug.Log($"<color=#4EE2EC>[MainMenuController] Отключение обучения: {isDisabled} (сохранено в PlayerPrefs)</color>");
-        }
-
-        private static void UpdateToggleVisuals(Toggle toggle, bool isOn)
-        {
-            if (toggle == null) return;
-            if (toggle.graphic != null)
-            {
-                toggle.graphic.gameObject.SetActive(isOn);
-                if (toggle.graphic.canvasRenderer != null)
-                {
-                    toggle.graphic.canvasRenderer.SetAlpha(isOn ? 1f : 0f);
-                }
-            }
+            UpdateTutorialButtonVisibility();
         }
 
         private void Start()
         {
+            UpdateTutorialButtonVisibility();
+
             if (fadeOverlay != null)
             {
                 StartCoroutine(FadeFromBlack());
             }
+        }
+
+        private void OnEnable()
+        {
+            UpdateTutorialButtonVisibility();
+        }
+
+        /// <summary>
+        /// Показывает кнопку «Обучение» только если обучение уже было пройдено хотя бы раз.
+        /// При первом запуске кнопка скрыта, а кнопка «Начать игру» запускает обучение.
+        /// </summary>
+        public void UpdateTutorialButtonVisibility()
+        {
+            bool hasCompletedTutorial = PlayerPrefs.GetInt("TutorialCompleted", 0) == 1;
+            if (tutorialButton != null)
+            {
+                tutorialButton.gameObject.SetActive(hasCompletedTutorial);
+            }
+        }
+
+        [ContextMenu("Reset Tutorial Progress (Debug)")]
+        public void ResetTutorialProgress()
+        {
+            PlayerPrefs.DeleteKey("TutorialCompleted");
+            PlayerPrefs.Save();
+            UpdateTutorialButtonVisibility();
+            Debug.Log("<color=#FFAA00>[MainMenuController]</color> Прогресс обучения сброшен.");
+        }
+
+        [ContextMenu("Complete Tutorial Progress (Debug)")]
+        public void SetTutorialProgressCompleted()
+        {
+            PlayerPrefs.SetInt("TutorialCompleted", 1);
+            PlayerPrefs.Save();
+            UpdateTutorialButtonVisibility();
+            Debug.Log("<color=#00FFAA>[MainMenuController]</color> Обучение помечено пройденным.");
         }
 
         private void Update()
@@ -127,6 +140,12 @@ namespace Combat.UI
             if (controlsPanel != null && controlsPanel.activeSelf && IsEscapePressed())
             {
                 CloseControls();
+            }
+
+            // Быстрый сброс прогресса обучения для тестирования первого прохождения (F8)
+            if (Input.GetKeyDown(KeyCode.F8))
+            {
+                ResetTutorialProgress();
             }
         }
 
@@ -142,10 +161,24 @@ namespace Combat.UI
         public void StartGame()
         {
             if (_isTransitioning) return;
-            StartCoroutine(StartGameRoutine());
+
+            string targetScene = gameSceneName;
+            // Если игрок ещё ни разу не проходил обучение — направляем его в обучение
+            if (autoRouteFirstTimeTutorial && PlayerPrefs.GetInt("TutorialCompleted", 0) == 0)
+            {
+                targetScene = tutorialSceneName;
+            }
+
+            StartCoroutine(LoadSceneRoutine(targetScene));
         }
 
-        private IEnumerator StartGameRoutine()
+        public void StartTutorial()
+        {
+            if (_isTransitioning) return;
+            StartCoroutine(LoadSceneRoutine(tutorialSceneName));
+        }
+
+        private IEnumerator LoadSceneRoutine(string targetScene)
         {
             _isTransitioning = true;
 
@@ -162,12 +195,7 @@ namespace Combat.UI
                 fadeOverlay.alpha = 1f;
             }
 
-            bool isTutorialDisabled = disableTutorialToggle != null
-                ? disableTutorialToggle.isOn
-                : (PlayerPrefs.GetInt("DisableTutorial", 0) == 1);
-
-            string targetScene = isTutorialDisabled ? gameSceneName : tutorialSceneName;
-            Debug.Log($"<color=#4EE2EC>[MainMenuController] Запуск игры: цель = '{targetScene}' (Обучение отключено: {isTutorialDisabled})</color>");
+            Debug.Log($"<color=#4EE2EC>[MainMenuController] Запуск: цель = '{targetScene}'</color>");
 
             if (!string.IsNullOrEmpty(targetScene))
             {
@@ -239,6 +267,8 @@ namespace Combat.UI
             {
                 controlsPanel.SetActive(false);
             }
+
+            UpdateTutorialButtonVisibility();
         }
 
         public void QuitGame()

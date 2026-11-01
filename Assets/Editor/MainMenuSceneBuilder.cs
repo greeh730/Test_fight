@@ -70,13 +70,10 @@ namespace Combat.Editor
             CreateTitle(canvasObj.transform);
 
             // В. Контейнер кнопок (Buttons)
-            var buttonsObj = CreateMenuButtons(canvasObj.transform, out Button startBtn, out Button controlsBtn, out Button quitBtn);
+            var buttonsObj = CreateMenuButtons(canvasObj.transform, out Button startBtn, out Button tutorialBtn, out Button controlsBtn, out Button quitBtn);
 
             // Г. Нижняя подсказка управления (Controls Quick Strip)
             CreateBottomControlsStrip(canvasObj.transform);
-
-            // Д. Галочка отключения обучения в углу (Tutorial Toggle)
-            var tutorialToggle = CreateTutorialToggle(canvasObj.transform);
 
             // Е. Модальное окно управления (Controls Modal Panel с вкладками приёмов и базы)
             var controlsPanelObj = CreateControlsModal(canvasObj.transform, 
@@ -103,8 +100,9 @@ namespace Combat.Editor
             var so = new SerializedObject(controller);
             so.FindProperty("gameSceneName").stringValue = "SampleScene";
             so.FindProperty("tutorialSceneName").stringValue = "TutorialScene";
-            so.FindProperty("disableTutorialToggle").objectReferenceValue = tutorialToggle;
+            so.FindProperty("autoRouteFirstTimeTutorial").boolValue = true;
             so.FindProperty("startButton").objectReferenceValue = startBtn;
+            so.FindProperty("tutorialButton").objectReferenceValue = tutorialBtn;
             so.FindProperty("controlsButton").objectReferenceValue = controlsBtn;
             so.FindProperty("quitButton").objectReferenceValue = quitBtn;
             so.FindProperty("controlsPanel").objectReferenceValue = controlsPanelObj;
@@ -198,14 +196,14 @@ namespace Combat.Editor
             btxt.alignment = TextAnchor.MiddleLeft;
         }
 
-        private static GameObject CreateMenuButtons(Transform parent, out Button startBtn, out Button controlsBtn, out Button quitBtn)
+        private static GameObject CreateMenuButtons(Transform parent, out Button startBtn, out Button tutorialBtn, out Button controlsBtn, out Button quitBtn)
         {
             var containerObj = new GameObject("ButtonsContainer", typeof(RectTransform));
             containerObj.transform.SetParent(parent, false);
 
             var crt = containerObj.GetComponent<RectTransform>();
-            crt.anchorMin = new Vector2(0.12f, 0.28f);
-            crt.anchorMax = new Vector2(0.38f, 0.62f);
+            crt.anchorMin = new Vector2(0.12f, 0.20f);
+            crt.anchorMax = new Vector2(0.38f, 0.65f);
             crt.offsetMin = Vector2.zero;
             crt.offsetMax = Vector2.zero;
 
@@ -213,13 +211,24 @@ namespace Combat.Editor
             float btnHeight = 56f;
             float gap = 14f;
 
+            var vlg = containerObj.AddComponent<VerticalLayoutGroup>();
+            vlg.spacing = gap;
+            vlg.childAlignment = TextAnchor.UpperCenter;
+            vlg.childControlWidth = true;
+            vlg.childControlHeight = true;
+            vlg.childForceExpandWidth = true;
+            vlg.childForceExpandHeight = false;
+
             // 1. СТАРТ (Главная кнопка)
             startBtn = CreateButton("StartButton", containerObj.transform, "▶  НАЧАТЬ ИГРУ", new Color(0.85f, 0.15f, 0.25f, 1f), ref yPos, btnHeight, gap, isPrimary: true);
 
-            // 2. УПРАВЛЕНИЕ
+            // 2. ОБУЧЕНИЕ
+            tutorialBtn = CreateButton("TutorialButton", containerObj.transform, "📖  ОБУЧЕНИЕ", new Color(0.14f, 0.22f, 0.32f, 1f), ref yPos, btnHeight, gap, isPrimary: false);
+
+            // 3. УПРАВЛЕНИЕ
             controlsBtn = CreateButton("ControlsButton", containerObj.transform, "⚔  УПРАВЛЕНИЕ", new Color(0.12f, 0.16f, 0.22f, 1f), ref yPos, btnHeight, gap, isPrimary: false);
 
-            // 3. ВЫХОД
+            // 4. ВЫХОД
             quitBtn = CreateButton("QuitButton", containerObj.transform, "✕  ВЫХОД", new Color(0.12f, 0.16f, 0.22f, 1f), ref yPos, btnHeight, gap, isPrimary: false);
 
             return containerObj;
@@ -237,6 +246,10 @@ namespace Combat.Editor
             rt.pivot = new Vector2(0.5f, 1f);
             rt.anchoredPosition = new Vector2(0f, yPos);
             rt.sizeDelta = new Vector2(0f, height);
+
+            var le = btnObj.AddComponent<LayoutElement>();
+            le.preferredHeight = height;
+            le.minHeight = height;
 
             var img = btnObj.GetComponent<Image>();
             img.color = bgColor;
@@ -284,53 +297,6 @@ namespace Combat.Editor
             trt.offsetMax = Vector2.zero;
             var txt = textObj.GetComponent<Text>();
             txt.alignment = TextAnchor.MiddleLeft;
-        }
-
-        private static Toggle CreateTutorialToggle(Transform parent)
-        {
-            var rootObj = new GameObject("TutorialTogglePanel", typeof(RectTransform), typeof(Image));
-            rootObj.transform.SetParent(parent, false);
-
-            var rt = rootObj.GetComponent<RectTransform>();
-            rt.anchorMin = new Vector2(0.68f, 0.08f);
-            rt.anchorMax = new Vector2(0.92f, 0.16f);
-            rt.offsetMin = Vector2.zero;
-            rt.offsetMax = Vector2.zero;
-
-            var panelImg = rootObj.GetComponent<Image>();
-            panelImg.color = new Color(0.06f, 0.09f, 0.14f, 0.85f);
-
-            var toggleObj = DefaultControls.CreateToggle(s_Resources);
-            toggleObj.name = "DisableTutorialToggle";
-            toggleObj.transform.SetParent(rootObj.transform, false);
-
-            var trt = toggleObj.GetComponent<RectTransform>();
-            trt.anchorMin = new Vector2(0.06f, 0.15f);
-            trt.anchorMax = new Vector2(0.96f, 0.85f);
-            trt.offsetMin = Vector2.zero;
-            trt.offsetMax = Vector2.zero;
-
-            var toggle = toggleObj.GetComponent<Toggle>();
-            toggle.isOn = PlayerPrefs.GetInt("DisableTutorial", 0) == 1;
-
-            var checkmark = toggle.graphic as Image;
-            if (checkmark != null)
-            {
-                checkmark.color = new Color(0.2f, 0.95f, 1f, 1f); // Neon Cyan
-            }
-
-            var label = toggleObj.GetComponentInChildren<Text>();
-            if (label != null)
-            {
-                label.text = "Отключить обучение";
-                label.font = s_Font;
-                label.fontSize = 13;
-                label.fontStyle = FontStyle.Bold;
-                label.color = new Color(0.88f, 0.92f, 0.98f, 1f);
-                label.alignment = TextAnchor.MiddleLeft;
-            }
-
-            return toggle;
         }
 
         private static GameObject CreateControlsModal(

@@ -12,6 +12,7 @@ namespace Combat
     public enum EnemyState
     {
         Idle,
+        Patrolling,
         Chasing,
         TelegraphWindup, // Окно для контратаки!
         ActiveStrike,
@@ -55,7 +56,7 @@ namespace Combat
         [Tooltip("Множитель урона по стамине при обычных ударах")]
         [SerializeField] private float staminaDrainMultiplier = 1.0f;
         [Tooltip("Длительность оглушения при полном истощении стамины (сек)")]
-        [SerializeField] private float staminaBreakStunDuration = 3.0f;
+        [SerializeField] private float staminaBreakStunDuration = 1.5f;
         [Tooltip("Задержка без получения урона до начала регенерации стамины (> 10 сек для джаггл-комбо)")]
         [SerializeField] private float staminaRegenIdleDelay = 11.0f;
         [Tooltip("Скорость восстановления стамины в секунду")]
@@ -94,6 +95,23 @@ namespace Combat
         [SerializeField] private float loseTargetRange = 13.0f;
         [Tooltip("Слои препятствий для проверки прямой видимости")]
         [SerializeField] private LayerMask visionObstacleLayers = 0;
+
+        [Header("--- Patrol & Fog Reaction ---")]
+        [Tooltip("Разрешить врагу патрулировать территорию при потере игрока или в покое")]
+        [SerializeField] private bool enablePatrol = true;
+
+        [Tooltip("Скорость передвижения при патрулировании")]
+        [SerializeField] private float patrolSpeed = 1.9f;
+
+        [Tooltip("Радиус патрулирования вокруг якорной точки (м)")]
+        [SerializeField] private float patrolRadius = 4.0f;
+
+        [Tooltip("Время паузы/оглядывания на границе патруля (сек)")]
+        [SerializeField] private float patrolWaitDuration = 1.4f;
+
+        private float _patrolAnchorX;
+        private float _patrolWaitTimer = 0f;
+        private float _patrolDirection = -1f;
 
         [Header("--- Movement & Jumping ---")]
         [SerializeField] private float moveSpeed = 3.6f;
@@ -177,7 +195,7 @@ namespace Combat
         [Header("--- Visuals & Face ---")]
         [SerializeField] private Color normalColor = Color.white; // Чистый белый для детального спрайта
         [SerializeField] private Color stunColor = new Color(1f, 0.88f, 0.25f, 1f);     // Желто-золотой при стане
-        [SerializeField] private Color flashColor = new Color(1f, 1f, 1f, 1f);
+        [SerializeField] private Color flashColor = new Color(1f, 0.22f, 0.22f, 1f);
         [SerializeField] private Transform faceTransform;
 
         [Header("--- Components & Visualizer ---")]
@@ -193,6 +211,30 @@ namespace Combat
         public bool CanDie { get => canDie; set => canDie = value; }
         public bool RespawnOnDeath { get => respawnOnDeath; set => respawnOnDeath = value; }
         public bool IsDead => CurrentState == EnemyState.Dead;
+        public bool IsStunned => CurrentState == EnemyState.Stunned;
+
+        /// <summary>
+        /// Восстанавливает здоровье врагу (например, если подобрал зелье).
+        /// </summary>
+        /// <summary>
+        /// Мгновенно и полностью восстанавливает выносливость врага до максимума (100%).
+        /// </summary>
+        public void RestoreFullStamina()
+        {
+            currentStamina = maxStamina;
+            if (staminaBar != null)
+            {
+                staminaBar.SetStamina(currentStamina, maxStamina);
+            }
+            Debug.Log($"<color=yellow>[STAMINA RESTORED]</color> {gameObject.name}: выносливость полностью восстановлена ({maxStamina}/{maxStamina})!");
+        }
+
+        public void Heal(float amount)
+        {
+            if (CurrentState == EnemyState.Dead || (!canDie && currentHealth <= 0f)) return;
+            currentHealth = Mathf.Min(maxHealth, currentHealth + amount);
+            _lastHitTime = Time.time;
+        }
 
         // Границы боевого сектора арены
         private float _minSectorX = float.MinValue;
@@ -308,6 +350,7 @@ namespace Combat
             _rb = GetComponent<Rigidbody2D>();
             _col = GetComponent<Collider2D>();
             _sr = GetComponent<SpriteRenderer>();
+            if (flashColor == Color.white) flashColor = new Color(1f, 0.22f, 0.22f, 1f);
 
             _spawnPosition = transform.position;
             _spawnRotation = transform.rotation;
@@ -374,6 +417,12 @@ namespace Combat
         {
             FindPlayer();
             SetFacing(-1f); // По умолчанию смотрим влево (в сторону игрока)
+            _patrolAnchorX = transform.position.x;
+            _patrolDirection = -1f;
+            if (enablePatrol)
+            {
+                StartPatrolling();
+            }
         }
 
         private void FindPlayer()
@@ -409,7 +458,7 @@ namespace Combat
             }
 
             // Авто-восстановление здоровья после долгого простоя вне боя
-            if (currentHealth < maxHealth && CurrentState == EnemyState.Idle && Time.time - _lastHitTime > resetHealthDelay)
+            if (currentHealth < maxHealth && (CurrentState == EnemyState.Idle || CurrentState == EnemyState.Patrolling) && Time.time - _lastHitTime > resetHealthDelay)
             {
                 currentHealth = maxHealth;
                 if (_sr != null) _sr.color = normalColor;
@@ -424,7 +473,8 @@ namespace Combat
             float effectiveRegenRate = (_staminaBoostTimer > 0f) ? (staminaRegenRate * 1.75f) : staminaRegenRate;
             float effectiveDelay = (_staminaBoostTimer > 0f) ? 0.35f : staminaRegenIdleDelay;
 
-            if (currentStamina < maxStamina && CurrentState != EnemyState.Stunned && Time.time - _lastHitTime >= effectiveDelay)
+            bool isBurning = GetComponent<Magic.BurnStatusEffect>() != null;
+            if (currentStamina < maxStamina && CurrentState != EnemyState.Stunned && !isBurning && Time.time - _lastHitTime >= effectiveDelay)
             {
                 currentStamina = Mathf.MoveTowards(currentStamina, maxStamina, effectiveRegenRate * Time.deltaTime);
                 if (staminaBar != null)
@@ -444,6 +494,10 @@ namespace Combat
             {
                 case EnemyState.Idle:
                     UpdateIdle();
+                    break;
+
+                case EnemyState.Patrolling:
+                    UpdatePatrol();
                     break;
 
                 case EnemyState.Chasing:
@@ -581,19 +635,155 @@ namespace Combat
             _desiredVelocityX = 0f;
             if (_disorientTimer > 0f) return; // Ослеплен, не может обнаружить игрока
 
+            if (enablePatrol)
+            {
+                StartPatrolling();
+                return;
+            }
+
             // Защита: не начинать преследование, если игрок ещё находится снаружи сектора в стартовой комнате
             if (_minSectorX > float.MinValue * 0.5f && _playerTransform != null && _playerTransform.position.x < _minSectorX - 0.5f)
             {
                 return;
             }
 
-            float dist = Vector2.Distance(transform.position, _playerTransform.position);
-            if (dist <= detectionRange)
+            if (_playerTransform != null)
             {
-                // Игрок попал в поле зрения!
-                CurrentState = EnemyState.Chasing;
-                Debug.Log("[ENEMY AI] Игрок замечен! Враг начинает преследование.");
+                // Если враг находится в дыму — сразу обнаруживает игрока!
+                if (Magic.FogCloud.IsInsideAnyCloud(transform.position))
+                {
+                    CurrentState = EnemyState.Chasing;
+                    SetFacing(Mathf.Sign(_playerTransform.position.x - transform.position.x));
+                    Debug.Log("[ENEMY AI] Враг находится в дыму и сразу обнаружил игрока!");
+                    return;
+                }
+
+                float dist = Vector2.Distance(transform.position, _playerTransform.position);
+                if (dist <= detectionRange)
+                {
+                    // Проверяем: скрыт ли игрок туманом
+                    if (!Magic.FogCloud.IsPlayerObscured(transform.position, _playerTransform.position))
+                    {
+                        CurrentState = EnemyState.Chasing;
+                        Debug.Log("[ENEMY AI] Игрок замечен! Враг начинает преследование.");
+                    }
+                }
             }
+        }
+
+        private void UpdatePatrol()
+        {
+            if (_hitstunTimer > 0f || _isGravitySuspended || _isRooted)
+            {
+                _desiredVelocityX = 0f;
+                return;
+            }
+
+            // 1. Проверяем обнаружение игрока
+            if (_disorientTimer <= 0f && _playerTransform != null)
+            {
+                bool playerInSector = !(_minSectorX > float.MinValue * 0.5f && _playerTransform.position.x < _minSectorX - 0.5f);
+                if (playerInSector)
+                {
+                    // Если враг зашел в дым — сразу обнаруживает игрока!
+                    if (Magic.FogCloud.IsInsideAnyCloud(transform.position))
+                    {
+                        CurrentState = EnemyState.Chasing;
+                        SetFacing(Mathf.Sign(_playerTransform.position.x - transform.position.x));
+                        Debug.Log("[ENEMY AI] Враг зашел в дым и сразу обнаружил игрока!");
+                        return;
+                    }
+
+                    float dist = Vector2.Distance(transform.position, _playerTransform.position);
+                    if (dist <= detectionRange)
+                    {
+                        // Проверяем: скрыт ли игрок в тумане или за туманом
+                        if (!Magic.FogCloud.IsPlayerObscured(transform.position, _playerTransform.position))
+                        {
+                            CurrentState = EnemyState.Chasing;
+                            Debug.Log("[ENEMY AI] Игрок замечен из патруля! Враг начинает преследование.");
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // 2. Пауза / оглядывание на границе патрулирования
+            if (_patrolWaitTimer > 0f)
+            {
+                _patrolWaitTimer -= Time.deltaTime;
+                _desiredVelocityX = 0f;
+                if (_patrolWaitTimer <= 0f)
+                {
+                    _patrolDirection = -_patrolDirection;
+                    SetFacing(_patrolDirection);
+                }
+                return;
+            }
+
+            // 3. Движение в направлении патруля
+            _desiredVelocityX = _patrolDirection * patrolSpeed;
+            SetFacing(_patrolDirection);
+
+            // 4. Проверка радиуса патрулирования
+            float deltaFromAnchor = transform.position.x - _patrolAnchorX;
+            if ((_patrolDirection > 0f && deltaFromAnchor >= patrolRadius) ||
+                (_patrolDirection < 0f && deltaFromAnchor <= -patrolRadius))
+            {
+                _patrolWaitTimer = patrolWaitDuration;
+                _desiredVelocityX = 0f;
+                return;
+            }
+
+            // 5. Проверка границ сектора
+            if ((_patrolDirection > 0f && transform.position.x >= _maxSectorX - 0.6f) ||
+                (_patrolDirection < 0f && transform.position.x <= _minSectorX + 0.6f))
+            {
+                _patrolWaitTimer = patrolWaitDuration;
+                _desiredVelocityX = 0f;
+                return;
+            }
+
+            // 6. Проверка стены впереди
+            Vector2 checkOrigin = (Vector2)transform.position + new Vector2(0f, 0.25f);
+            var wallHits = Physics2D.RaycastAll(checkOrigin, new Vector2(_patrolDirection, 0f), 0.75f, groundLayer);
+            for (int i = 0; i < wallHits.Length; i++)
+            {
+                var col = wallHits[i].collider;
+                if (col != null && !col.isTrigger && col != _col && col.gameObject != gameObject && !col.transform.IsChildOf(transform))
+                {
+                    _patrolWaitTimer = patrolWaitDuration;
+                    _desiredVelocityX = 0f;
+                    return;
+                }
+            }
+
+            // 7. Проверка обрыва (чтобы не упасть с платформы)
+            Vector2 edgeOrigin = (Vector2)transform.position + new Vector2(_patrolDirection * 0.65f, -0.2f);
+            var edgeHits = Physics2D.RaycastAll(edgeOrigin, Vector2.down, 1.4f, groundLayer);
+            bool groundAhead = false;
+            for (int i = 0; i < edgeHits.Length; i++)
+            {
+                var col = edgeHits[i].collider;
+                if (col != null && !col.isTrigger && col != _col && col.gameObject != gameObject && !col.transform.IsChildOf(transform))
+                {
+                    groundAhead = true;
+                    break;
+                }
+            }
+            if (!groundAhead)
+            {
+                _patrolWaitTimer = patrolWaitDuration;
+                _desiredVelocityX = 0f;
+            }
+        }
+
+        public void StartPatrolling()
+        {
+            _patrolAnchorX = transform.position.x;
+            _patrolWaitTimer = UnityEngine.Random.Range(0.4f, 1.0f);
+            _desiredVelocityX = 0f;
+            CurrentState = EnemyState.Patrolling;
         }
 
         private void UpdateChasing()
@@ -631,11 +821,36 @@ namespace Combat
 
             bool isNavTransitionActive = _navTransition != NavTransitionState.None;
 
+            // 0. ПРОВЕРКА ТУМАНА: если игрок в тумане или за туманом — враг теряет цель,
+            // НО если сам враг зашел в дым, он НЕ теряет цель, а продолжает видеть игрока!
+            bool enemyInSmoke = Magic.FogCloud.IsInsideAnyCloud(transform.position);
+            if (!enemyInSmoke && _playerTransform != null && Magic.FogCloud.IsPlayerObscured(transform.position, _playerTransform.position))
+            {
+                Debug.Log("[ENEMY AI] Игрок скрылся в тумане! Враг потерял цель и начинает патрулирование.");
+                if (enablePatrol)
+                {
+                    StartPatrolling();
+                }
+                else
+                {
+                    CurrentState = EnemyState.Idle;
+                    _desiredVelocityX = 0f;
+                }
+                return;
+            }
+
             // Игрок убежал слишком далеко (не прерываем активный прыжок или спуск в воздухе)
             if (distToPlayer > loseTargetRange && !isNavTransitionActive && IsGrounded)
             {
-                CurrentState = EnemyState.Idle;
-                _desiredVelocityX = 0f;
+                if (enablePatrol)
+                {
+                    StartPatrolling();
+                }
+                else
+                {
+                    CurrentState = EnemyState.Idle;
+                    _desiredVelocityX = 0f;
+                }
                 return;
             }
 
@@ -1233,8 +1448,8 @@ namespace Combat
             // Останавливаем бег
             _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
 
-            // Поворачиваемся к игроку
-            if (_playerTransform != null)
+            // Поворачиваемся к игроку, только если не дезориентированы в дыму
+            if (_playerTransform != null && _disorientTimer <= 0f)
             {
                 SetFacing(Mathf.Sign(_playerTransform.position.x - transform.position.x));
             }
@@ -1249,24 +1464,56 @@ namespace Combat
             string attackName = "Прямой средний удар врага";
             Vector2 strikeLunge = new Vector2(FacingDirection * strikeLungeForce, 0f);
 
-            float dy = (_playerTransform != null) ? (_playerTransform.position.y - transform.position.y) : 0f;
-            float absDx = (_playerTransform != null) ? Mathf.Abs(_playerTransform.position.x - transform.position.x) : 0f;
-
-            if (dy > 1.0f && absDx < 1.9f)
+            if (_disorientTimer > 0f)
             {
-                chosenZone = CombatZone.High;
-                chosenOffset = upHitboxOffset;
-                chosenSize = upHitboxSize;
-                attackName = "Вертикальный удар врага вверх (Anti-Air)";
-                strikeLunge = new Vector2(0f, 2.4f);
+                // Удар наугад вслепую во время густого дыма
+                float r = UnityEngine.Random.value;
+                if (r < 0.33f)
+                {
+                    chosenZone = CombatZone.High;
+                    chosenOffset = upHitboxOffset;
+                    chosenSize = upHitboxSize;
+                    attackName = "Удар врага вслепую вверх (High)";
+                    strikeLunge = new Vector2(0f, 1.8f);
+                }
+                else if (r < 0.66f)
+                {
+                    chosenZone = CombatZone.Low;
+                    chosenOffset = lowHitboxOffset;
+                    chosenSize = lowHitboxSize;
+                    attackName = "Удар врага вслепую по ногам (Low)";
+                    strikeLunge = new Vector2(FacingDirection * (strikeLungeForce * 1.15f), 0f);
+                }
+                else
+                {
+                    chosenZone = CombatZone.Mid;
+                    chosenOffset = hitboxOffset;
+                    chosenSize = hitboxSize;
+                    attackName = "Прямой удар врага вслепую (Mid)";
+                    strikeLunge = new Vector2(FacingDirection * strikeLungeForce, 0f);
+                }
             }
-            else if (UnityEngine.Random.value < lowSweepChance)
+            else
             {
-                chosenZone = CombatZone.Low;
-                chosenOffset = lowHitboxOffset;
-                chosenSize = lowHitboxSize;
-                attackName = "Нижняя подсечка врага по ногам";
-                strikeLunge = new Vector2(FacingDirection * (strikeLungeForce * 1.15f), 0f);
+                float dy = (_playerTransform != null) ? (_playerTransform.position.y - transform.position.y) : 0f;
+                float absDx = (_playerTransform != null) ? Mathf.Abs(_playerTransform.position.x - transform.position.x) : 0f;
+
+                if (dy > 1.0f && absDx < 1.9f)
+                {
+                    chosenZone = CombatZone.High;
+                    chosenOffset = upHitboxOffset;
+                    chosenSize = upHitboxSize;
+                    attackName = "Вертикальный удар врага вверх (Anti-Air)";
+                    strikeLunge = new Vector2(0f, 2.4f);
+                }
+                else if (UnityEngine.Random.value < lowSweepChance)
+                {
+                    chosenZone = CombatZone.Low;
+                    chosenOffset = lowHitboxOffset;
+                    chosenSize = lowHitboxSize;
+                    attackName = "Нижняя подсечка врага по ногам";
+                    strikeLunge = new Vector2(FacingDirection * (strikeLungeForce * 1.15f), 0f);
+                }
             }
 
             // 1. ФАЗА ТЕЛЕГРАФА (WINDUP)
@@ -1327,7 +1574,14 @@ namespace Combat
                 animationController.EndAttack();
             }
 
-            CurrentState = EnemyState.Chasing;
+            if (_disorientTimer > 0f)
+            {
+                CurrentState = EnemyState.Idle;
+            }
+            else
+            {
+                CurrentState = EnemyState.Chasing;
+            }
             _stateRoutine = null;
         }
 
@@ -1386,8 +1640,55 @@ namespace Combat
 
             _lastHitTime = Time.time;
 
-            // Обычное получение урона без крит-контратаки
+            // Разлёт белых частиц в точке соприкосновения удара
+            Vector2 sparkPos = (hitPoint != Vector2.zero) ? hitPoint : (Vector2)transform.position + new Vector2(0f, 0.6f);
+            Combat.Common.CombatHitSparks.SpawnWhiteSparks(sparkPos, knockbackDirection, 12);
+
+            // Обычное получение урона (не прерывает атаки врага при наличии стамины)
             TakeNormalHit(attack, knockbackDirection);
+        }
+
+        /// <summary>
+        /// Прямое получение урона (например, от прямого попадания фаербола или периодического горения).
+        /// </summary>
+        public void TakeDirectDamage(float damage, Vector2 knockbackDirection = default)
+        {
+            if (CurrentState == EnemyState.Dead) return;
+
+            _lastHitTime = Time.time;
+
+            float dmg = damage * _vulnerabilityMultiplier;
+
+            if (!canDie)
+            {
+                currentHealth = Mathf.Max(1f, currentHealth - dmg);
+            }
+            else
+            {
+                currentHealth = Mathf.Max(0f, currentHealth - dmg);
+            }
+
+            if (knockbackDirection != default && _rb != null)
+            {
+                _rb.linearVelocity = knockbackDirection;
+            }
+
+            Combat.Common.CombatHitSparks.SpawnWhiteSparks((Vector2)transform.position + new Vector2(0f, 0.6f), knockbackDirection, 10);
+
+            if (_flashRoutine != null) StopCoroutine(_flashRoutine);
+            _flashRoutine = StartCoroutine(FlashRoutine(normalColor, flashColor, 0.12f));
+
+            if (Combat.Audio.SoundManager.Instance != null && currentHealth > 0f)
+            {
+                Combat.Audio.SoundManager.Instance.PlayEnemyHit();
+            }
+
+            Debug.Log($"[ENEMY HIT] Получен урон: {dmg:F1} HP | HP: {currentHealth:F0}/{maxHealth:F0}");
+
+            if (canDie && currentHealth <= 0f)
+            {
+                Die(knockbackDirection, false);
+            }
         }
 
         public Vector2 CalculateEffectiveKnockback(Vector2 baseKnockback)
@@ -1406,7 +1707,7 @@ namespace Combat
             return baseDuration * mult;
         }
 
-        private void DrainStamina(float amount)
+        public void DrainStamina(float amount)
         {
             currentStamina = Mathf.Max(0f, currentStamina - amount);
             if (staminaBar != null)
@@ -1417,20 +1718,7 @@ namespace Combat
 
         private void TakeNormalHit(AttackConfig attack, Vector2 knockbackDirection)
         {
-            // 1. Срыв текущего замаха/атаки при получении удара
-            if (CurrentState == EnemyState.TelegraphWindup || CurrentState == EnemyState.ActiveStrike)
-            {
-                if (_stateRoutine != null) { StopCoroutine(_stateRoutine); _stateRoutine = null; }
-                if (telegraphVisualizer != null) telegraphVisualizer.HideHitbox();
-                if (animationController != null) animationController.CancelAttack();
-                CurrentState = EnemyState.Chasing;
-            }
-
-            // 2. Продлеваем стан/окно джаггла, если враг уже оглушен (>10 сек комбо)
-            if (CurrentState == EnemyState.Stunned)
-            {
-                _stunRemaining = Mathf.Max(_stunRemaining, 1.8f);
-            }
+            // В стане длительность оглушения фиксирована и не накапливается от новых ударов
 
             float baseDmg = attack != null ? attack.damage : 20f;
             float dmg = baseDmg * _vulnerabilityMultiplier;
@@ -1474,34 +1762,13 @@ namespace Combat
                 Combat.Common.CombatFloatingText.ShowAdaptation(transform.position);
             }
 
-            // 1. Попадание по цели в воздухе (в пике зависания или во время воздушного джаггла)
-            if (_airJuggle != null && (_airJuggle.IsFrozen || _airJuggle.IsAirborne))
-            {
-                _airJuggle.OnAirHit(attack, false);
-                _hitstunTimer = 0.65f;
-                _stunRemaining = Mathf.Max(_stunRemaining, 2.0f);
-                CurrentState = EnemyState.Stunned;
-            }
-            else if (attack != null && _rb != null)
-            {
-                Vector2 rawKb = new Vector2(awayDir * attack.knockbackForce.x, attack.knockbackForce.y);
-                Vector2 effectiveKb = CalculateEffectiveKnockback(rawKb);
-                _rb.linearVelocity = effectiveKb;
-                _hitstunTimer = 0.25f;
-            }
-
-            // Списание стамины от обычного удара (при Stale Move на 60% меньше урона по стойкости)
-            bool wasAboveZero = currentStamina > 0f;
+            // Списание стамины от удара (при Stale Move на 60% меньше урона по стойкости)
             float staminaDrain = isStale ? (dmg * staminaDrainMultiplier * 0.4f) : (dmg * staminaDrainMultiplier);
             DrainStamina(staminaDrain);
 
+            // Визуальная и звуковая вспышка получения урона
             if (_flashRoutine != null) StopCoroutine(_flashRoutine);
             _flashRoutine = StartCoroutine(FlashRoutine(normalColor, flashColor, 0.12f));
-
-            if (animationController != null && CurrentState != EnemyState.Dead && !isLauncher && (wasAboveZero || currentStamina > 0f))
-            {
-                animationController.PlayHit(0.25f);
-            }
 
             if (Combat.Audio.SoundManager.Instance != null && currentHealth > 0f)
             {
@@ -1517,40 +1784,43 @@ namespace Combat
                 return;
             }
 
-            // Лаунчер: подбрасывает врага в воздух для джаггл-комбо!
-            if (isLauncher)
-            {
-                Vector2 launchVel = new Vector2(awayDir * 2.8f, 13.5f);
-                if (_airJuggle != null)
-                {
-                    _airJuggle.Launch(launchVel);
-                }
-                else if (_rb != null)
-                {
-                    _rb.linearVelocity = launchVel;
-                }
-
-                _hitstunTimer = 0.8f;
-                _stunRemaining = 2.8f;
-                CurrentState = EnemyState.Stunned;
-                if (Combat.Audio.SoundManager.Instance != null)
-                {
-                    Combat.Audio.SoundManager.Instance.PlayEnemyStun();
-                }
-                if (_stateRoutine != null) StopCoroutine(_stateRoutine);
-                _stateRoutine = StartCoroutine(StunRoutine(2.8f, replenishStaminaAfter: false));
-                return;
-            }
-
-            // Если стамина только что опустилась до 0 — наступает Stamina Break!
-            if (wasAboveZero && currentStamina <= 0f)
+            // ТОЛЬКО ЕСЛИ СТАМИНА ОПУСТИЛАСЬ ДО 0 — ТОГДА НАСТУПАЕТ СТАН (Stamina Break)!
+            if (currentStamina <= 0f && CurrentState != EnemyState.Stunned && CurrentState != EnemyState.Dead)
             {
                 TriggerStaminaBreak();
                 return;
             }
 
-            // Если не были в атаке или стане — если стояли в Idle, сразу агримся на игрока
-            if (CurrentState == EnemyState.Idle)
+            // ЕСЛИ ВРАГ УЖЕ ОГЛУШЕН (Stunned) — применяем лаунчер, джаггл и отталкивание
+            if (CurrentState == EnemyState.Stunned)
+            {
+                if (_airJuggle != null && (_airJuggle.IsFrozen || _airJuggle.IsAirborne))
+                {
+                    _airJuggle.OnAirHit(attack, false);
+                    _hitstunTimer = 0.65f;
+                }
+                else if (isLauncher)
+                {
+                    Vector2 launchVel = new Vector2(awayDir * 2.8f, 13.5f);
+                    if (_airJuggle != null) _airJuggle.Launch(launchVel);
+                    else if (_rb != null) _rb.linearVelocity = launchVel;
+
+                    _hitstunTimer = 0.8f;
+                }
+                else if (attack != null && _rb != null)
+                {
+                    Vector2 rawKb = new Vector2(awayDir * attack.knockbackForce.x, attack.knockbackForce.y);
+                    Vector2 effectiveKb = CalculateEffectiveKnockback(rawKb);
+                    _rb.linearVelocity = effectiveKb;
+                    _hitstunTimer = 0.25f;
+                }
+                return;
+            }
+
+            // ЕСЛИ У ВРАГА ЕСТЬ СТАМИНА (> 0):
+            // МИНИ-СТАНОВ НЕТ! Враг НЕ прерывает свои замахи/атаки, НЕ замирает в хитстане.
+            // Если стоял в Idle или патрулировал — переходит в преследование игрока.
+            if (CurrentState == EnemyState.Idle || CurrentState == EnemyState.Patrolling)
             {
                 CurrentState = EnemyState.Chasing;
             }
@@ -1703,6 +1973,82 @@ namespace Combat
             Debug.Log($"<color=#CCCCCC>[SMOKE BLIND]</color> Враг ослеплен дымовой завесой на {duration:F1}с, атака сорвана!");
         }
 
+        private Coroutine _blindFlailingRoutine;
+
+        /// <summary>
+        /// Вводит врага в состояние слепой паники при ошибке ввода заклинания густого дыма:
+        /// враг ничего не видит и начинает беспорядочно наносить удары наугад.
+        /// </summary>
+        public void BlindPanicFromDenseFog(float duration)
+        {
+            if (CurrentState == EnemyState.Dead) return;
+
+            _disorientTimer = duration;
+
+            if (CurrentState == EnemyState.TelegraphWindup || CurrentState == EnemyState.ActiveStrike)
+            {
+                if (_stateRoutine != null) { StopCoroutine(_stateRoutine); _stateRoutine = null; }
+                if (telegraphVisualizer != null) telegraphVisualizer.HideHitbox();
+                if (animationController != null) animationController.CancelAttack();
+            }
+
+            CurrentState = EnemyState.Idle;
+            if (_rb != null) _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
+
+            if (_blindFlailingRoutine != null) StopCoroutine(_blindFlailingRoutine);
+            _blindFlailingRoutine = StartCoroutine(BlindFlailingRoutine(duration));
+
+            if (telegraphVisualizer != null)
+            {
+                telegraphVisualizer.SpawnCustomPopup(transform.position + Vector3.up * 1.1f, "[ПАНИКА / УДАРЫ ВСЛЕПУЮ]", new Color(0.85f, 0.88f, 0.95f));
+            }
+            Debug.Log($"<color=#CCCCCC>[DENSE SMOKE]</color> Враг дезориентирован густым дымом на {duration:F1}с и наносит удары наугад!");
+        }
+
+        private IEnumerator BlindFlailingRoutine(float duration)
+        {
+            float elapsed = 0f;
+            yield return new WaitForSeconds(UnityEngine.Random.Range(0.2f, 0.5f));
+
+            while (elapsed < duration && _disorientTimer > 0f)
+            {
+                if (CurrentState == EnemyState.Dead || CurrentState == EnemyState.Stunned)
+                {
+                    yield break;
+                }
+
+                // Случайный поворот (влево или вправо)
+                float randDir = UnityEngine.Random.value > 0.5f ? 1f : -1f;
+                SetFacing(randDir);
+
+                // Короткий слепой шаг
+                if (IsGrounded && UnityEngine.Random.value > 0.35f)
+                {
+                    _rb.linearVelocity = new Vector2(randDir * (moveSpeed * 0.45f), _rb.linearVelocity.y);
+                    yield return new WaitForSeconds(0.2f);
+                    _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
+                }
+
+                // Запуск удара наугад
+                if (_stateRoutine == null && CurrentState != EnemyState.TelegraphWindup && CurrentState != EnemyState.ActiveStrike && CurrentState != EnemyState.Recovery)
+                {
+                    _stateRoutine = StartCoroutine(AttackSequenceRoutine());
+                    yield return _stateRoutine;
+                }
+
+                float pause = UnityEngine.Random.Range(0.5f, 1.1f);
+                elapsed += pause;
+                yield return new WaitForSeconds(pause);
+            }
+
+            _blindFlailingRoutine = null;
+            if (CurrentState != EnemyState.Dead && CurrentState != EnemyState.Stunned)
+            {
+                if (enablePatrol) StartPatrolling();
+                else CurrentState = EnemyState.Idle;
+            }
+        }
+
         public void PullTowards(Vector2 targetPos, float pullSpeed)
         {
             if (CurrentState == EnemyState.Dead) return;
@@ -1800,12 +2146,6 @@ namespace Combat
             if (_sr != null) _sr.color = defeatColor;
 
             Debug.Log($"<color=red><b>[ENEMY DEFEATED]</b></color> Враг повержен! {(wasCounter ? "(Контратакой!) " : "")}Возрождение через {respawnDelay:F1}с");
-
-            // Начисление очков стиля игроку за убийство врага
-            if (Combat.Style.StyleManager.Instance != null)
-            {
-                Combat.Style.StyleManager.Instance.AddEnemyKill(this, wasCounter, transform.position);
-            }
 
             OnAnyEnemyDied?.Invoke(this);
 
@@ -1929,8 +2269,12 @@ namespace Combat
 
             if (_sr != null) _sr.color = normalColor;
 
-            // Восстановление стамины после стана (только если прошло время без ударов)
-            if ((replenishStaminaAfter || currentStamina <= 0f) && Time.time - _lastHitTime >= 2.0f)
+            // По окончанию состояния оглушения сразу полностью восстанавливаем всю выносливость врага
+            if (_airJuggle != null)
+            {
+                _airJuggle.EndJuggle();
+            }
+
             {
                 currentStamina = maxStamina;
                 if (staminaBar != null)
@@ -1940,19 +2284,43 @@ namespace Combat
                 Debug.Log("<color=yellow>[STAMINA RESTORED]</color> Стамина врага полностью восстановилась после стана!");
             }
 
-            CurrentState = EnemyState.Chasing;
+            if (_disorientTimer > 0f)
+            {
+                CurrentState = EnemyState.Idle;
+            }
+            else
+            {
+                CurrentState = EnemyState.Chasing;
+            }
             _stateRoutine = null;
         }
 
 
         private IEnumerator FlashRoutine(Color defaultCol, Color flashCol, float duration)
         {
-            if (_sr == null) yield break;
-            _sr.color = flashCol;
+            var renderers = GetComponentsInChildren<SpriteRenderer>();
+            if (renderers == null || renderers.Length == 0) yield break;
+
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                if (renderers[i] != null) renderers[i].color = flashCol;
+            }
+
             yield return new WaitForSeconds(duration);
+
             if (CurrentState != EnemyState.Stunned && CurrentState != EnemyState.Dead)
             {
-                _sr.color = defaultCol;
+                for (int i = 0; i < renderers.Length; i++)
+                {
+                    if (renderers[i] != null) renderers[i].color = defaultCol;
+                }
+            }
+            else if (CurrentState == EnemyState.Stunned)
+            {
+                for (int i = 0; i < renderers.Length; i++)
+                {
+                    if (renderers[i] != null) renderers[i].color = stunColor;
+                }
             }
             _flashRoutine = null;
         }

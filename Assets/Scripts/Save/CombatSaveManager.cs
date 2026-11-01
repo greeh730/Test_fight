@@ -3,8 +3,6 @@ using System.IO;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Combat.Player;
-using Combat.Tactician;
-using Combat.Stances;
 
 namespace Combat.Save
 {
@@ -98,14 +96,13 @@ namespace Combat.Save
                     sceneName = SceneManager.GetActiveScene().name
                 };
 
-                var player = FindAnyObjectByType<PlayerCombatController2D>();
+                var player = FindAnyObjectByType<PlayerController2D>();
                 var playerHealth = FindAnyObjectByType<PlayerHealth2D>();
                 var playerStamina = FindAnyObjectByType<PlayerStamina2D>();
                 if (player != null)
                 {
                     saveData.player.Position = player.transform.position;
-                    saveData.player.currentStance = (int)player.CurrentStance;
-                    saveData.player.facingDirection = player.FacingDirection;
+                    saveData.player.facingDirection = player.CurrentFacing;
                 }
                 if (playerHealth != null)
                 {
@@ -189,7 +186,7 @@ namespace Combat.Save
                 CleanupDynamicHazards();
 
                 // 1. Восстановление Игрока
-                var player = FindAnyObjectByType<PlayerCombatController2D>();
+                var player = FindAnyObjectByType<PlayerController2D>();
                 var playerHealth = FindAnyObjectByType<PlayerHealth2D>();
                 var playerStamina = FindAnyObjectByType<PlayerStamina2D>();
                 if (playerHealth != null)
@@ -202,7 +199,8 @@ namespace Combat.Save
                 }
                 if (player != null)
                 {
-                    player.RestoreStance((CombatStance)saveData.player.currentStance, saveData.player.facingDirection);
+                    player.transform.position = saveData.player.Position;
+                    player.SetFacing(saveData.player.facingDirection);
                 }
 
                 // 2. Восстановление Врага
@@ -243,36 +241,8 @@ namespace Combat.Save
             }
         }
 
-        private void CleanupDynamicHazards()
+                private void CleanupDynamicHazards()
         {
-            // Очистка активных ловушек
-            var traps = FindObjectsByType<TacticianTrap2D>();
-            for (int i = 0; i < traps.Length; i++)
-            {
-                if (traps[i] != null) Destroy(traps[i].gameObject);
-            }
-            TacticianTrap2D.ActiveTraps.Clear();
-
-            // Очистка гравитационных якорей
-            var anchors = FindObjectsByType<TacticianGravityAnchor2D>();
-            for (int i = 0; i < anchors.Length; i++)
-            {
-                if (anchors[i] != null) Destroy(anchors[i].gameObject);
-            }
-
-            // Очистка волн шипов
-            var spikes = FindObjectsByType<TacticianSpikeWave2D>();
-            for (int i = 0; i < spikes.Length; i++)
-            {
-                if (spikes[i] != null) Destroy(spikes[i].gameObject);
-            }
-
-            // Очистка дымовых завес
-            var smokes = FindObjectsByType<TacticianSmokeCloud2D>();
-            for (int i = 0; i < smokes.Length; i++)
-            {
-                if (smokes[i] != null) Destroy(smokes[i].gameObject);
-            }
         }
     }
 }

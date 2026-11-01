@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Combat.UI;
@@ -92,6 +92,16 @@ namespace Combat.Audio
         [SerializeField] private AudioClip blockHitClip;
         [Tooltip("Оглушение врага (Stamina Break / стан)")]
         [SerializeField] private AudioClip enemyStunClip;
+        [Tooltip("Звук взрыва (провал огненной магии)")]
+        [SerializeField] private AudioClip explosionClip;
+
+        [Header("--- Magic & Effects Audio ---")]
+        [Tooltip("Звук успешного запуска фаербола")]
+        [SerializeField] private AudioClip fireballClip;
+        [Tooltip("Звук эффекта горения / пламени")]
+        [SerializeField] private AudioClip fireEffectClip;
+        [Tooltip("Звук клубящегося дыма / тумана")]
+        [SerializeField] private AudioClip smokeClip;
 
         [Header("--- Enemy (Skeleton) Audio ---")]
         [Tooltip("Вариации ударов по скелету")]
@@ -99,23 +109,7 @@ namespace Combat.Audio
         [Tooltip("Звук гибели скелета")]
         [SerializeField] private AudioClip skeletonDeathClip;
 
-        [Header("--- Tactician Magic Audio (8 Directions) ---")]
-        [Tooltip("➡️ Прощупывающий выпад (Probing Thrust)")]
-        [SerializeField] private AudioClip probingThrustClip;
-        [Tooltip("⬇️ Глубинная печать (Abyssal Trap)")]
-        [SerializeField] private AudioClip abyssalTrapClip;
-        [Tooltip("⬆️ Гравитационный якорь (Gravity Anchor)")]
-        [SerializeField] private AudioClip gravityAnchorClip;
-        [Tooltip("⬅️ Тактический отход / Дым (Smoke)")]
-        [SerializeField] private AudioClip tacticalSmokeClip;
-        [Tooltip("↗️ Кинетический подброс (Kinetic Launch)")]
-        [SerializeField] private AudioClip kineticLaunchClip;
-        [Tooltip("↘️ Направленные шипы (Directional Spikes)")]
-        [SerializeField] private AudioClip directionalSpikesClip;
-        [Tooltip("↙️ Магический гарпун (Magic Harpoon)")]
-        [SerializeField] private AudioClip magicHarpoonClip;
-        [Tooltip("↖️ Веерная защита (Fan Guard)")]
-        [SerializeField] private AudioClip fanGuardClip;
+        
 
         [Header("--- Volume Settings ---")]
         [Range(0f, 1f)] [SerializeField] private float masterVolume = 1.0f;
@@ -237,15 +231,12 @@ namespace Combat.Audio
             if (target.parryClip == null) target.parryClip = source.parryClip;
             if (target.blockHitClip == null) target.blockHitClip = source.blockHitClip;
             if (target.enemyStunClip == null) target.enemyStunClip = source.enemyStunClip;
+            if (target.explosionClip == null) target.explosionClip = source.explosionClip;
             if (target.skeletonDeathClip == null) target.skeletonDeathClip = source.skeletonDeathClip;
-            if (target.probingThrustClip == null) target.probingThrustClip = source.probingThrustClip;
-            if (target.abyssalTrapClip == null) target.abyssalTrapClip = source.abyssalTrapClip;
-            if (target.gravityAnchorClip == null) target.gravityAnchorClip = source.gravityAnchorClip;
-            if (target.tacticalSmokeClip == null) target.tacticalSmokeClip = source.tacticalSmokeClip;
-            if (target.kineticLaunchClip == null) target.kineticLaunchClip = source.kineticLaunchClip;
-            if (target.directionalSpikesClip == null) target.directionalSpikesClip = source.directionalSpikesClip;
-            if (target.magicHarpoonClip == null) target.magicHarpoonClip = source.magicHarpoonClip;
-            if (target.fanGuardClip == null) target.fanGuardClip = source.fanGuardClip;
+            if (target.fireballClip == null) target.fireballClip = source.fireballClip;
+            if (target.fireEffectClip == null) target.fireEffectClip = source.fireEffectClip;
+            if (target.smokeClip == null) target.smokeClip = source.smokeClip;
+            
 
             if (target.skeletonDamageClips == null || target.skeletonDamageClips.Length < 4)
                 target.skeletonDamageClips = new AudioClip[4];
@@ -326,6 +317,25 @@ namespace Combat.Audio
             }
         }
 
+        public void StopAllSounds()
+        {
+            if (_movementSource != null)
+            {
+                _movementSource.Stop();
+            }
+
+            if (_sfxPool != null)
+            {
+                for (int i = 0; i < _sfxPool.Count; i++)
+                {
+                    if (_sfxPool[i] != null)
+                    {
+                        _sfxPool[i].Stop();
+                    }
+                }
+            }
+        }
+
         public void EnsureClipsLoaded()
         {
 #if UNITY_EDITOR
@@ -349,6 +359,8 @@ namespace Combat.Audio
 
             if (enemyStunClip == null)
                 enemyStunClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Fight/Оглушения противника.mp3");
+            if (explosionClip == null)
+                explosionClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Fight/Взрыв 2.mp3") ?? UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Fight/Взрыв.mp3");
 
             if (skeletonDamageClips == null || skeletonDamageClips.Length < 4)
                 skeletonDamageClips = new AudioClip[4];
@@ -365,29 +377,14 @@ namespace Combat.Audio
             if (skeletonDeathClip == null)
                 skeletonDeathClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Skeleton_die/Смерть скелета.mp3");
 
-            if (probingThrustClip == null)
-                probingThrustClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Magic/Прощупывающий выпад.mp3");
+            if (fireballClip == null)
+                fireballClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Fight/Файербол.mp3");
+            if (fireEffectClip == null)
+                fireEffectClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Fight/Эффект огня.mp3");
+            if (smokeClip == null)
+                smokeClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Fight/Дым.mp3");
 
-            if (abyssalTrapClip == null)
-                abyssalTrapClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Magic/Глубинная печать.mp3");
-
-            if (gravityAnchorClip == null)
-                gravityAnchorClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Magic/Гравитационный якорь.mp3");
-
-            if (tacticalSmokeClip == null)
-                tacticalSmokeClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Magic/дым.mp3");
-
-            if (kineticLaunchClip == null)
-                kineticLaunchClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Magic/Кинечитеский подброс_[cut_1sec].mp3");
-
-            if (directionalSpikesClip == null)
-                directionalSpikesClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Magic/Направленные шипы.mp3");
-
-            if (magicHarpoonClip == null)
-                magicHarpoonClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Magic/Магический гарпун.mp3");
-
-            if (fanGuardClip == null)
-                fanGuardClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Magic/Веерная защита.mp3");
+            
 #endif
 
             // Рантайм-фоллбэк для автономных билдов (Standalone Build) через Resources
@@ -398,6 +395,7 @@ namespace Combat.Audio
             if (parryClip == null) parryClip = Resources.Load<AudioClip>("Sound/Fight/Парирование");
             if (blockHitClip == null) blockHitClip = Resources.Load<AudioClip>("Sound/Fight/Звук удара в блок");
             if (enemyStunClip == null) enemyStunClip = Resources.Load<AudioClip>("Sound/Fight/Оглушения противника");
+            if (explosionClip == null) explosionClip = Resources.Load<AudioClip>("Sound/Fight/Взрыв 2") ?? Resources.Load<AudioClip>("Sound/Fight/Взрыв");
 
             if (skeletonDamageClips == null || skeletonDamageClips.Length < 4)
                 skeletonDamageClips = new AudioClip[4];
@@ -409,14 +407,11 @@ namespace Combat.Audio
 
             if (skeletonDeathClip == null) skeletonDeathClip = Resources.Load<AudioClip>("Sound/Skeleton_die/Смерть скелета");
 
-            if (probingThrustClip == null) probingThrustClip = Resources.Load<AudioClip>("Sound/Magic/Прощупывающий выпад");
-            if (abyssalTrapClip == null) abyssalTrapClip = Resources.Load<AudioClip>("Sound/Magic/Глубинная печать");
-            if (gravityAnchorClip == null) gravityAnchorClip = Resources.Load<AudioClip>("Sound/Magic/Гравитационный якорь");
-            if (tacticalSmokeClip == null) tacticalSmokeClip = Resources.Load<AudioClip>("Sound/Magic/дым");
-            if (kineticLaunchClip == null) kineticLaunchClip = Resources.Load<AudioClip>("Sound/Magic/Кинечитеский подброс_[cut_1sec]");
-            if (directionalSpikesClip == null) directionalSpikesClip = Resources.Load<AudioClip>("Sound/Magic/Направленные шипы");
-            if (magicHarpoonClip == null) magicHarpoonClip = Resources.Load<AudioClip>("Sound/Magic/Магический гарпун");
-            if (fanGuardClip == null) fanGuardClip = Resources.Load<AudioClip>("Sound/Magic/Веерная защита");
+            if (fireballClip == null) fireballClip = Resources.Load<AudioClip>("Sound/Fight/Файербол");
+            if (fireEffectClip == null) fireEffectClip = Resources.Load<AudioClip>("Sound/Fight/Эффект огня");
+            if (smokeClip == null) smokeClip = Resources.Load<AudioClip>("Sound/Fight/Дым");
+
+            
         }
 
         // ==========================================
@@ -527,6 +522,15 @@ namespace Combat.Audio
             PlayClip(enemyStunClip, 0.95f, 0.97f, 1.03f);
         }
 
+        /// <summary>
+        /// Воспроизводит звук взрыва (при провале огненной магии или детонации).
+        /// </summary>
+        public void PlayExplosion(float volume = 1f)
+        {
+            if (explosionClip == null) EnsureClipsLoaded();
+            PlayClip(explosionClip, volume, 0.95f, 1.05f);
+        }
+
         // ==========================================
         // УРОН И СМЕРТЬ ВРАГОВ (SKELETON)
         // ==========================================
@@ -575,72 +579,44 @@ namespace Combat.Audio
         }
 
         // ==========================================
+        // МАГИЯ И ЭФФЕКТЫ (MAGIC & EFFECTS)
+        // ==========================================
+
+        /// <summary>
+        /// Воспроизводит звук успешного запуска фаербола (Файербол.mp3).
+        /// </summary>
+        public void PlayFireball(float volume = 1f)
+        {
+            if (fireballClip == null) EnsureClipsLoaded();
+            PlayClip(fireballClip, volume, 0.97f, 1.03f);
+        }
+
+        /// <summary>
+        /// Воспроизводит звук эффекта огня / горения (Эффект огня.mp3).
+        /// </summary>
+        public void PlayFireEffect(float volume = 1f, float minPitch = 0.95f, float maxPitch = 1.05f)
+        {
+            if (fireEffectClip == null) EnsureClipsLoaded();
+            PlayClip(fireEffectClip, volume, minPitch, maxPitch);
+        }
+
+        /// <summary>
+        /// Воспроизводит звук клубящегося дыма / тумана (Дым.mp3).
+        /// </summary>
+        public void PlaySmoke(float volume = 1f, float minPitch = 0.95f, float maxPitch = 1.05f)
+        {
+            if (smokeClip == null) EnsureClipsLoaded();
+            PlayClip(smokeClip, volume, minPitch, maxPitch);
+        }
+
+        // ==========================================
         // МАГИЧЕСКИЕ СПОСОБНОСТИ ТАКТИКА (MAGIC)
         // ==========================================
 
         /// <summary>
         /// Воспроизводит заклинание Тактика по направлению компаса (8 способностей).
         /// </summary>
-        public void PlayTacticianAbility(Direction8 dir)
-        {
-            AudioClip clip = null;
-
-            switch (dir)
-            {
-                case Direction8.Right:     // ➡️ Прощупывающий выпад
-                    clip = probingThrustClip;
-                    break;
-
-                case Direction8.Down:      // ⬇️ Глубинная печать
-                    clip = abyssalTrapClip;
-                    break;
-
-                case Direction8.Up:        // ⬆️ Гравитационный якорь
-                    clip = gravityAnchorClip;
-                    break;
-
-                case Direction8.Left:      // ⬅️ Дымовой отход
-                    clip = tacticalSmokeClip;
-                    break;
-
-                case Direction8.UpRight:   // ↗️ Кинетический подброс
-                    clip = kineticLaunchClip;
-                    break;
-
-                case Direction8.DownRight: // ↘️ Направленные шипы
-                    clip = directionalSpikesClip;
-                    break;
-
-                case Direction8.DownLeft:  // ↙️ Магический гарпун
-                    clip = magicHarpoonClip;
-                    break;
-
-                case Direction8.UpLeft:    // ↖️ Веерная защита
-                    clip = fanGuardClip;
-                    break;
-            }
-
-            if (clip == null)
-            {
-                EnsureClipsLoaded();
-                switch (dir)
-                {
-                    case Direction8.Right: clip = probingThrustClip; break;
-                    case Direction8.Down: clip = abyssalTrapClip; break;
-                    case Direction8.Up: clip = gravityAnchorClip; break;
-                    case Direction8.Left: clip = tacticalSmokeClip; break;
-                    case Direction8.UpRight: clip = kineticLaunchClip; break;
-                    case Direction8.DownRight: clip = directionalSpikesClip; break;
-                    case Direction8.DownLeft: clip = magicHarpoonClip; break;
-                    case Direction8.UpLeft: clip = fanGuardClip; break;
-                }
-            }
-
-            if (clip != null)
-            {
-                PlayClip(clip, 1.0f, 0.97f, 1.03f);
-            }
-        }
+        
 
         // ==========================================
         // ВНУТРЕННИЙ ПУЛ ДЛЯ ОДНОКРАТНЫХ ЗВУКОВ
