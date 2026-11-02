@@ -109,6 +109,7 @@ GameObject:
   - component: {fileID: 7546991885098454110}
   - component: {fileID: 3097106127380980206}
   - component: {fileID: 2921799208208971846}
+  - component: {fileID: 3659470833940739785}
   m_Layer: 0
   m_Name: Enemy_Fighter
   m_TagString: Untagged
@@ -326,6 +327,7 @@ MonoBehaviour:
   groundLayer:
     serializedVersion: 2
     m_Bits: 4294967295
+  useNavMesh: 1
   usePlatformPathfinding: 1
   showPathGizmos: 1
   pathGizmoColor: {r: 0, g: 1, b: 0.85, a: 0.95}
@@ -417,3 +419,25 @@ MonoBehaviour:
   enemyAI: {fileID: 8567788891443196670}
   rb: {fileID: 8005653298698751200}
   sr: {fileID: 7158446584825974805}
+--- !u!195 &3659470833940739785
+NavMeshAgent:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8267374510365409490}
+  m_Enabled: 1
+  m_AgentTypeID: 0
+  m_Radius: 0.35
+  m_Speed: 3.6
+  m_Acceleration: 30
+  avoidancePriority: 50
+  m_AngularSpeed: 120
+  m_StoppingDistance: 1.8
+  m_AutoTraverseOffMeshLink: 1
+  m_AutoBraking: 1
+  m_AutoRepath: 1
+  m_Height: 1.6
+  m_BaseOffset: 0.8
+  m_WalkableMask: 4294967295
+  m_ObstacleAvoidanceType: 4

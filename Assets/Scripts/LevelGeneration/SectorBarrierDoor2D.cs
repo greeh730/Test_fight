@@ -246,7 +246,9 @@ namespace LevelGeneration
                     new Vector2(enemyBlockerWidth, totalHeight),
                     new Vector2(-enemyBlockerWidth * 0.5f, centerY)
                 );
-                _enemyBlockerComponent.gameObject.SetActive(isClosed);
+                // Барьер удержания врагов на входе ВСЕГДА физически активен,
+                // чтобы мобы не могли просочиться в стартовую комнату
+                _enemyBlockerComponent.gameObject.SetActive(true);
             }
             else if (enemyBlocker == EnemyBlockerDirection.Exit)
             {
@@ -255,7 +257,7 @@ namespace LevelGeneration
                     new Vector2(enemyBlockerWidth, totalHeight),
                     new Vector2(enemyBlockerWidth * 0.5f, centerY)
                 );
-                _enemyBlockerComponent.gameObject.SetActive(isClosed);
+                _enemyBlockerComponent.gameObject.SetActive(true);
             }
             else
             {
@@ -344,7 +346,7 @@ namespace LevelGeneration
 
             if (_enemyBlockerComponent != null)
             {
-                _enemyBlockerComponent.gameObject.SetActive(isClosed && enemyBlocker != EnemyBlockerDirection.None);
+                _enemyBlockerComponent.gameObject.SetActive(enemyBlocker != EnemyBlockerDirection.None);
             }
 
             if (_transitionRoutine != null)

@@ -809,6 +809,7 @@ GameObject:
   - component: {fileID: 2858180082205849550}
   - component: {fileID: 5432493214685090147}
   - component: {fileID: 2811609479751865157}
+  - component: {fileID: 6369352561333438234}
   m_Layer: 0
   m_Name: Ground_Plaza
   m_TagString: Untagged
@@ -937,6 +938,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &6369352561333438234
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 837370452125430896}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &871227482505284176
 GameObject:
   m_ObjectHideFlags: 0
@@ -2549,6 +2566,7 @@ GameObject:
   - component: {fileID: 1759556508902915314}
   - component: {fileID: 4179678358049831899}
   - component: {fileID: 2288641098523318290}
+  - component: {fileID: 1097897929731984944}
   m_Layer: 0
   m_Name: Ground_Entry
   m_TagString: Untagged
@@ -2677,6 +2695,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &1097897929731984944
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1960277264706142273}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &1985259535711954103
 GameObject:
   m_ObjectHideFlags: 0
@@ -6606,6 +6640,7 @@ GameObject:
   - component: {fileID: 6007744858605923524}
   - component: {fileID: 3229276398170052654}
   - component: {fileID: 9180747558353311462}
+  - component: {fileID: 8270262220461948734}
   m_Layer: 0
   m_Name: Ground_Exit
   m_TagString: Untagged
@@ -6734,6 +6769,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &8270262220461948734
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6698215565113473050}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &6781061733949913390
 GameObject:
   m_ObjectHideFlags: 0
@@ -7250,6 +7301,7 @@ GameObject:
   - component: {fileID: 2124140857916330653}
   - component: {fileID: 7351953958826850386}
   - component: {fileID: 1613644621175276176}
+  - component: {fileID: 3734313591163676120}
   m_Layer: 0
   m_Name: Ground_Step_2
   m_TagString: Untagged
@@ -7378,6 +7430,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &3734313591163676120
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7180323769596688566}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &7268941786893915728
 GameObject:
   m_ObjectHideFlags: 0
@@ -7651,6 +7719,7 @@ GameObject:
   - component: {fileID: 2042578086370053631}
   - component: {fileID: 6612036661555646184}
   - component: {fileID: 2048188434914917504}
+  - component: {fileID: 871321738478168095}
   m_Layer: 0
   m_Name: Ground_Step_1
   m_TagString: Untagged
@@ -7779,6 +7848,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &871321738478168095
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7612287460814751512}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &7618565368225177601
 GameObject:
   m_ObjectHideFlags: 0

@@ -369,7 +369,7 @@ namespace LevelGeneration
         public SectorDoorSetupMode DoorSetupMode { get => doorSetupMode; set => doorSetupMode = value; }
 
         [Tooltip("Автоматически сохранять смещение решёток при их перемещении в Scene View")]
-        [SerializeField] private bool autoSaveSceneDoorPositions = true;
+        [SerializeField] private bool autoSaveSceneDoorPositions = false;
         public bool AutoSaveSceneDoorPositions { get => autoSaveSceneDoorPositions; set => autoSaveSceneDoorPositions = value; }
 
         [Tooltip("Пользовательское смещение позиции входной решётки (сохраняется автоматически при перемещении в сцене)")]
@@ -1095,13 +1095,27 @@ namespace LevelGeneration
                 Combat.Navigation.PlatformNavGraph2D.Instance.BuildNavGraph();
             }
 
-            // Процедурный спавн врагов по нарастающей сложности на платформах
-            SpawnEnemiesForCurrentCycle(_spawnedChunks);
-
-            // Установка запирающихся барьерных дверей сектора
+            // Установка запирающихся барьерных дверей сектора до запекания NavMesh
             if (enableSectorDoors)
             {
                 SetupSectorDoors(_spawnedChunks);
+            }
+
+            // Процедурный спавн врагов по нарастающей сложности на платформах
+            SpawnEnemiesForCurrentCycle(_spawnedChunks);
+
+            // Инициализация боевого замка сектора со всеми заспавненными врагами
+            if (_combatLockInstance != null && _spawnedChunks != null && _spawnedChunks.Count >= 2)
+            {
+                Vector3 entPos = _spawnedChunks[0].ExitPoint.position;
+                Vector3 exPos = _spawnedChunks[_spawnedChunks.Count - 1].EntryPoint.position;
+                _combatLockInstance.InitializeSector(_entranceDoorInstance, _exitDoorInstance, entPos, exPos, _spawnedEnemies);
+            }
+
+            // Динамическое построение 2D NavMesh (NavMeshPlus)
+            if (Combat.Navigation.NavMesh2DManager.Instance != null)
+            {
+                Combat.Navigation.NavMesh2DManager.Instance.RebuildNavMesh();
             }
 
             Physics2D.SyncTransforms();
@@ -1320,6 +1334,17 @@ namespace LevelGeneration
                     float pSpeed = speedMult * (richSpawn != null ? richSpawn.SpeedMultiplier : 1.0f);
                     enemyAI.ApplyDifficultyScaling(pHealth, staminaMult, pSpeed, pDmg, moveSpeedMult);
                     enemyAI.RespawnOnDeath = false;
+
+                    // Защита: немедленно ограничиваем сектор врага границами боевой зоны (исключая Chunk 0 Старт)
+                    if (spawnedChunks != null && spawnedChunks.Count > 1)
+                    {
+                        float minSecX = (spawnedChunks[0].ExitPoint != null) ? spawnedChunks[0].ExitPoint.position.x : float.MinValue;
+                        float maxSecX = (spawnedChunks[spawnedChunks.Count - 1].EntryPoint != null) ? spawnedChunks[spawnedChunks.Count - 1].EntryPoint.position.x : float.MaxValue;
+                        if (minSecX > float.MinValue * 0.5f)
+                        {
+                            enemyAI.SetSectorBounds(minSecX, maxSecX);
+                        }
+                    }
                 }
 
                 _spawnedEnemies.Add(enemyObj);
@@ -1469,7 +1494,15 @@ namespace LevelGeneration
 
             if (exitDoor != null)
             {
-                exitDoorOffset = exitDoor.transform.position - defaultExit;
+                var offset = exitDoor.transform.position - defaultExit;
+                if (offset.magnitude < 3.0f)
+                {
+                    exitDoorOffset = offset;
+                }
+                else
+                {
+                    exitDoorOffset = Vector3.zero;
+                }
             }
         }
 

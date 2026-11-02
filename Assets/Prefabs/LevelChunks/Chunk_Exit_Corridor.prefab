@@ -1322,6 +1322,7 @@ GameObject:
   - component: {fileID: 4106677695422492330}
   - component: {fileID: 7192243294921481348}
   - component: {fileID: 9051665023443927110}
+  - component: {fileID: 3404991283648283355}
   m_Layer: 0
   m_Name: Tilemap_Solid
   m_TagString: Untagged
@@ -2923,6 +2924,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0fc6e2ba66439d14e9ef07d95de09ba4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TestFight.LevelGeneration.TilemapShadowCaster2D
+--- !u!114 &3404991283648283355
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5697863936401754518}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1001 &2502498922874260356
 PrefabInstance:
   m_ObjectHideFlags: 0

@@ -4042,6 +4042,7 @@ GameObject:
   - component: {fileID: 8425977106612741562}
   - component: {fileID: 2588569862687468949}
   - component: {fileID: 5263507268237099863}
+  - component: {fileID: 5669391914631101863}
   m_Layer: 0
   m_Name: Ground_Base
   m_TagString: Untagged
@@ -4170,6 +4171,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &5669391914631101863
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3410685955892438510}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &3509822421841956737
 GameObject:
   m_ObjectHideFlags: 0

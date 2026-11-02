@@ -122,6 +122,10 @@ namespace Combat
         [Tooltip("Слои земли и платформ для прыжков")]
         [SerializeField] private LayerMask groundLayer = ~0;
 
+        [Header("--- 2D NavMesh (NavMeshPlus) ---")]
+        [Tooltip("Использовать 2D Unity NavMesh (NavMeshPlus) вместо PlatformNavGraph2D")]
+        [SerializeField] private bool useNavMesh = true;
+
         [Header("--- Navigation & Pathfinding ---")]
         [Tooltip("Использовать умную навигацию по графу платформ (A*)")]
         [SerializeField] private bool usePlatformPathfinding = true;
@@ -327,6 +331,10 @@ namespace Combat
         private float _unstickTimer = 0f;
         private float _unstickDir = 0f;
 
+        // 2D NavMesh Agent Reference
+        private UnityEngine.AI.NavMeshAgent _navAgent;
+        private float _navMeshRepathTimer = 0f;
+
         // Physics Execution in FixedUpdate
         private float _desiredVelocityX = 0f;
         private bool _hasJumpCommand = false;
@@ -411,6 +419,14 @@ namespace Combat
             _groundFilter.SetLayerMask(groundLayer != 0 ? groundLayer : ~0);
 
             _combatLeapTimer = UnityEngine.Random.Range(combatLeapIntervalMin, combatLeapIntervalMax);
+
+            _navAgent = GetComponent<UnityEngine.AI.NavMeshAgent>();
+            if (_navAgent != null)
+            {
+                _navAgent.updatePosition = false;
+                _navAgent.updateRotation = false;
+                _navAgent.updateUpAxis = false;
+            }
         }
 
         private void Start()
@@ -422,6 +438,17 @@ namespace Combat
             if (enablePatrol)
             {
                 StartPatrolling();
+            }
+
+            if (_navAgent != null && useNavMesh)
+            {
+                _navAgent.updatePosition = false;
+                _navAgent.updateRotation = false;
+                _navAgent.updateUpAxis = false;
+                if (UnityEngine.AI.NavMesh.SamplePosition(transform.position, out UnityEngine.AI.NavMeshHit hit, 2.0f, UnityEngine.AI.NavMesh.AllAreas))
+                {
+                    _navAgent.Warp(hit.position);
+                }
             }
         }
 
@@ -510,6 +537,25 @@ namespace Combat
         {
             if (CurrentState == EnemyState.Dead) return;
 
+            // Защита от падения в бездну за пределы уровня
+            if (transform.position.y < -35f)
+            {
+                Die(Vector2.zero, false);
+                return;
+            }
+
+            if (_navAgent != null && _navAgent.isOnNavMesh)
+            {
+                _navAgent.nextPosition = transform.position;
+            }
+            else if (_navAgent != null && IsGrounded && useNavMesh)
+            {
+                if (UnityEngine.AI.NavMesh.SamplePosition(transform.position, out UnityEngine.AI.NavMeshHit hit, 1.8f, UnityEngine.AI.NavMesh.AllAreas))
+                {
+                    _navAgent.Warp(hit.position);
+                }
+            }
+
             ClampToSectorBounds();
 
             CheckGrounded();
@@ -518,6 +564,8 @@ namespace Combat
             {
                 _hasJumpCommand = false;
                 ExecuteJumpPhysics(_jumpCommandForce, _jumpCommandForwardSpeed);
+                _activeJumpForwardSpeed = _jumpCommandForwardSpeed.HasValue ? _jumpCommandForwardSpeed.Value : _desiredVelocityX;
+                IsGrounded = false;
             }
 
             if (_isGravitySuspended || (_airJuggle != null && _airJuggle.IsFrozen))
@@ -551,7 +599,24 @@ namespace Combat
             // На земле при обычном беге / преследовании / разблокировке
             if (_rb != null)
             {
-                _rb.linearVelocity = new Vector2(_desiredVelocityX, _rb.linearVelocity.y);
+                if (IsGrounded)
+                {
+                    _activeJumpForwardSpeed = 0f;
+                    _rb.linearVelocity = new Vector2(_desiredVelocityX, _rb.linearVelocity.y);
+                }
+                else
+                {
+                    if (Mathf.Abs(_activeJumpForwardSpeed) > 0.05f)
+                    {
+                        // В воздухе во время прыжка строго удерживаем заданную скорость полета
+                        _rb.linearVelocity = new Vector2(_activeJumpForwardSpeed, _rb.linearVelocity.y);
+                    }
+                    else if (_hitstunTimer <= 0f)
+                    {
+                        // В воздухе без направленного прыжка слегка гасим горизонтальную инерцию (air resistance)
+                        _rb.linearVelocity = new Vector2(Mathf.MoveTowards(_rb.linearVelocity.x, 0f, Time.fixedDeltaTime * 4.0f), _rb.linearVelocity.y);
+                    }
+                }
             }
 
             ClampToSectorBounds();
@@ -649,6 +714,12 @@ namespace Combat
 
             if (_playerTransform != null)
             {
+                // Защита стартовой зоны: если игрок находится снаружи арены в стартовой комнате — не агримся!
+                if (_minSectorX > float.MinValue * 0.5f && _playerTransform.position.x < _minSectorX - 0.5f)
+                {
+                    return;
+                }
+
                 // Если враг находится в дыму — сразу обнаруживает игрока!
                 if (Magic.FogCloud.IsInsideAnyCloud(transform.position))
                 {
@@ -708,7 +779,49 @@ namespace Combat
                 }
             }
 
-            // 2. Пауза / оглядывание на границе патрулирования
+            // 2A. Умное патрулирование через 2D NavMesh (NavMeshPlus)
+            if (useNavMesh && _navAgent != null && _navAgent.isOnNavMesh)
+            {
+                if (_patrolWaitTimer > 0f)
+                {
+                    _patrolWaitTimer -= Time.deltaTime;
+                    _desiredVelocityX = 0f;
+                    _navAgent.isStopped = true;
+                    if (_patrolWaitTimer <= 0f)
+                    {
+                        _patrolDirection = -_patrolDirection;
+                        _navAgent.isStopped = false;
+                        SetFacing(_patrolDirection);
+                    }
+                    return;
+                }
+
+                _navAgent.isStopped = false;
+                _navAgent.speed = patrolSpeed;
+                Vector3 patrolDest = new Vector3(_patrolAnchorX + (_patrolDirection * patrolRadius), transform.position.y, 0f);
+                if (Vector3.Distance(_navAgent.destination, patrolDest) > 0.5f)
+                {
+                    _navAgent.SetDestination(patrolDest);
+                }
+
+                float navSpeedX = _navAgent.desiredVelocity.x;
+                _desiredVelocityX = navSpeedX;
+
+                if (Mathf.Abs(navSpeedX) > 0.05f)
+                {
+                    SetFacing(Mathf.Sign(navSpeedX));
+                }
+
+                // Достигли границы радиуса патруля или края NavMesh
+                if (_navAgent.remainingDistance <= 0.35f || (_navAgent.hasPath && Mathf.Abs(navSpeedX) < 0.05f))
+                {
+                    _patrolWaitTimer = patrolWaitDuration;
+                    _desiredVelocityX = 0f;
+                }
+                return;
+            }
+
+            // 2B. Резервная пауза / оглядывание на границе патрулирования
             if (_patrolWaitTimer > 0f)
             {
                 _patrolWaitTimer -= Time.deltaTime;
@@ -820,6 +933,14 @@ namespace Combat
             float absDx = Mathf.Abs(dx);
 
             bool isNavTransitionActive = _navTransition != NavTransitionState.None;
+
+            // Защита стартовой зоны: если игрок находится снаружи арены в стартовой комнате — не преследуем!
+            if (_minSectorX > float.MinValue * 0.5f && _playerTransform != null && _playerTransform.position.x < _minSectorX - 0.5f)
+            {
+                if (enablePatrol) StartPatrolling();
+                else { CurrentState = EnemyState.Idle; _desiredVelocityX = 0f; }
+                return;
+            }
 
             // 0. ПРОВЕРКА ТУМАНА: если игрок в тумане или за туманом — враг теряет цель,
             // НО если сам враг зашел в дым, он НЕ теряет цель, а продолжает видеть игрока!
@@ -981,12 +1102,75 @@ namespace Combat
             }
 
             // -------------------------------------------------------------
-            // 3. НАВИГАЦИЯ ПО ПЛАТФОРМАМ (A* PLATFORM PATHFINDING)
+            // 3. НАВИГАЦИЯ ПО ПЛАТФОРМАМ (A* PLATFORM PATHFINDING / NAVMESH 2D)
             // -------------------------------------------------------------
             Vector2 goalDestination = new Vector2(targetX, _playerTransform.position.y);
 
-            // Не сбрасываем и не пересчитываем путь во время активного перехода между платформами!
-            if (usePlatformPathfinding && PlatformNavGraph2D.Instance != null && !isNavTransitionActive)
+            float dirX = Mathf.Sign(targetX - transform.position.x);
+            bool pathHandledMovement = false;
+
+            // 3A. Приоритетная навигация через 2D Unity NavMesh (NavMeshPlus)
+            if (useNavMesh && _navAgent != null && _navAgent.isOnNavMesh && !isNavTransitionActive)
+            {
+                _navAgent.isStopped = false;
+                _navAgent.speed = currentMoveSpeed;
+
+                _navMeshRepathTimer -= Time.deltaTime;
+                float dyNav = _playerTransform.position.y - transform.position.y;
+                // При перепаде высоты более 1.0м проецируем цель NavMesh на текущую высоту врага,
+                // чтобы агент не стремился вертикально сквозь пол/воздух с нулевой скоростью по X!
+                float navDestY = (Mathf.Abs(dyNav) > 1.0f) ? transform.position.y : _playerTransform.position.y;
+                float navTargetX = targetX;
+
+                // Если игрок внизу, а мы прямо над ним — направляем NavMesh к ближайшему краю для спуска
+                if (dyNav < -1.0f && Mathf.Abs(targetX - transform.position.x) < 0.65f)
+                {
+                    float ledgeDir = FindNearestLedgeDirection();
+                    navTargetX = transform.position.x + ledgeDir * 4.0f;
+                }
+
+                Vector3 targetDestination = new Vector3(navTargetX, navDestY, 0f);
+
+                if (_navMeshRepathTimer <= 0f || Vector3.Distance(_navAgent.destination, targetDestination) > 0.45f)
+                {
+                    _navAgent.SetDestination(targetDestination);
+                    _navMeshRepathTimer = UnityEngine.Random.Range(0.2f, 0.35f);
+                }
+
+                // Обработка Off-Mesh Link (переход между раздельными секциями сетки)
+                if (_navAgent.isOnOffMeshLink)
+                {
+                    var linkData = _navAgent.currentOffMeshLinkData;
+                    if (IsGrounded && _jumpCooldownTimer <= 0f)
+                    {
+                        float linkDx = linkData.endPos.x - transform.position.x;
+                        float linkDy = linkData.endPos.y - transform.position.y;
+                        float forwardSpd = Mathf.Sign(linkDx) * Mathf.Max(Mathf.Abs(linkDx) * 1.35f, moveSpeed * 1.1f);
+                        if (linkDy > 0.6f)
+                        {
+                            // Ссылка ведет ВВЕРХ — прыгаем!
+                            float reqForce = Mathf.Sqrt(2f * 34.34f * (linkDy + 0.65f));
+                            Jump(Mathf.Clamp(reqForce, jumpForce, 19.0f), forwardSpd);
+                        }
+                        else
+                        {
+                            // Ссылка ведет ВНИЗ — СПУСКАЕМСЯ без прыжка!
+                            _activeJumpForwardSpeed = forwardSpd;
+                            _desiredVelocityX = forwardSpd;
+                            _jumpCooldownTimer = 0.5f;
+                        }
+                        _navAgent.CompleteOffMeshLink();
+                    }
+                    pathHandledMovement = true;
+                }
+                else
+                {
+                    pathHandledMovement = true;
+                }
+            }
+
+            // 3B. Резервный расчет по математическому графу платформ (PlatformNavGraph2D)
+            if (!pathHandledMovement && usePlatformPathfinding && PlatformNavGraph2D.Instance != null && !isNavTransitionActive)
             {
                 _pathRecalculateTimer -= Time.deltaTime;
                 if (_pathRecalculateTimer <= 0f || Vector2.Distance(_lastPathGoal, goalDestination) > 1.35f || _currentNavPath.Count == 0)
@@ -997,10 +1181,6 @@ namespace Combat
                     _pathRecalculateTimer = UnityEngine.Random.Range(0.35f, 0.55f);
                 }
             }
-
-            // Определение направления движения и прыжков по маршруту:
-            float dirX = Mathf.Sign(targetX - transform.position.x);
-            bool pathHandledMovement = false;
 
             if (usePlatformPathfinding && _currentNavPath != null && _currentNavPath.Count > 0 && _currentPathIndex < _currentNavPath.Count)
             {
@@ -1183,10 +1363,9 @@ namespace Combat
             }
 
             // -------------------------------------------------------------
-            // 4. ДОПОЛНИТЕЛЬНЫЙ РЕАКТИВНЫЙ ПРЫЖКОВЫЙ ИНТЕЛЛЕКТ (FALLBACK & COMBAT)
+            // 4. РЕАКТИВНЫЙ ПРЫЖКОВЫЙ ИНТЕЛЛЕКТ (ПРЕОДОЛЕНИЕ ПРЕПЯТСТВИЙ, БОЧЕК И ПЛАТФОРМ)
             // -------------------------------------------------------------
-            // Если активен путь платформенной навигации или переход, реактивные прыжки отключены!
-            if (!pathHandledMovement && IsGrounded && _jumpCooldownTimer <= 0f && !isNavTransitionActive)
+            if (IsGrounded && _jumpCooldownTimer <= 0f && !isNavTransitionActive)
             {
                 bool hasCeilingAbove = false;
                 var ceilingHits = Physics2D.RaycastAll(transform.position, Vector2.up, 1.9f, groundLayer);
@@ -1207,8 +1386,76 @@ namespace Combat
                     float customForwardVel = 0f;
                     float dyToPlayer = _playerTransform.position.y - transform.position.y;
 
-                    // Б. Фланговый прыжок через игрока (когда бот обходит вплотную на том же уровне)
-                    if (isFlankingThrough && absDx < 2.0f && Mathf.Abs(dyToPlayer) < 1.3f)
+                    float moveDir = (useNavMesh && _navAgent != null && _navAgent.isOnNavMesh && Mathf.Abs(_navAgent.desiredVelocity.x) > 0.15f)
+                        ? Mathf.Sign(_navAgent.desiredVelocity.x)
+                        : (dirX != 0f ? dirX : FacingDirection);
+
+                    // А. Препятствие, бочка или низкая ступень перед врагом (на уровне коленей/голени)
+                    Vector2 obstacleCheckOrigin = (Vector2)transform.position + new Vector2(0f, -0.85f);
+                    float obstacleCheckDist = 1.35f;
+                    var obstacleHits = Physics2D.RaycastAll(obstacleCheckOrigin, new Vector2(moveDir, 0f), obstacleCheckDist, groundLayer != 0 ? groundLayer : ~0);
+                    bool obstacleAhead = false;
+
+                    for (int i = 0; i < obstacleHits.Length; i++)
+                    {
+                        var col = obstacleHits[i].collider;
+                        if (col != null && !col.isTrigger && col != _col && col.gameObject != gameObject && !col.transform.IsChildOf(transform))
+                        {
+                            if (col.CompareTag("Player") || col.GetComponent<PlayerHealth2D>() != null) continue;
+                            if (col.GetComponent<EnemyAIController2D>() != null) continue; // не прыгаем от других врагов
+                            obstacleAhead = true;
+                            break;
+                        }
+                    }
+
+                    // Проверка обрыва перед ногами (для спуска вниз с платформы)
+                    Vector2 lookAheadEdge = (Vector2)transform.position + new Vector2(moveDir * 0.7f, -1.0f);
+                    bool groundAhead = false;
+                    var groundHits = Physics2D.RaycastAll(lookAheadEdge, Vector2.down, 1.4f, groundLayer != 0 ? groundLayer : ~0);
+                    for (int g = 0; g < groundHits.Length; g++)
+                    {
+                        var col = groundHits[g].collider;
+                        if (col != null && !col.isTrigger && col != _col && col.gameObject != gameObject && !col.transform.IsChildOf(transform))
+                        {
+                            groundAhead = true;
+                            break;
+                        }
+                    }
+
+                    if (obstacleAhead && absDx > 0.4f)
+                    {
+                        shouldJump = true;
+                        customJumpForce = jumpForce * 1.05f;
+                        customForwardVel = moveDir * (moveSpeed * 1.35f);
+                        _jumpCooldownTimer = 0.55f;
+                    }
+                    // Б. Игрок находится на платформе ВЫШЕ врага — рассчитываем точный прыжок вверх
+                    else if (dyToPlayer > 1.15f && dyToPlayer < 5.5f && absDx < 3.8f)
+                    {
+                        shouldJump = true;
+                        // Формула высоты прыжка: v_y = sqrt(2 * g * (dy + clearance))
+                        float requiredForce = Mathf.Sqrt(2f * 34.34f * (dyToPlayer + 0.65f));
+                        customJumpForce = Mathf.Clamp(requiredForce, jumpForce, 19.0f);
+                        float jumpDir = absDx > 0.35f ? Mathf.Sign(targetX - transform.position.x) : FacingDirection;
+                        customForwardVel = jumpDir * (moveSpeed * 1.15f);
+                        _jumpCooldownTimer = jumpCooldown * 1.2f;
+                    }
+                    // В. Игрок находится на платформе НИЖЕ врага — СПУСК (Drop Down) БЕЗ ПРЫЖКА!
+                    else if (dyToPlayer < -1.0f)
+                    {
+                        // При спуске прыжки строго запрещены (если только нет бочки прямо под ногами)!
+                        shouldJump = false;
+
+                        // Если дошли до края платформы — делаем шаг вперед в пустоту и падаем под действием гравитации
+                        if (!groundAhead)
+                        {
+                            _activeJumpForwardSpeed = moveDir * (currentMoveSpeed * 0.95f);
+                            _desiredVelocityX = _activeJumpForwardSpeed;
+                            _jumpCooldownTimer = 0.4f;
+                        }
+                    }
+                    // Г. Фланговый прыжок через игрока (когда бот обходит вплотную на том же уровне)
+                    else if (isFlankingThrough && absDx < 2.0f && Mathf.Abs(dyToPlayer) < 1.1f && dyToPlayer >= -0.5f)
                     {
                         shouldJump = true;
                         customJumpForce = jumpForce * 1.05f;
@@ -1216,8 +1463,8 @@ namespace Combat
                         customForwardVel = flankDir * (moveSpeed * 1.35f);
                         _jumpCooldownTimer = jumpCooldown * 1.3f;
                     }
-                    // В. Боевой прыжок сближения (Combat Leap / Pounce) ТОЛЬКО при нахождении на одной высоте!
-                    else if (_combatLeapTimer <= 0f && distToPlayer >= 2.6f && distToPlayer <= 6.0f && Mathf.Abs(dyToPlayer) < 1.3f)
+                    // Д. Боевой прыжок сближения (Combat Leap / Pounce) ТОЛЬКО при нахождении на одной высоте!
+                    else if (_combatLeapTimer <= 0f && distToPlayer >= 2.6f && distToPlayer <= 6.0f && Mathf.Abs(dyToPlayer) < 1.1f && dyToPlayer >= -0.5f)
                     {
                         shouldJump = true;
                         customJumpForce = jumpForce * 0.95f;
@@ -1225,47 +1472,25 @@ namespace Combat
                         customForwardVel = leapDir * (moveSpeed * 1.35f);
                         _combatLeapTimer = UnityEngine.Random.Range(combatLeapIntervalMin, combatLeapIntervalMax);
                     }
-                    // Г. Препятствие / стена перед врагом на уровне пояса
-                    else if (absDx > 0.5f)
+                    // Д. Проверка обрыва/пропасти перед врагом
+                    else if (!useNavMesh && !usePlatformPathfinding)
                     {
-                        Vector2 checkOrigin = (Vector2)transform.position + new Vector2(0f, 0.25f);
-                        var wallHits = Physics2D.RaycastAll(checkOrigin, new Vector2(FacingDirection, 0f), 0.85f, groundLayer);
-                        bool wallAhead = false;
-                        for (int i = 0; i < wallHits.Length; i++)
+                        Vector2 edgeOrigin = (Vector2)transform.position + new Vector2(FacingDirection * 0.65f, -1.0f);
+                        var edgeHits = Physics2D.RaycastAll(edgeOrigin, Vector2.down, 1.6f, groundLayer != 0 ? groundLayer : ~0);
+                        bool edgeGroundAhead = false;
+                        for (int i = 0; i < edgeHits.Length; i++)
                         {
-                            var col = wallHits[i].collider;
+                            var col = edgeHits[i].collider;
                             if (col != null && !col.isTrigger && col != _col && col.gameObject != gameObject && !col.transform.IsChildOf(transform))
                             {
-                                wallAhead = true;
+                                edgeGroundAhead = true;
                                 break;
                             }
                         }
-
-                        if (wallAhead)
+                        if (!edgeGroundAhead)
                         {
                             shouldJump = true;
-                            customForwardVel = FacingDirection * (moveSpeed * 1.05f);
-                        }
-                        else if (!usePlatformPathfinding)
-                        {
-                            // Д. Проверка обрыва — ТОЛЬКО если умный A* отключен пользователем!
-                            Vector2 edgeOrigin = (Vector2)transform.position + new Vector2(FacingDirection * 0.65f, -0.2f);
-                            var edgeHits = Physics2D.RaycastAll(edgeOrigin, Vector2.down, 1.4f, groundLayer);
-                            bool groundAhead = false;
-                            for (int i = 0; i < edgeHits.Length; i++)
-                            {
-                                var col = edgeHits[i].collider;
-                                if (col != null && !col.isTrigger && col != _col && col.gameObject != gameObject && !col.transform.IsChildOf(transform))
-                                {
-                                    groundAhead = true;
-                                    break;
-                                }
-                            }
-                            if (!groundAhead)
-                            {
-                                shouldJump = true;
-                                customForwardVel = FacingDirection * (moveSpeed * 1.05f);
-                            }
+                            customForwardVel = FacingDirection * (moveSpeed * 1.1f);
                         }
                     }
 
@@ -1288,6 +1513,10 @@ namespace Combat
             if (_navTransition == NavTransitionState.Airborne && Mathf.Abs(_activeJumpForwardSpeed) > 0.1f)
             {
                 SetFacing(_activeJumpForwardSpeed);
+            }
+            else if (useNavMesh && _navAgent != null && _navAgent.isOnNavMesh && Mathf.Abs(_navAgent.desiredVelocity.x) > 0.15f)
+            {
+                SetFacing(_navAgent.desiredVelocity.x);
             }
             else if (isFlankingThrough)
             {
@@ -1319,7 +1548,20 @@ namespace Combat
                     }
                 }
 
-                _desiredVelocityX = (dirX * currentMoveSpeed) + separationVelocityX;
+                if (useNavMesh && _navAgent != null && _navAgent.isOnNavMesh)
+                {
+                    // Если NavMesh выдает околонулевую скорость по X из-за перепада высот — направляем напрямую к цели
+                    float navX = _navAgent.desiredVelocity.x;
+                    if (Mathf.Abs(navX) < 0.2f && Mathf.Abs(targetX - transform.position.x) > 0.4f)
+                    {
+                        navX = Mathf.Sign(targetX - transform.position.x) * currentMoveSpeed;
+                    }
+                    _desiredVelocityX = navX + separationVelocityX;
+                }
+                else
+                {
+                    _desiredVelocityX = (dirX * currentMoveSpeed) + separationVelocityX;
+                }
             }
             else if (_navTransition == NavTransitionState.Approach)
             {
@@ -1333,6 +1575,43 @@ namespace Combat
             {
                 _desiredVelocityX = _activeJumpForwardSpeed;
             }
+        }
+
+        /// <summary>
+        /// Находит направление к ближайшему краю текущей платформы для спуска (Drop Down)
+        /// </summary>
+        private float FindNearestLedgeDirection()
+        {
+            float step = 0.5f;
+            float maxCheck = 18.0f;
+            float rightLedgeDist = float.MaxValue;
+            float leftLedgeDist = float.MaxValue;
+
+            for (float d = 0.5f; d < maxCheck; d += step)
+            {
+                Vector2 checkPos = (Vector2)transform.position + new Vector2(d, -1.0f);
+                var hit = Physics2D.Raycast(checkPos, Vector2.down, 1.4f, groundLayer != 0 ? groundLayer : ~0);
+                if (hit.collider == null || hit.collider.isTrigger)
+                {
+                    rightLedgeDist = d;
+                    break;
+                }
+            }
+
+            for (float d = 0.5f; d < maxCheck; d += step)
+            {
+                Vector2 checkPos = (Vector2)transform.position + new Vector2(-d, -1.0f);
+                var hit = Physics2D.Raycast(checkPos, Vector2.down, 1.4f, groundLayer != 0 ? groundLayer : ~0);
+                if (hit.collider == null || hit.collider.isTrigger)
+                {
+                    leftLedgeDist = d;
+                    break;
+                }
+            }
+
+            if (rightLedgeDist < leftLedgeDist) return 1f;
+            if (leftLedgeDist < rightLedgeDist) return -1f;
+            return FacingDirection;
         }
 
         public void CheckGrounded()
@@ -1446,6 +1725,7 @@ namespace Combat
         private IEnumerator AttackSequenceRoutine()
         {
             // Останавливаем бег
+            if (_navAgent != null && _navAgent.isOnNavMesh) _navAgent.isStopped = true;
             _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
 
             // Поворачиваемся к игроку, только если не дезориентированы в дыму
@@ -1581,6 +1861,7 @@ namespace Combat
             else
             {
                 CurrentState = EnemyState.Chasing;
+                if (_navAgent != null && _navAgent.isOnNavMesh) _navAgent.isStopped = false;
             }
             _stateRoutine = null;
         }
@@ -1838,6 +2119,7 @@ namespace Combat
             }
 
             // Сохраняем физический импульс удара (включая подбрасывание вверх от верхней атаки).
+            if (_navAgent != null && _navAgent.isOnNavMesh) _navAgent.isStopped = true;
             CurrentState = EnemyState.Stunned;
             if (Combat.Audio.SoundManager.Instance != null)
             {
@@ -1877,6 +2159,7 @@ namespace Combat
             if (animationController != null) animationController.CancelAttack();
 
             if (_rb != null) _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
+            if (_navAgent != null && _navAgent.isOnNavMesh) _navAgent.isStopped = true;
 
             CurrentState = EnemyState.Stunned;
             if (Combat.Audio.SoundManager.Instance != null)
@@ -2133,6 +2416,7 @@ namespace Combat
             if (staminaBar != null) staminaBar.SetVisible(false);
 
             if (_col != null) _col.enabled = false;
+            if (_navAgent != null && _navAgent.isOnNavMesh) _navAgent.isStopped = true;
 
             // Физический отброс и падение
             if (_rb != null)
@@ -2175,6 +2459,18 @@ namespace Combat
 
             if (_sr != null) _sr.color = normalColor;
             if (_col != null) _col.enabled = true;
+
+            if (_navAgent != null)
+            {
+                _navAgent.updatePosition = false;
+                _navAgent.updateRotation = false;
+                _navAgent.updateUpAxis = false;
+                if (UnityEngine.AI.NavMesh.SamplePosition(transform.position, out UnityEngine.AI.NavMeshHit hit, 2.0f, UnityEngine.AI.NavMesh.AllAreas))
+                {
+                    _navAgent.Warp(hit.position);
+                }
+                _navAgent.isStopped = false;
+            }
 
             SetFacing(-1f);
             CurrentState = EnemyState.Idle;

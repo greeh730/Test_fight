@@ -1023,6 +1023,7 @@ GameObject:
   - component: {fileID: 412265757528080775}
   - component: {fileID: 189863293530383397}
   - component: {fileID: 1655015661056276569}
+  - component: {fileID: 6835723308351787099}
   m_Layer: 0
   m_Name: Plat_L_Tier1
   m_TagString: Untagged
@@ -1151,6 +1152,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &6835723308351787099
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1677425549175422687}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &1896348458180471953
 GameObject:
   m_ObjectHideFlags: 0
@@ -1346,6 +1363,7 @@ GameObject:
   - component: {fileID: 6639653613788972810}
   - component: {fileID: 5029562841122792375}
   - component: {fileID: 7075176879559817017}
+  - component: {fileID: 8584475846515156557}
   m_Layer: 0
   m_Name: Plat_Central_Island
   m_TagString: Untagged
@@ -1474,6 +1492,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &8584475846515156557
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1930594750703188637}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &1978668049631656338
 GameObject:
   m_ObjectHideFlags: 0
@@ -1577,6 +1611,7 @@ GameObject:
   - component: {fileID: 5406366032182722679}
   - component: {fileID: 3393592584665391555}
   - component: {fileID: 4052405072144898425}
+  - component: {fileID: 4090795439998280476}
   m_Layer: 0
   m_Name: Plat_Sky_Bridge_R
   m_TagString: Untagged
@@ -1705,6 +1740,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &4090795439998280476
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2028131486589332948}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &2048039770477828279
 GameObject:
   m_ObjectHideFlags: 0
@@ -1808,6 +1859,7 @@ GameObject:
   - component: {fileID: 7095770804830500805}
   - component: {fileID: 7831621658442465105}
   - component: {fileID: 4434601774930770682}
+  - component: {fileID: 3968051711253673404}
   m_Layer: 0
   m_Name: Plat_Sky_Obs_R
   m_TagString: Untagged
@@ -1936,6 +1988,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &3968051711253673404
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2056103811104574113}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &2085878192260488897
 GameObject:
   m_ObjectHideFlags: 0
@@ -2193,6 +2261,7 @@ GameObject:
   - component: {fileID: 3818675656562272967}
   - component: {fileID: 3777293440088110613}
   - component: {fileID: 3253936871498288232}
+  - component: {fileID: 4582671752843976715}
   m_Layer: 0
   m_Name: Plat_Sky_Bridge_L
   m_TagString: Untagged
@@ -2321,6 +2390,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &4582671752843976715
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2500174423189707388}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &2527367095352018989
 GameObject:
   m_ObjectHideFlags: 0
@@ -3038,6 +3123,7 @@ GameObject:
   - component: {fileID: 64717719130655163}
   - component: {fileID: 5608609636396112963}
   - component: {fileID: 761110553752779772}
+  - component: {fileID: 774680102394169063}
   m_Layer: 0
   m_Name: Ground_Base
   m_TagString: Untagged
@@ -3166,6 +3252,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &774680102394169063
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3213961216259531167}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &3356601614140503012
 GameObject:
   m_ObjectHideFlags: 0
@@ -3208,6 +3310,7 @@ GameObject:
   - component: {fileID: 2897596624425028613}
   - component: {fileID: 7128631150314329166}
   - component: {fileID: 274697371521586709}
+  - component: {fileID: 6526965103973390043}
   m_Layer: 0
   m_Name: Plat_Mid_High_R
   m_TagString: Untagged
@@ -3336,6 +3439,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &6526965103973390043
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3398546706804510567}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &3530500022540560736
 GameObject:
   m_ObjectHideFlags: 0
@@ -3685,6 +3804,7 @@ GameObject:
   - component: {fileID: 8190702289080075706}
   - component: {fileID: 8467056687174699193}
   - component: {fileID: 8963636570962236635}
+  - component: {fileID: 1762583311715451835}
   m_Layer: 0
   m_Name: Plat_Mid_Deck_L
   m_TagString: Untagged
@@ -3813,6 +3933,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &1762583311715451835
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3789235356393252334}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &3869480518940080548
 GameObject:
   m_ObjectHideFlags: 0
@@ -3855,6 +3991,7 @@ GameObject:
   - component: {fileID: 2823140945123704236}
   - component: {fileID: 1832409015969484459}
   - component: {fileID: 7605696886990689669}
+  - component: {fileID: 404488625314368451}
   m_Layer: 0
   m_Name: Plat_R_Tier1
   m_TagString: Untagged
@@ -3983,6 +4120,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &404488625314368451
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3893922000834290053}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &3936904749234898287
 GameObject:
   m_ObjectHideFlags: 0
@@ -4409,6 +4562,7 @@ GameObject:
   - component: {fileID: 6682119763564044297}
   - component: {fileID: 3979809444102749006}
   - component: {fileID: 8972098325948790293}
+  - component: {fileID: 6454108755548502863}
   m_Layer: 0
   m_Name: Plat_R_Tier2
   m_TagString: Untagged
@@ -4537,6 +4691,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &6454108755548502863
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4373518969378489885}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &4392594307779574313
 GameObject:
   m_ObjectHideFlags: 0
@@ -4855,6 +5025,7 @@ GameObject:
   - component: {fileID: 4104062315592410374}
   - component: {fileID: 3635852523010893766}
   - component: {fileID: 3880660244947715974}
+  - component: {fileID: 448294354006346931}
   m_Layer: 0
   m_Name: Plat_Mid_Deck_R
   m_TagString: Untagged
@@ -4983,6 +5154,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &448294354006346931
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5088949311863703101}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &5126780008816578464
 GameObject:
   m_ObjectHideFlags: 0
@@ -5869,6 +6056,7 @@ GameObject:
   - component: {fileID: 6363285425491492551}
   - component: {fileID: 201635529136937258}
   - component: {fileID: 2872385772573094046}
+  - component: {fileID: 5350210052041283669}
   m_Layer: 0
   m_Name: Plat_Mid_High_L
   m_TagString: Untagged
@@ -5997,6 +6185,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &5350210052041283669
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5783062581402045274}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &5802730312683424147
 GameObject:
   m_ObjectHideFlags: 0
@@ -6192,6 +6396,7 @@ GameObject:
   - component: {fileID: 6489597177118288827}
   - component: {fileID: 8511047423279663026}
   - component: {fileID: 2076081061351642664}
+  - component: {fileID: 9171707791802211422}
   m_Layer: 0
   m_Name: Plat_L_Tier3
   m_TagString: Untagged
@@ -6320,6 +6525,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &9171707791802211422
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6259351495892612983}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &6317621433941271171
 GameObject:
   m_ObjectHideFlags: 0
@@ -6791,6 +7012,7 @@ GameObject:
   - component: {fileID: 5918925228847208200}
   - component: {fileID: 6039545285528724937}
   - component: {fileID: 5151503753840541678}
+  - component: {fileID: 3628313241061425337}
   m_Layer: 0
   m_Name: Plat_L_Tier2
   m_TagString: Untagged
@@ -6919,6 +7141,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &3628313241061425337
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6717539747000941902}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &6865148271926673208
 GameObject:
   m_ObjectHideFlags: 0
@@ -7728,6 +7966,7 @@ GameObject:
   - component: {fileID: 8026285215753836728}
   - component: {fileID: 3190524627136380291}
   - component: {fileID: 8084707383293730785}
+  - component: {fileID: 2440931269717113094}
   m_Layer: 0
   m_Name: Plat_Sky_Obs_L
   m_TagString: Untagged
@@ -7856,6 +8095,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &2440931269717113094
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8072226406944530493}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &8100136344376906656
 GameObject:
   m_ObjectHideFlags: 0
@@ -7867,6 +8122,7 @@ GameObject:
   - component: {fileID: 8551441411445354227}
   - component: {fileID: 4983769527672348908}
   - component: {fileID: 7204191274770866993}
+  - component: {fileID: 2690578998615224189}
   m_Layer: 0
   m_Name: Plat_Apex_Throne
   m_TagString: Untagged
@@ -7995,6 +8251,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &2690578998615224189
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8100136344376906656}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &8146768183703468918
 GameObject:
   m_ObjectHideFlags: 0
@@ -8006,6 +8278,7 @@ GameObject:
   - component: {fileID: 7669919777664236163}
   - component: {fileID: 1441063143263413385}
   - component: {fileID: 5996507700467861628}
+  - component: {fileID: 7188320857323694600}
   m_Layer: 0
   m_Name: Plat_R_Tier4
   m_TagString: Untagged
@@ -8134,6 +8407,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &7188320857323694600
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8146768183703468918}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &8160461793675239955
 GameObject:
   m_ObjectHideFlags: 0
@@ -8605,6 +8894,7 @@ GameObject:
   - component: {fileID: 582834232838239881}
   - component: {fileID: 2690035539048343510}
   - component: {fileID: 4551336830470559529}
+  - component: {fileID: 8280442646933309851}
   m_Layer: 0
   m_Name: Plat_L_Tier4
   m_TagString: Untagged
@@ -8733,6 +9023,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &8280442646933309851
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8604189872972053236}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &8759172993579645174
 GameObject:
   m_ObjectHideFlags: 0
@@ -8744,6 +9050,7 @@ GameObject:
   - component: {fileID: 671280581046401473}
   - component: {fileID: 5677342777573600714}
   - component: {fileID: 3047000232903464808}
+  - component: {fileID: 2956090422252495075}
   m_Layer: 0
   m_Name: Plat_R_Tier3
   m_TagString: Untagged
@@ -8872,6 +9179,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &2956090422252495075
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8759172993579645174}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &8927177662470108419
 GameObject:
   m_ObjectHideFlags: 0

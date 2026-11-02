@@ -1776,6 +1776,7 @@ GameObject:
   - component: {fileID: 7757623933230689894}
   - component: {fileID: 2861815625127965959}
   - component: {fileID: 3135356510681740970}
+  - component: {fileID: 5950515409184836683}
   m_Layer: 0
   m_Name: Ground_Abyss_Center
   m_TagString: Untagged
@@ -1904,6 +1905,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &5950515409184836683
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1789286552174037294}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &1910529594930778104
 GameObject:
   m_ObjectHideFlags: 0
@@ -8120,6 +8137,7 @@ GameObject:
   - component: {fileID: 9131152727839752913}
   - component: {fileID: 5055649881371717537}
   - component: {fileID: 5409982267332653388}
+  - component: {fileID: 5860069391282930817}
   m_Layer: 0
   m_Name: Ground_East_Shore
   m_TagString: Untagged
@@ -8248,6 +8266,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &5860069391282930817
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8068383596374233378}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &8093870570513982338
 GameObject:
   m_ObjectHideFlags: 0
@@ -8398,6 +8432,7 @@ GameObject:
   - component: {fileID: 4922650372657890416}
   - component: {fileID: 8584338755431161126}
   - component: {fileID: 551130607253705374}
+  - component: {fileID: 5924802300375645988}
   m_Layer: 0
   m_Name: Ground_West_Shore
   m_TagString: Untagged
@@ -8526,6 +8561,22 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &5924802300375645988
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8117491097051674042}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9809bf1345abc5648af68b3a82653f08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NavMeshPlus::NavMeshPlus.Components.NavMeshModifier
+  m_OverrideArea: 0
+  m_Area: 0
+  m_IgnoreFromBuild: 0
+  m_AffectedAgents: ffffffffi
 --- !u!1 &8223866793695113752
 GameObject:
   m_ObjectHideFlags: 0
