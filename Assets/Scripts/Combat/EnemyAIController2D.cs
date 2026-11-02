@@ -217,6 +217,11 @@ namespace Combat
         public bool IsDead => CurrentState == EnemyState.Dead;
         public bool IsStunned => CurrentState == EnemyState.Stunned;
 
+        [Header("--- Procedural Personality Profile ---")]
+        [SerializeField] private Combat.ProceduralGeneration.EnemyPersonalityProfile personalityProfile;
+        public Combat.ProceduralGeneration.EnemyPersonalityProfile PersonalityProfile => personalityProfile;
+        private bool _isDroppingOffLedge = false;
+
         /// <summary>
         /// Восстанавливает здоровье врагу (например, если подобрал зелье).
         /// </summary>
@@ -706,6 +711,12 @@ namespace Combat
                 return;
             }
 
+            // Защита стартовой зоны: если сектор не заблокирован (игрок еще не вошел на арену) — не агримся!
+            if (LevelGeneration.CombatSectorLock2D.Instance != null && !LevelGeneration.CombatSectorLock2D.Instance.IsLocked)
+            {
+                return;
+            }
+
             // Защита: не начинать преследование, если игрок ещё находится снаружи сектора в стартовой комнате
             if (_minSectorX > float.MinValue * 0.5f && _playerTransform != null && _playerTransform.position.x < _minSectorX - 0.5f)
             {
@@ -934,8 +945,9 @@ namespace Combat
 
             bool isNavTransitionActive = _navTransition != NavTransitionState.None;
 
-            // Защита стартовой зоны: если игрок находится снаружи арены в стартовой комнате — не преследуем!
-            if (_minSectorX > float.MinValue * 0.5f && _playerTransform != null && _playerTransform.position.x < _minSectorX - 0.5f)
+            // Защита стартовой зоны: если бой еще не начался или игрок снаружи арены в стартовой комнате — не преследуем!
+            if ((LevelGeneration.CombatSectorLock2D.Instance != null && !LevelGeneration.CombatSectorLock2D.Instance.IsLocked) ||
+                (_minSectorX > float.MinValue * 0.5f && _playerTransform != null && _playerTransform.position.x < _minSectorX - 0.5f))
             {
                 if (enablePatrol) StartPatrolling();
                 else { CurrentState = EnemyState.Idle; _desiredVelocityX = 0f; }
@@ -1086,6 +1098,61 @@ namespace Combat
                     }
                 }
             }
+            // -------------------------------------------------------------
+            // 1B. ПРИМЕНЕНИЕ СИСТЕМЫ ВЕКТОРОВ И БОЕВЫХ КЛАССОВ (D&D СТИЛЬ)
+            // -------------------------------------------------------------
+            if (personalityProfile != null)
+            {
+                switch (personalityProfile.combatClass)
+                {
+                    case Combat.ProceduralGeneration.CombatClass.Tank:
+                        role = EnemyTacticalRole.Front;
+                        if (Combat.ProceduralGeneration.ArenaDirector2D.Instance != null)
+                        {
+                            var allyToProtect = Combat.ProceduralGeneration.ArenaDirector2D.Instance.GetVulnerableAllyToProtect(this);
+                            if (allyToProtect != null)
+                            {
+                                float midX = (allyToProtect.transform.position.x + _playerTransform.position.x) * 0.5f;
+                                targetX = midX;
+                            }
+                            else
+                            {
+                                float frontSide = Mathf.Sign(transform.position.x - _playerTransform.position.x);
+                                if (Mathf.Abs(frontSide) < 0.1f) frontSide = 1f;
+                                targetX = _playerTransform.position.x + frontSide * (attackRange * 0.75f);
+                            }
+                        }
+                        break;
+
+                    case Combat.ProceduralGeneration.CombatClass.Striker:
+                        role = EnemyTacticalRole.Flanker;
+                        float pFacing = Mathf.Sign(_playerTransform.localScale.x);
+                        float backSide = -pFacing;
+                        targetX = _playerTransform.position.x + backSide * (attackRange * 0.85f);
+                        currentMoveSpeed = moveSpeed * 1.25f;
+                        break;
+
+                    case Combat.ProceduralGeneration.CombatClass.Leader:
+                        role = EnemyTacticalRole.Support;
+                        float leaderSide = Mathf.Sign(transform.position.x - _playerTransform.position.x);
+                        if (Mathf.Abs(leaderSide) < 0.1f) leaderSide = 1f;
+                        targetX = _playerTransform.position.x + leaderSide * 5.2f;
+                        currentMoveSpeed = moveSpeed * 0.95f;
+                        if (Combat.ProceduralGeneration.ArenaDirector2D.Instance != null)
+                        {
+                            Combat.ProceduralGeneration.ArenaDirector2D.Instance.TryMedicHealPulse(this, 9.0f);
+                        }
+                        break;
+
+                    case Combat.ProceduralGeneration.CombatClass.Controller:
+                        role = EnemyTacticalRole.Flanker;
+                        float ctrlSide = Mathf.Sign(transform.position.x - _playerTransform.position.x);
+                        if (Mathf.Abs(ctrlSide) < 0.1f) ctrlSide = 1f;
+                        targetX = _playerTransform.position.x + ctrlSide * 3.4f;
+                        break;
+                }
+            }
+
             TacticalRole = role;
 
             // -------------------------------------------------------------
@@ -1393,7 +1460,7 @@ namespace Combat
                     // А. Препятствие, бочка или низкая ступень перед врагом (на уровне коленей/голени)
                     Vector2 obstacleCheckOrigin = (Vector2)transform.position + new Vector2(0f, -0.85f);
                     float obstacleCheckDist = 1.35f;
-                    var obstacleHits = Physics2D.RaycastAll(obstacleCheckOrigin, new Vector2(moveDir, 0f), obstacleCheckDist, groundLayer != 0 ? groundLayer : ~0);
+                    var obstacleHits = Physics2D.RaycastAll(obstacleCheckOrigin, new Vector2(moveDir, 0f), obstacleCheckDist, ~0);
                     bool obstacleAhead = false;
 
                     for (int i = 0; i < obstacleHits.Length; i++)
@@ -1422,7 +1489,8 @@ namespace Combat
                         }
                     }
 
-                    if (obstacleAhead && absDx > 0.4f)
+                    bool isDescendingToPlayer = dyToPlayer < -1.0f;
+                    if (obstacleAhead && absDx > 0.4f && !isDescendingToPlayer)
                     {
                         shouldJump = true;
                         customJumpForce = jumpForce * 1.05f;
@@ -1441,16 +1509,17 @@ namespace Combat
                         _jumpCooldownTimer = jumpCooldown * 1.2f;
                     }
                     // В. Игрок находится на платформе НИЖЕ врага — СПУСК (Drop Down) БЕЗ ПРЫЖКА!
-                    else if (dyToPlayer < -1.0f)
+                    else if (isDescendingToPlayer)
                     {
-                        // При спуске прыжки строго запрещены (если только нет бочки прямо под ногами)!
+                        // При спуске прыжки строго запрещены — просто шагаем с края платформы
                         shouldJump = false;
 
-                        // Если дошли до края платформы — делаем шаг вперед в пустоту и падаем под действием гравитации
+                        // Если дошли до края платформы — делаем уверенный шаг вперед в пустоту и падаем под действием гравитации
                         if (!groundAhead)
                         {
                             _activeJumpForwardSpeed = moveDir * (currentMoveSpeed * 0.95f);
                             _desiredVelocityX = _activeJumpForwardSpeed;
+                            _isDroppingOffLedge = true;
                             _jumpCooldownTimer = 0.4f;
                         }
                     }
@@ -1548,7 +1617,15 @@ namespace Combat
                     }
                 }
 
-                if (useNavMesh && _navAgent != null && _navAgent.isOnNavMesh)
+                if (_isDroppingOffLedge)
+                {
+                    _desiredVelocityX = _activeJumpForwardSpeed;
+                    if (!IsGrounded)
+                    {
+                        _isDroppingOffLedge = false;
+                    }
+                }
+                else if (useNavMesh && _navAgent != null && _navAgent.isOnNavMesh)
                 {
                     // Если NavMesh выдает околонулевую скорость по X из-за перепада высот — направляем напрямую к цели
                     float navX = _navAgent.desiredVelocity.x;
@@ -2391,6 +2468,37 @@ namespace Combat
         public void ApplyDifficultyScaling(float staminaMultiplier, float telegraphSpeedMultiplier)
         {
             ApplyDifficultyScaling(1.0f, staminaMultiplier, telegraphSpeedMultiplier, 1.0f, 1.0f);
+        }
+
+        /// <summary>
+        /// Применение процедурного профиля личности (4 вектора: Мир, Игрок, Свои, Я).
+        /// Назначает боевой класс, модификаторы характеристик и поведение.
+        /// </summary>
+        public void ApplyPersonalityProfile(Combat.ProceduralGeneration.EnemyPersonalityProfile profile)
+        {
+            if (profile == null) return;
+            personalityProfile = profile;
+
+            if (profile.healthMultiplier > 0.01f)
+            {
+                maxHealth = Mathf.Round(maxHealth * profile.healthMultiplier);
+                currentHealth = maxHealth;
+            }
+
+            moveSpeed *= profile.speedMultiplier;
+            attackDamage = Mathf.Round(attackDamage * profile.damageMultiplier);
+            telegraphDuration *= profile.attackIntervalMultiplier;
+            recoveryDuration *= profile.attackIntervalMultiplier;
+
+            if (profile.scaleMultiplier > 0.1f)
+            {
+                transform.localScale = new Vector3(profile.scaleMultiplier, profile.scaleMultiplier, 1f);
+            }
+
+            if (staminaBar != null)
+            {
+                staminaBar.SetStamina(currentStamina, maxStamina);
+            }
         }
 
         public void Die(Vector2 knockbackDirection, bool wasCounter = false)

@@ -46,14 +46,14 @@ namespace LevelGeneration
 
     public enum SectorDoorSetupMode
     {
+        [Tooltip("Две решётки (на входе и на выходе)")]
+        BothDoors = 0,
+
         [Tooltip("Ровно одна решётка на входе на арену (захлопывается при входе игрока, открывается при победе)")]
-        OnlyEntranceDoor = 0,
+        OnlyEntranceDoor = 1,
 
         [Tooltip("Ровно одна решётка на выходе с арены (заперта до победы над врагами)")]
-        OnlyExitDoor = 1,
-
-        [Tooltip("Две решётки (на входе и на выходе)")]
-        BothDoors = 2
+        OnlyExitDoor = 2
     }
 
     [Serializable]
@@ -1095,14 +1095,14 @@ namespace LevelGeneration
                 Combat.Navigation.PlatformNavGraph2D.Instance.BuildNavGraph();
             }
 
-            // Установка запирающихся барьерных дверей сектора до запекания NavMesh
+            // 1. Процедурный спавн врагов по нарастающей сложности на платформах
+            SpawnEnemiesForCurrentCycle(_spawnedChunks);
+
+            // 2. Установка запирающихся барьерных дверей сектора до запекания NavMesh
             if (enableSectorDoors)
             {
                 SetupSectorDoors(_spawnedChunks);
             }
-
-            // Процедурный спавн врагов по нарастающей сложности на платформах
-            SpawnEnemiesForCurrentCycle(_spawnedChunks);
 
             // Инициализация боевого замка сектора со всеми заспавненными врагами
             if (_combatLockInstance != null && _spawnedChunks != null && _spawnedChunks.Count >= 2)
@@ -1348,6 +1348,12 @@ namespace LevelGeneration
                 }
 
                 _spawnedEnemies.Add(enemyObj);
+            }
+
+            // Процедурное назначение классов и архетипов на основе 4 векторов
+            if (_spawnedEnemies != null && _spawnedEnemies.Count > 0)
+            {
+                Combat.ProceduralGeneration.ArenaDirector2D.Instance.AssignRolesToSpawnedEnemies(_spawnedEnemies);
             }
 
             string levelName = buffConfig != null ? buffConfig.levelTitle : $"Круг {currentCycle}";

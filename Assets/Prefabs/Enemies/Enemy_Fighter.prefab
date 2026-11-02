@@ -356,6 +356,29 @@ MonoBehaviour:
   faceTransform: {fileID: 768153362492686656}
   telegraphVisualizer: {fileID: 0}
   animationController: {fileID: 2921799208208971846}
+  personalityProfile:
+    combatClass: 0
+    archetype: 0
+    roleTitle: 
+    acrobatics: 50
+    mobility: 50
+    patience: 50
+    anticipation: 50
+    empathy: 50
+    subordination: 50
+    selfPreservation: 50
+    parrySkill: 50
+    worldScore: 0
+    playerScore: 0
+    alliesScore: 0
+    selfScore: 0
+    healthMultiplier: 1
+    speedMultiplier: 1
+    damageMultiplier: 1
+    attackIntervalMultiplier: 1
+    scaleMultiplier: 1
+    fleeHealthThreshold: 0.25
+    classSilhouetteColor: {r: 1, g: 1, b: 1, a: 1}
 --- !u!114 &7546991885098454110
 MonoBehaviour:
   m_ObjectHideFlags: 0
