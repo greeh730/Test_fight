@@ -102,7 +102,7 @@ namespace Magic
         {
             if (transform.parent == null)
             {
-                var canvas = FindObjectOfType<Canvas>();
+                var canvas = FindAnyObjectByType<Canvas>();
                 if (canvas != null)
                 {
                     transform.SetParent(canvas.transform, false);
@@ -286,7 +286,7 @@ namespace Magic
         /// </summary>
         public static DenseFogUI Spawn(float duration = 6.0f)
         {
-            var canvas = FindObjectOfType<Canvas>();
+            var canvas = FindAnyObjectByType<Canvas>();
             if (canvas == null)
             {
                 Debug.LogWarning("[DenseFogUI] Canvas не найден в сцене!");

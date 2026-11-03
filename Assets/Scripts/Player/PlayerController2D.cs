@@ -227,6 +227,25 @@ namespace Combat.Player
 
         public float MoveSpeedMultiplier { get; set; } = 1.0f;
         public bool IsHitstunned => _hitstunTimer > 0f;
+        private float _rootTimer = 0f;
+        public bool IsRooted => _rootTimer > 0f;
+
+        /// <summary>
+        /// Наложение эффекта обездвиживания (капкан, путы). Игрок не может ходить, прыгать и делать дэш, но может атаковать и парировать!
+        /// </summary>
+        public void ApplyRoot(float duration)
+        {
+            _rootTimer = Mathf.Max(_rootTimer, duration);
+            if (_isDashing)
+            {
+                _isDashing = false;
+                if (_rb != null) _rb.gravityScale = baseGravityScale;
+            }
+            if (_rb != null)
+            {
+                _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
+            }
+        }
 
         public void ApplyHitstun(float duration)
         {
@@ -376,6 +395,11 @@ namespace Combat.Player
                 HandleJumpAndGravity();
             }
 
+            if (IsRooted && _rb != null)
+            {
+                _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
+            }
+
             _wasGroundedLastFrame = IsGrounded;
         }
 
@@ -484,6 +508,17 @@ namespace Combat.Player
                 if (!caps.AllowDash) { shiftHold = false; aPressedThisFrame = false; dPressedThisFrame = false; shiftPressedThisFrame = false; }
             }
 
+            if (IsRooted)
+            {
+                h = 0f;
+                jumpDown = false;
+                jumpHold = false;
+                shiftHold = false;
+                aPressedThisFrame = false;
+                dPressedThisFrame = false;
+                shiftPressedThisFrame = false;
+            }
+
             _horizontalInput = Mathf.Clamp(h, -1f, 1f);
             _jumpHeld = jumpHold;
             _downHeld = downHold;
@@ -548,6 +583,7 @@ namespace Combat.Player
         private bool CanDash()
         {
             if (!enableDash) return false;
+            if (IsRooted) return false;
             if (_isDashing) return false;
             if (_dashCooldownTimer > 0f) return false;
             if (!IsGrounded && _airDashesLeft <= 0) return false;
@@ -607,6 +643,12 @@ namespace Combat.Player
             if (_hitstunTimer > 0f)
             {
                 _hitstunTimer -= Time.deltaTime;
+            }
+
+            // Root Timer (Капкан)
+            if (_rootTimer > 0f)
+            {
+                _rootTimer -= Time.deltaTime;
             }
 
             // Coyote Timer: доступен только когда игрок твердо стоит на земле и не совершает активный прыжок

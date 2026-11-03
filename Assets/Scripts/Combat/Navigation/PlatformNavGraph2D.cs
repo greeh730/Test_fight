@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using LevelGeneration;
+using UnityEngine.Tilemaps;
 
 namespace Combat.Navigation
 {
@@ -21,14 +22,15 @@ namespace Combat.Navigation
         public float JumpForce = 13.5f;
         public float ForwardSpeed = 3.6f;
         public float FlightDuration = 0.5f;
-        public PlatformSegment ToSegment;
+        [NonSerialized] public PlatformSegment ToSegment;
         public string Description = "";
     }
 
+    [Serializable]
     public class PlatformLink
     {
-        public PlatformSegment From;
-        public PlatformSegment To;
+        [NonSerialized] public PlatformSegment From;
+        [NonSerialized] public PlatformSegment To;
         public NavActionType Action;
         public Vector2 TakeoffPoint;
         public Vector2 LandingPoint;
@@ -38,6 +40,7 @@ namespace Combat.Navigation
         public float Cost;
     }
 
+    [Serializable]
     public class PlatformSegment
     {
         public int Id;
@@ -47,7 +50,7 @@ namespace Combat.Navigation
         public float XMax;
         public float YTop;
         public Bounds Bounds;
-        public List<PlatformLink> Links = new List<PlatformLink>();
+        [NonSerialized] public List<PlatformLink> Links = new List<PlatformLink>();
 
         public Vector2 LeftLedge => new Vector2(XMin, YTop);
         public Vector2 RightLedge => new Vector2(XMax, YTop);
@@ -108,10 +111,10 @@ namespace Combat.Navigation
         [SerializeField] private float botPivotOffsetY = 0.50f;
 
         [Tooltip("Максимальная сила прыжка бота")]
-        [SerializeField] private float maxJumpForce = 15.5f;
+        [SerializeField] private float maxJumpForce = 18.5f;
 
         [Tooltip("Скорость горизонтального бега")]
-        [SerializeField] private float botRunSpeed = 3.8f;
+        [SerializeField] private float botRunSpeed = 4.8f;
 
         [Tooltip("Запас высоты над посадочной платформой при расчете дуги прыжка (clearing margin)")]
         [SerializeField] private float jumpHeightClearance = 0.85f;
@@ -155,28 +158,41 @@ namespace Combat.Navigation
             _segments.Clear();
             _isGraphBuilt = false;
 
-            var allColliders = FindObjectsByType<Collider2D>();
             int segId = 0;
 
+            // 1. Сканируем Tilemap'ы сцены для точного обнаружения горизонтальных поверхностей всех платформ и ступеней
+            var allTilemaps = FindObjectsByType<Tilemap>();
+            var processedTilemaps = new HashSet<Tilemap>();
+
+            for (int t = 0; t < allTilemaps.Length; t++)
+            {
+                var tm = allTilemaps[t];
+                if (tm == null || !tm.gameObject.activeInHierarchy) continue;
+                if (tm.name.Contains("Background") || tm.name.Contains("Shadow")) continue;
+                if (((1 << tm.gameObject.layer) & groundLayer) == 0) continue;
+                if (processedTilemaps.Contains(tm)) continue;
+                processedTilemaps.Add(tm);
+
+                ScanTilemapSurfaces(tm, ref segId);
+            }
+
+            // 2. Сканируем отдельные твердые коллайдеры (бочки, подвесные платформы, ящики)
+            var allColliders = FindObjectsByType<Collider2D>();
             for (int i = 0; i < allColliders.Length; i++)
             {
                 var col = allColliders[i];
                 if (col == null || col.isTrigger || !col.gameObject.activeInHierarchy) continue;
-
-                // Проверяем принадлежность слою земли
+                if (col.GetComponent<Tilemap>() != null || col.GetComponentInParent<Tilemap>() != null) continue;
                 if (((1 << col.gameObject.layer) & groundLayer) == 0) continue;
 
-                // Исключаем коллайдеры персонажей и боевых сущностей
                 if (col.CompareTag("Player") || col.name.Contains("Player") || col.GetComponentInParent<Combat.Player.PlayerHealth2D>() != null) continue;
                 if (col.GetComponent<Combat.Common.ICombatEntity2D>() != null || col.GetComponentInParent<Combat.Common.ICombatEntity2D>() != null) continue;
                 if (col.name.Contains("Hurtbox") || col.name.Contains("Hitbox") || col.name.Contains("Wall") || col.name.Contains("Barrier") || col.name.Contains("Blocker")) continue;
                 if (col.GetComponentInParent<SectorBarrierDoor2D>() != null || col.GetComponentInParent<EnemyBlockerBarrier2D>() != null) continue;
 
                 Bounds b = col.bounds;
-                // Исключаем вертикальные тонкие стены
                 if (b.size.x < 0.4f && b.size.y > 1.5f) continue;
-                // Исключаем слишком маленькие объекты
-                if (b.size.x < 0.6f) continue;
+                if (b.size.x < 0.5f) continue;
 
                 var seg = new PlatformSegment
                 {
@@ -201,6 +217,62 @@ namespace Combat.Navigation
             _lastBuildTime = Time.time;
         }
 
+        private void ScanTilemapSurfaces(Tilemap tm, ref int segId)
+        {
+            var bounds = tm.cellBounds;
+            var col = tm.GetComponent<Collider2D>() ?? tm.GetComponentInParent<Collider2D>();
+
+            for (int y = bounds.yMin; y <= bounds.yMax; y++)
+            {
+                int spanStart = int.MinValue;
+                for (int x = bounds.xMin; x <= bounds.xMax + 1; x++)
+                {
+                    bool hasTile = tm.HasTile(new Vector3Int(x, y, 0));
+                    bool tileAbove = tm.HasTile(new Vector3Int(x, y + 1, 0));
+                    bool isTop = hasTile && !tileAbove;
+
+                    if (isTop)
+                    {
+                        if (spanStart == int.MinValue) spanStart = x;
+                    }
+                    else
+                    {
+                        if (spanStart != int.MinValue)
+                        {
+                            Vector3 worldMin = tm.CellToWorld(new Vector3Int(spanStart, y, 0));
+                            Vector3 worldMax = tm.CellToWorld(new Vector3Int(x, y, 0));
+                            float yTop = worldMin.y + tm.cellSize.y;
+                            float xMin = worldMin.x + edgeInset;
+                            float xMax = worldMax.x - edgeInset;
+
+                            // Фильтруем слишком узкие платформы
+                            if (xMax > xMin + 0.35f)
+                            {
+                                Bounds b = new Bounds(
+                                    new Vector3((worldMin.x + worldMax.x) * 0.5f, yTop - 0.5f, 0f),
+                                    new Vector3(worldMax.x - worldMin.x, 1.0f, 1.0f)
+                                );
+
+                                var seg = new PlatformSegment
+                                {
+                                    Id = segId++,
+                                    Collider = col,
+                                    Name = $"{tm.name}_y{y}",
+                                    Bounds = b,
+                                    XMin = xMin,
+                                    XMax = xMax,
+                                    YTop = yTop
+                                };
+                                _segments.Add(seg);
+                            }
+
+                            spanStart = int.MinValue;
+                        }
+                    }
+                }
+            }
+        }
+
         private void GeneratePlatformLinks()
         {
             float maxJumpHeight = (maxJumpForce * maxJumpForce) / (2f * effectiveGravity);
@@ -217,8 +289,11 @@ namespace Combat.Navigation
                     float dy = segB.YTop - segA.YTop;
 
                     // 1. ПРЫЖКОВЫЕ СВЯЗИ (JUMP LINKS)
-                    // Платформа B выше или на том же уровне или немного ниже
-                    if (dy <= maxJumpHeight && dy > -3.5f)
+                    // Платформа B выше (dy > 0.15f) или на том же уровне с горизонтальной пропастью (|dy| <= 0.6f)
+                    bool isHigher = dy > 0.15f && dy <= maxJumpHeight;
+                    bool isSameLevelGap = Mathf.Abs(dy) <= 0.6f;
+
+                    if (isHigher || isSameLevelGap)
                     {
                         // А. segB находится справа от segA
                         if (segB.XMin >= segA.XMax - 0.5f)
@@ -592,6 +667,22 @@ namespace Combat.Navigation
                         : (cameFrom.ContainsKey(current) ? Mathf.Abs(cameFrom[current].LandingPoint.x - link.TakeoffPoint.x) : 0f);
 
                     float tentativeG = gScore[current] + link.Cost + (distToTakeoff / Mathf.Max(0.5f, botRunSpeed));
+
+                    // Если на целевом сегменте находится капкан — добавляем штраф стоимости пути (боты стараются обойти)
+                    var activeTraps = Combat.ProceduralGeneration.CombatTrap2D.ActiveTraps;
+                    for (int t = 0; t < activeTraps.Count; t++)
+                    {
+                        var trap = activeTraps[t];
+                        if (trap != null && trap.IsHazard)
+                        {
+                            Vector2 trapPos = trap.transform.position;
+                            if (neighbor.ContainsX(trapPos.x) && Mathf.Abs(trapPos.y - neighbor.YTop) < 0.65f)
+                            {
+                                tentativeG += 16.0f;
+                                break;
+                            }
+                        }
+                    }
 
                     if (!gScore.ContainsKey(neighbor) || tentativeG < gScore[neighbor])
                     {

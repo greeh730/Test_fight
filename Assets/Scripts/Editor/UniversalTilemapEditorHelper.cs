@@ -132,7 +132,7 @@ namespace TestFight.Editor
             }
 
             // В обычном режиме сцены
-            var all = UnityEngine.Object.FindObjectsByType<Tilemap>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            var all = UnityEngine.Object.FindObjectsByType<Tilemap>(FindObjectsInactive.Exclude);
             if (all != null)
             {
                 for (int i = 0; i < all.Length; i++)
@@ -509,7 +509,7 @@ namespace TestFight.Editor
             if (prefabStage == null || prefabStage.prefabContentsRoot == null) return;
             global::LevelGeneration.Editor.ChunkLightingAutoValidator.ValidateAndFixChunkHierarchy(prefabStage.prefabContentsRoot);
 
-            PrefabUtility.SaveAsPrefabAsset(prefabStage.prefabContentsRoot, prefabStage.prefabAssetPath);
+            PrefabUtility.SaveAsPrefabAsset(prefabStage.prefabContentsRoot, prefabStage.assetPath);
             Debug.Log($"<color=#00FFAA><b>[TilemapEditor]</b></color> Префаб '{prefabStage.prefabContentsRoot.name}' успешно сохранен (тайлы, тени и свет обновлены)!");
         }
 

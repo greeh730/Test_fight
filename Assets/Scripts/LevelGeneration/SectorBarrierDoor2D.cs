@@ -373,17 +373,26 @@ namespace LevelGeneration
             float elapsed = 0f;
             float duration = Mathf.Max(0.01f, transitionDuration);
 
+            float initialFactor = closing ? 0f : 1f;
+            if (usePortcullisGrate && _portcullisRenderer != null)
+            {
+                float currentY = _portcullisRenderer.transform.localPosition.y;
+                float openY = closedCenterY + openSlideDistance;
+                initialFactor = Mathf.Clamp01((openY - currentY) / openSlideDistance);
+            }
+
+            float targetFactor = closing ? 1.0f : 0.0f;
+
             while (elapsed < duration)
             {
                 elapsed += Time.deltaTime;
                 float t = Mathf.Clamp01(elapsed / duration);
-                // Если закрываем — t идет от 0 к 1. Если открываем — от 1 к 0
-                float progress = closing ? t : (1.0f - t);
+                float progress = Mathf.Lerp(initialFactor, targetFactor, t);
                 ApplyVisualState(closing, progress);
                 yield return null;
             }
 
-            ApplyVisualState(closing, closing ? 1.0f : 0.0f);
+            ApplyVisualState(closing, targetFactor);
             _transitionRoutine = null;
         }
 

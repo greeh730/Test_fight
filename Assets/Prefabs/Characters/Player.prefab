@@ -776,10 +776,10 @@ MonoBehaviour:
   orbWeight: 0.2
   orbDrag: 4
   orbReturnSpeed: 6
-  inspectorFreeZoneRadius: 0.8
+  inspectorFreeZoneRadius: 0.95
   arrowSize: 48
   wheelRadius: 2
-  freeZoneRadius: 0.8
+  freeZoneRadius: 0.95
   attackSectorAngle: 60
   deadZoneAngle: 0
   enableDeadZone: 0

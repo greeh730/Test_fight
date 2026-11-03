@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 
 namespace Combat.ProceduralGeneration
@@ -16,6 +17,15 @@ namespace Combat.ProceduralGeneration
         private static Sprite _iconTank;
         private static Sprite _iconLeader;
         private static Sprite _iconController;
+
+        public static Sprite IconLeader
+        {
+            get
+            {
+                if (_iconLeader == null) GenerateProceduralIcons();
+                return _iconLeader;
+            }
+        }
 
         [Header("--- Отображение роли ---")]
         [SerializeField] private CombatClass currentClass;
@@ -144,6 +154,40 @@ namespace Combat.ProceduralGeneration
             }
 
             _badgeObject.transform.localScale = new Vector3(1.25f, 1.25f, 1f);
+        }
+
+        /// <summary>
+        /// Анимация импульса бейджа при совершении лечения (пульсация вверх и обратно)
+        /// </summary>
+        public void TriggerHealPulseAnimation()
+        {
+            if (gameObject.activeInHierarchy)
+            {
+                StartCoroutine(HealPulseRoutine());
+            }
+        }
+
+        private IEnumerator HealPulseRoutine()
+        {
+            if (_badgeObject == null) yield break;
+            Vector3 baseScale = _badgeObject.transform.localScale;
+            float elapsed = 0f;
+            float dur = 0.5f;
+            while (elapsed < dur)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / dur;
+                float bump = 1f + Mathf.Sin(t * Mathf.PI) * 0.75f;
+                if (_badgeObject != null)
+                {
+                    _badgeObject.transform.localScale = baseScale * bump;
+                }
+                yield return null;
+            }
+            if (_badgeObject != null)
+            {
+                _badgeObject.transform.localScale = baseScale;
+            }
         }
 
         private void LateUpdate()

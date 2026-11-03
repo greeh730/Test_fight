@@ -48,6 +48,7 @@ public class FocusManager : MonoBehaviour
 
     [Tooltip("Активен ли режим фокуса в данный момент")]
     public bool isFocusActive = false;
+    public bool IsFocusActive => isFocusActive;
 
     [Header("Параметры состояния фокуса")]
     [Tooltip("Замедление времени в режиме фокуса (0.1–0.3)")]
@@ -578,6 +579,9 @@ public class FocusManager : MonoBehaviour
                 else
                 {
                     Debug.Log($"<color=#FFAA00>[FOCUS]</color> Нажата ЛКМ, но замах еще не максимальный ({tension:F2} < {maxTensionThreshold:F2}). Натяните курсор сильнее!");
+                    var p = GetPlayer();
+                    Vector3 spawnPos = (p != null) ? p.transform.position + Vector3.up * 1.5f : transform.position + Vector3.up * 1.5f;
+                    Combat.Common.CombatFloatingText.Spawn(spawnPos, "Натяните курсор сильнее!", new Color(1f, 0.85f, 0.2f, 1f), 0.9f);
                 }
             }
 
@@ -958,6 +962,16 @@ public class FocusManager : MonoBehaviour
             Collider2D hitEnemy = CheckEnemyColliderIntersect(segStart, segEnd);
             if (hitEnemy != null)
             {
+                var vovaTarget = hitEnemy.GetComponent<Combat.Tutorial.TutorialVovaController>() ?? hitEnemy.GetComponentInParent<Combat.Tutorial.TutorialVovaController>();
+                if (vovaTarget != null)
+                {
+                    vovaTarget.ExecuteFocusFinisher();
+                    RestoreFocusToFull();
+                    ApplyKillBuffs();
+                    ExitFocus();
+                    return;
+                }
+
                 hitEnemy.SendMessage("TakeDamage", normalStrikeDamage, SendMessageOptions.DontRequireReceiver);
                 var target = hitEnemy.GetComponent<Combat.IHurtboxTarget2D>() ?? hitEnemy.GetComponentInParent<Combat.IHurtboxTarget2D>();
                 if (target != null)
@@ -995,7 +1009,7 @@ public class FocusManager : MonoBehaviour
         foreach (var h in hits)
         {
             if (h.collider == null) continue;
-            if (h.collider.CompareTag("Enemy") || h.collider.gameObject.layer == LayerMask.NameToLayer("Enemy") || h.collider.GetComponentInParent<Combat.CombatDummy2D>() != null)
+            if (h.collider.CompareTag("Enemy") || h.collider.gameObject.layer == LayerMask.NameToLayer("Enemy") || h.collider.GetComponentInParent<Combat.CombatDummy2D>() != null || h.collider.GetComponentInParent<Combat.Tutorial.TutorialVovaController>() != null)
             {
                 return h.collider;
             }
@@ -1037,6 +1051,16 @@ public class FocusManager : MonoBehaviour
         {
             Collider2D col = Physics2D.OverlapCircle(point.transform.position, 1.5f);
             if (col != null) enemyObj = col.gameObject;
+        }
+
+        var tutorialVova = (enemyObj != null) ? (enemyObj.GetComponent<Combat.Tutorial.TutorialVovaController>() ?? enemyObj.GetComponentInParent<Combat.Tutorial.TutorialVovaController>()) : null;
+        if (tutorialVova != null)
+        {
+            tutorialVova.ExecuteFocusFinisher();
+            RestoreFocusToFull();
+            ApplyKillBuffs();
+            ExitFocus();
+            return;
         }
 
         if (isLethal)

@@ -221,6 +221,8 @@ namespace Combat
         [SerializeField] private Combat.ProceduralGeneration.EnemyPersonalityProfile personalityProfile;
         public Combat.ProceduralGeneration.EnemyPersonalityProfile PersonalityProfile => personalityProfile;
         private bool _isDroppingOffLedge = false;
+        private float _trapperPlaceTimer = 3.5f;
+        private readonly List<Combat.ProceduralGeneration.CombatTrap2D> _placedTraps = new List<Combat.ProceduralGeneration.CombatTrap2D>();
 
         /// <summary>
         /// Восстанавливает здоровье врагу (например, если подобрал зелье).
@@ -243,6 +245,17 @@ namespace Combat
             if (CurrentState == EnemyState.Dead || (!canDie && currentHealth <= 0f)) return;
             currentHealth = Mathf.Min(maxHealth, currentHealth + amount);
             _lastHitTime = Time.time;
+            FlashColor(new Color(0.2f, 1.0f, 0.45f, 1f), 0.35f);
+        }
+
+        /// <summary>
+        /// Запуск цветовой вспышки спрайта (например, зеленая при лечении, красная при ударе)
+        /// </summary>
+        public void FlashColor(Color color, float duration = 0.25f)
+        {
+            if (!gameObject.activeInHierarchy) return;
+            if (_flashRoutine != null) StopCoroutine(_flashRoutine);
+            _flashRoutine = StartCoroutine(FlashRoutine(normalColor, color, duration));
         }
 
         // Границы боевого сектора арены
@@ -256,6 +269,11 @@ namespace Combat
         }
         public float MaxStamina => maxStamina;
         public float CurrentStamina => currentStamina;
+        public float StaminaBreakStunDuration
+        {
+            get => staminaBreakStunDuration;
+            set => staminaBreakStunDuration = value;
+        }
         public Rigidbody2D Rigidbody => _rb;
         public EnemyTacticalRole TacticalRole { get; private set; } = EnemyTacticalRole.Solo;
         public AirJuggleReceiver2D AirJuggle => _airJuggle;
@@ -807,6 +825,16 @@ namespace Combat
                     return;
                 }
 
+                float botFeetYNav = _col != null ? _col.bounds.min.y : (transform.position.y - 1.2f);
+                var patrolTrapNav = Combat.ProceduralGeneration.CombatTrap2D.GetHazardTrapAhead(new Vector2(transform.position.x, botFeetYNav), _patrolDirection, 1.4f, 0.65f);
+                if (patrolTrapNav != null)
+                {
+                    _patrolWaitTimer = patrolWaitDuration;
+                    _desiredVelocityX = 0f;
+                    _navAgent.isStopped = true;
+                    return;
+                }
+
                 _navAgent.isStopped = false;
                 _navAgent.speed = patrolSpeed;
                 Vector3 patrolDest = new Vector3(_patrolAnchorX + (_patrolDirection * patrolRadius), transform.position.y, 0f);
@@ -862,6 +890,16 @@ namespace Combat
             // 5. Проверка границ сектора
             if ((_patrolDirection > 0f && transform.position.x >= _maxSectorX - 0.6f) ||
                 (_patrolDirection < 0f && transform.position.x <= _minSectorX + 0.6f))
+            {
+                _patrolWaitTimer = patrolWaitDuration;
+                _desiredVelocityX = 0f;
+                return;
+            }
+
+            // 5B. Проверка капканов на пути патрулирования (не наступаем на капканы)
+            float botFeetYPatrol = _col != null ? _col.bounds.min.y : (transform.position.y - 1.2f);
+            var patrolTrap = Combat.ProceduralGeneration.CombatTrap2D.GetHazardTrapAhead(new Vector2(transform.position.x, botFeetYPatrol), _patrolDirection, 1.4f, 0.65f);
+            if (patrolTrap != null)
             {
                 _patrolWaitTimer = patrolWaitDuration;
                 _desiredVelocityX = 0f;
@@ -1149,6 +1187,7 @@ namespace Combat
                         float ctrlSide = Mathf.Sign(transform.position.x - _playerTransform.position.x);
                         if (Mathf.Abs(ctrlSide) < 0.1f) ctrlSide = 1f;
                         targetX = _playerTransform.position.x + ctrlSide * 3.4f;
+                        UpdateTrapperLogic();
                         break;
                 }
             }
@@ -1184,13 +1223,11 @@ namespace Combat
 
                 _navMeshRepathTimer -= Time.deltaTime;
                 float dyNav = _playerTransform.position.y - transform.position.y;
-                // При перепаде высоты более 1.0м проецируем цель NavMesh на текущую высоту врага,
-                // чтобы агент не стремился вертикально сквозь пол/воздух с нулевой скоростью по X!
-                float navDestY = (Mathf.Abs(dyNav) > 1.0f) ? transform.position.y : _playerTransform.position.y;
                 float navTargetX = targetX;
+                float navDestY = _playerTransform.position.y;
 
-                // Если игрок внизу, а мы прямо над ним — направляем NavMesh к ближайшему краю для спуска
-                if (dyNav < -1.0f && Mathf.Abs(targetX - transform.position.x) < 0.65f)
+                // Если игрок внизу, а мы прямо над ним на платформе — направляем к ближайшему краю для спуска
+                if (dyNav < -0.8f && Mathf.Abs(targetX - transform.position.x) < 0.95f)
                 {
                     float ledgeDir = FindNearestLedgeDirection();
                     navTargetX = transform.position.x + ledgeDir * 4.0f;
@@ -1232,7 +1269,15 @@ namespace Combat
                 }
                 else
                 {
-                    pathHandledMovement = true;
+                    // Если перепад высот значительный (> 0.8м) и доступен PlatformNavGraph2D — передаем расчет точного ступенчатого маршрута ему
+                    if (Mathf.Abs(dyNav) > 0.8f && usePlatformPathfinding && PlatformNavGraph2D.Instance != null)
+                    {
+                        pathHandledMovement = false;
+                    }
+                    else
+                    {
+                        pathHandledMovement = true;
+                    }
                 }
             }
 
@@ -1430,9 +1475,42 @@ namespace Combat
             }
 
             // -------------------------------------------------------------
+            // 3B. ОБНАРУЖЕНИЕ КАПКАНОВ НА ПУТИ (TRAP AVOIDANCE)
+            // -------------------------------------------------------------
+            bool isBrakingForTrap = false;
+            float moveDirForTraps = (useNavMesh && _navAgent != null && _navAgent.isOnNavMesh && Mathf.Abs(_navAgent.desiredVelocity.x) > 0.15f)
+                ? Mathf.Sign(_navAgent.desiredVelocity.x)
+                : (dirX != 0f ? dirX : FacingDirection);
+
+            float botFeetY = _col != null ? _col.bounds.min.y : (transform.position.y - 1.2f);
+            var trapHazard = Combat.ProceduralGeneration.CombatTrap2D.GetHazardTrapAhead(new Vector2(transform.position.x, botFeetY), moveDirForTraps, 2.5f, 0.65f);
+
+            if (trapHazard != null)
+            {
+                float trapDist = Mathf.Abs(trapHazard.transform.position.x - transform.position.x);
+                if (_jumpCooldownTimer <= 0f && IsGrounded && !isNavTransitionActive && trapDist >= 0.75f && trapDist <= 2.3f)
+                {
+                    // 1. Грациозный прыжок через капкан!
+                    Jump(jumpForce * 0.95f, moveDirForTraps * Mathf.Max(currentMoveSpeed * 1.35f, 4.6f));
+                    _jumpCooldownTimer = jumpCooldown * 1.25f;
+                    Debug.Log($"[ENEMY AI] {name} замечает капкан и перепрыгивает его! (dist: {trapDist:F2})");
+                }
+                else if (trapDist < 0.75f || _jumpCooldownTimer > 0f)
+                {
+                    // 2. Если прыжок на перезарядке или бот слишком близко — тормозим и держим дистанцию
+                    isBrakingForTrap = true;
+                    dirX = 0f;
+                    if (trapDist < 0.65f)
+                    {
+                        dirX = -moveDirForTraps * 0.5f; // Осторожно отступаем от зубьев
+                    }
+                }
+            }
+
+            // -------------------------------------------------------------
             // 4. РЕАКТИВНЫЙ ПРЫЖКОВЫЙ ИНТЕЛЛЕКТ (ПРЕОДОЛЕНИЕ ПРЕПЯТСТВИЙ, БОЧЕК И ПЛАТФОРМ)
             // -------------------------------------------------------------
-            if (IsGrounded && _jumpCooldownTimer <= 0f && !isNavTransitionActive)
+            if (IsGrounded && _jumpCooldownTimer <= 0f && !isNavTransitionActive && !isBrakingForTrap)
             {
                 bool hasCeilingAbove = false;
                 var ceilingHits = Physics2D.RaycastAll(transform.position, Vector2.up, 1.9f, groundLayer);
@@ -1489,7 +1567,7 @@ namespace Combat
                         }
                     }
 
-                    bool isDescendingToPlayer = dyToPlayer < -1.0f;
+                    bool isDescendingToPlayer = dyToPlayer < -0.8f;
                     if (obstacleAhead && absDx > 0.4f && !isDescendingToPlayer)
                     {
                         shouldJump = true;
@@ -1498,7 +1576,7 @@ namespace Combat
                         _jumpCooldownTimer = 0.55f;
                     }
                     // Б. Игрок находится на платформе ВЫШЕ врага — рассчитываем точный прыжок вверх
-                    else if (dyToPlayer > 1.15f && dyToPlayer < 5.5f && absDx < 3.8f)
+                    else if (dyToPlayer > 0.85f && dyToPlayer < 5.5f && absDx < 3.8f)
                     {
                         shouldJump = true;
                         // Формула высоты прыжка: v_y = sqrt(2 * g * (dy + clearance))
@@ -1517,14 +1595,15 @@ namespace Combat
                         // Если дошли до края платформы — делаем уверенный шаг вперед в пустоту и падаем под действием гравитации
                         if (!groundAhead)
                         {
-                            _activeJumpForwardSpeed = moveDir * (currentMoveSpeed * 0.95f);
+                            _activeJumpForwardSpeed = moveDir * (currentMoveSpeed * 1.05f);
                             _desiredVelocityX = _activeJumpForwardSpeed;
                             _isDroppingOffLedge = true;
-                            _jumpCooldownTimer = 0.4f;
+                            _dropAirborneGraceTimer = 0.25f;
+                            _jumpCooldownTimer = 0.5f;
                         }
                     }
                     // Г. Фланговый прыжок через игрока (когда бот обходит вплотную на том же уровне)
-                    else if (isFlankingThrough && absDx < 2.0f && Mathf.Abs(dyToPlayer) < 1.1f && dyToPlayer >= -0.5f)
+                    else if (isFlankingThrough && absDx < 2.0f && Mathf.Abs(dyToPlayer) < 1.1f && dyToPlayer >= -0.5f && !isDescendingToPlayer)
                     {
                         shouldJump = true;
                         customJumpForce = jumpForce * 1.05f;
@@ -1533,7 +1612,7 @@ namespace Combat
                         _jumpCooldownTimer = jumpCooldown * 1.3f;
                     }
                     // Д. Боевой прыжок сближения (Combat Leap / Pounce) ТОЛЬКО при нахождении на одной высоте!
-                    else if (_combatLeapTimer <= 0f && distToPlayer >= 2.6f && distToPlayer <= 6.0f && Mathf.Abs(dyToPlayer) < 1.1f && dyToPlayer >= -0.5f)
+                    else if (_combatLeapTimer <= 0f && distToPlayer >= 2.6f && distToPlayer <= 6.0f && Mathf.Abs(dyToPlayer) < 1.1f && dyToPlayer >= -0.5f && !isDescendingToPlayer)
                     {
                         shouldJump = true;
                         customJumpForce = jumpForce * 0.95f;
@@ -1542,7 +1621,7 @@ namespace Combat
                         _combatLeapTimer = UnityEngine.Random.Range(combatLeapIntervalMin, combatLeapIntervalMax);
                     }
                     // Д. Проверка обрыва/пропасти перед врагом
-                    else if (!useNavMesh && !usePlatformPathfinding)
+                    else if (!useNavMesh && !usePlatformPathfinding && !isDescendingToPlayer)
                     {
                         Vector2 edgeOrigin = (Vector2)transform.position + new Vector2(FacingDirection * 0.65f, -1.0f);
                         var edgeHits = Physics2D.RaycastAll(edgeOrigin, Vector2.down, 1.6f, groundLayer != 0 ? groundLayer : ~0);
@@ -1617,13 +1696,24 @@ namespace Combat
                     }
                 }
 
-                if (_isDroppingOffLedge)
+                if (isBrakingForTrap)
+                {
+                    _desiredVelocityX = dirX * currentMoveSpeed;
+                    if (_navAgent != null && _navAgent.isOnNavMesh) _navAgent.isStopped = true;
+                }
+                else if (_isDroppingOffLedge)
                 {
                     _desiredVelocityX = _activeJumpForwardSpeed;
-                    if (!IsGrounded)
+                    if (_dropAirborneGraceTimer > 0f) _dropAirborneGraceTimer -= Time.deltaTime;
+                    if (IsGrounded && _dropAirborneGraceTimer <= 0f)
                     {
                         _isDroppingOffLedge = false;
                     }
+                }
+                else if (usePlatformPathfinding && _currentNavPath != null && _currentNavPath.Count > 0 && _currentPathIndex < _currentNavPath.Count)
+                {
+                    // Приоритетное движение по ступеням и платформам (PlatformNavGraph2D)
+                    _desiredVelocityX = (dirX * currentMoveSpeed) + separationVelocityX;
                 }
                 else if (useNavMesh && _navAgent != null && _navAgent.isOnNavMesh)
                 {
@@ -2184,7 +2274,7 @@ namespace Combat
             }
         }
 
-        private void TriggerStaminaBreak()
+        public void TriggerStaminaBreak()
         {
             if (CurrentState == EnemyState.Dead) return;
 
@@ -2274,6 +2364,8 @@ namespace Combat
             }
             Debug.Log($"<color=#D866FF>[VULNERABILITY MARK]</color> На врага наложена метка уязвимости на {duration:F1}с (+35% урона)!");
         }
+
+        public bool IsRooted => _isRooted;
 
         public void ApplyRoot(float duration)
         {
@@ -2468,6 +2560,59 @@ namespace Combat
         public void ApplyDifficultyScaling(float staminaMultiplier, float telegraphSpeedMultiplier)
         {
             ApplyDifficultyScaling(1.0f, staminaMultiplier, telegraphSpeedMultiplier, 1.0f, 1.0f);
+        }
+
+        private void UpdateTrapperLogic()
+        {
+            if (_playerTransform == null || IsDead) return;
+
+            _placedTraps.RemoveAll(t => t == null || t.IsDestroyed);
+
+            if (_trapperPlaceTimer > 0f)
+            {
+                _trapperPlaceTimer -= Time.deltaTime;
+                return;
+            }
+
+            if (IsGrounded && _placedTraps.Count < 2)
+            {
+                float distToPlayer = Vector2.Distance(transform.position, _playerTransform.position);
+                if (distToPlayer >= 1.6f && distToPlayer <= 9.5f)
+                {
+                    PlaceTrap();
+                    _trapperPlaceTimer = UnityEngine.Random.Range(7.5f, 10.0f);
+                }
+            }
+        }
+
+        private void PlaceTrap()
+        {
+            float offsetDir = FacingDirection;
+            if (_playerTransform != null)
+            {
+                offsetDir = Mathf.Sign(_playerTransform.position.x - transform.position.x);
+            }
+            Vector3 trapPos = transform.position + new Vector3(offsetDir * 0.95f, -0.4f, 0f);
+
+            var trap = Combat.ProceduralGeneration.CombatTrap2D.SpawnTrap(trapPos, this);
+            if (trap != null)
+            {
+                _placedTraps.Add(trap);
+            }
+
+            FlashColor(new Color(0.85f, 0.45f, 1.0f, 1f), 0.35f);
+
+            var sil = GetComponent<Combat.ProceduralGeneration.EnemyVisualSilhouette>();
+            if (sil != null) sil.TriggerHealPulseAnimation();
+
+            Combat.Common.CombatFloatingText.Spawn(
+                transform.position + Vector3.up * 1.75f,
+                "🕸️ КАПКАН!",
+                new Color(0.9f, 0.45f, 1.0f, 1f),
+                1.0f, 0.85f, 0.082f, 40, 85
+            );
+
+            Debug.Log($"<color=#B85CFF><b>[Trapper]</b></color> Траппер {name} установил капкан на платформе!");
         }
 
         /// <summary>

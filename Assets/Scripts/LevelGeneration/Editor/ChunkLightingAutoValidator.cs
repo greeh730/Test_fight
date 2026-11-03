@@ -83,7 +83,7 @@ namespace LevelGeneration.Editor
             var stage = PrefabStageUtility.GetCurrentPrefabStage();
             if (stage == null) return;
 
-            string assetPath = stage.prefabAssetPath.Replace('\\', '/');
+            string assetPath = stage.assetPath.Replace('\\', '/');
             if (IsChunkPath(assetPath))
             {
                 ValidateAndFixChunkHierarchy(root);
@@ -101,7 +101,7 @@ namespace LevelGeneration.Editor
                 if (IsChunkPath(path) && path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase))
                 {
                     var stage = PrefabStageUtility.GetCurrentPrefabStage();
-                    if (stage != null && stage.prefabAssetPath.Replace('\\', '/').Equals(path, StringComparison.OrdinalIgnoreCase))
+                    if (stage != null && stage.assetPath.Replace('\\', '/').Equals(path, StringComparison.OrdinalIgnoreCase))
                     {
                         continue;
                     }
@@ -204,7 +204,7 @@ namespace LevelGeneration.Editor
             }
             else
             {
-                var allChunks = UnityEngine.Object.FindObjectsByType<LevelChunk>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+                var allChunks = UnityEngine.Object.FindObjectsByType<LevelChunk>(FindObjectsInactive.Include);
                 foreach (var c in allChunks)
                 {
                     if (ValidateAndFixChunkHierarchy(c.gameObject))

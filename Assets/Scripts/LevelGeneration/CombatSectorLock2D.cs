@@ -51,7 +51,6 @@ namespace LevelGeneration
         private string _bannerText = "";
         private Color _bannerColor = Color.white;
         private float _bannerTimer = 0f;
-        private float _enemySanityTimer = 0f;
 
         public bool IsLocked => isLocked;
         public bool IsCleared => isCleared;
@@ -186,6 +185,7 @@ namespace LevelGeneration
             {
                 isLocked = false;
                 if (entranceDoor != null) entranceDoor.OpenDoor(instant: true);
+                if (exitDoor != null) exitDoor.OpenDoor(instant: true);
                 if (_entryTriggerObject != null) _entryTriggerObject.SetActive(true);
                 RegisterPlayerWithDoors();
                 ShowBanner($"[!] ВХОД НА АРЕНУ ОТКРЫТ (Осталось врагов: {remainingEnemiesCount})", new Color(1.0f, 0.65f, 0.2f, 1f), 3.0f);
@@ -249,9 +249,9 @@ namespace LevelGeneration
             }
             remainingEnemiesCount = _livingEnemies.Count;
 
-            // На старте: Входная дверь ОТКРЫТА, Выходная ЗАКРЫТА
+            // На старте: Входная и Выходная двери ОТКРЫТЫ (обе захлопываются при входе игрока на арену)
             if (entranceDoor != null) entranceDoor.OpenDoor(instant: true);
-            if (exitDoor != null) exitDoor.CloseDoor(instant: true);
+            if (exitDoor != null) exitDoor.OpenDoor(instant: true);
 
             // Настраиваем игнорирование коллизий барьеров с игроком
             RegisterPlayerWithDoors();

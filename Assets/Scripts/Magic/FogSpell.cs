@@ -174,7 +174,7 @@ namespace Magic
             DenseFogUI.Spawn(failDenseFogDuration);
 
             // Все враги на уровне ослепляются и переходят в панику с ударами наугад
-            var enemies = FindObjectsByType<Combat.EnemyAIController2D>(FindObjectsSortMode.None);
+            var enemies = FindObjectsByType<Combat.EnemyAIController2D>();
             for (int i = 0; i < enemies.Length; i++)
             {
                 if (enemies[i] != null && !enemies[i].IsDead)

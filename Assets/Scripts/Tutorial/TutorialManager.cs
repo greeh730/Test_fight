@@ -150,6 +150,8 @@ namespace Combat.Tutorial
             }
         }
 
+        private string _lastVovaDuelInstruction = null;
+
         private void Update()
         {
             // Начиная со встречи со скелетом Вовой шкала фокуса всегда должна быть разблокирована и видна в UI
@@ -159,6 +161,66 @@ namespace Combat.Tutorial
                 {
                     UnlockAndShowFocusUI();
                 }
+            }
+
+            if (currentPhase == TutorialPhase.VovaDuel)
+            {
+                UpdateVovaDuelHUD();
+            }
+        }
+
+        private void UpdateVovaDuelHUD()
+        {
+            if (objectiveHUD == null) return;
+
+            bool isFocusActive = FocusManager.Instance != null && FocusManager.Instance.IsFocusActive;
+            bool isVovaStunned = vovaController != null && vovaController.IsStunned;
+
+            string instruction;
+            string progress;
+            string header = "ДОБИВАНИЕ ВОВЫ";
+
+            if (!isFocusActive)
+            {
+                if (isVovaStunned)
+                {
+                    instruction = "⭐ ВОВА ОГЛУШЁН! Зажмите и удерживайте [ПКМ] для перехода в Режим Фокуса!";
+                    progress = "Удерживайте [ПКМ] (Фокус)";
+                }
+                else
+                {
+                    instruction = "Оглушите Вову: сбивайте его выносливость (жёлтая шкала) ударами меча или парированием!";
+                    progress = "Сбейте выносливость Вовы";
+                }
+            }
+            else
+            {
+                float tension = (FocusManager.Instance.ActiveCircleCharge != null)
+                    ? FocusManager.Instance.ActiveCircleCharge.GetTension01()
+                    : 0f;
+
+                float threshold = FocusManager.Instance.maxTensionThreshold;
+
+                if (tension < threshold)
+                {
+                    instruction = "Оттяните мышь НАЗАД (как тетиву лука), наводя белую линию на Вову!";
+                    progress = $"Натяжение: {(tension / threshold * 100f):F0}%";
+                }
+                else
+                {
+                    instruction = "⚔️ ЗАМАХ МАКСИМАЛЕН! Нажмите [ЛКМ] для смертельного выпада!";
+                    progress = "Нажмите [ЛКМ] (Удар!)";
+                }
+            }
+
+            if (instruction != _lastVovaDuelInstruction)
+            {
+                _lastVovaDuelInstruction = instruction;
+                objectiveHUD.ShowObjective(instruction, progress, header);
+            }
+            else
+            {
+                objectiveHUD.UpdateProgress(progress);
             }
         }
 
@@ -520,7 +582,7 @@ namespace Combat.Tutorial
                 soundMgr.UpdateMovementAudio(false, false, false, 0f);
             }
 
-            var allSources = FindObjectsByType<AudioSource>(FindObjectsSortMode.None);
+            var allSources = FindObjectsByType<AudioSource>();
             for (int i = 0; i < allSources.Length; i++)
             {
                 if (allSources[i] != null)
@@ -533,13 +595,13 @@ namespace Combat.Tutorial
             yield return new WaitForSecondsRealtime(0.20f);
 
             // 5. Очищаем остатки взрыва, горящие частицы и статусы
-            var explosions = FindObjectsByType<FireExplosion>(FindObjectsSortMode.None);
+            var explosions = FindObjectsByType<FireExplosion>();
             for (int i = 0; i < explosions.Length; i++)
             {
                 if (explosions[i] != null) Destroy(explosions[i].gameObject);
             }
 
-            var embers = FindObjectsByType<FireEmber>(FindObjectsSortMode.None);
+            var embers = FindObjectsByType<FireEmber>();
             for (int i = 0; i < embers.Length; i++)
             {
                 if (embers[i] != null) Destroy(embers[i].gameObject);
@@ -807,6 +869,7 @@ namespace Combat.Tutorial
             if (currentPhase != TutorialPhase.VovaDuel) return;
 
             currentPhase = TutorialPhase.VovaDefeated;
+            _lastVovaDuelInstruction = null;
 
             if (objectiveHUD != null)
             {

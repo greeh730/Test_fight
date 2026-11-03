@@ -38,7 +38,7 @@ namespace Fencing
 
         [Tooltip("Радиус центральной свободной зоны (сброс флага удара, пока шарик внутри — удар не наносится)")]
         [Range(0.2f, 1.8f)]
-        [SerializeField] private float inspectorFreeZoneRadius = 0.8f;
+        [SerializeField] private float inspectorFreeZoneRadius = 0.95f;
 
         [Tooltip("Размер иконок стрелок заклинаний на лепестках колеса (в пикселях)")]
         [Range(20f, 80f)]
@@ -49,7 +49,7 @@ namespace Fencing
         [SerializeField] private float wheelRadius = 2.0f;
 
         [Tooltip("Радиус центральной свободной зоны (сброс флага атаки)")]
-        [SerializeField] private float freeZoneRadius = 0.8f;
+        [SerializeField] private float freeZoneRadius = 0.95f;
 
         [Tooltip("Ширина каждого из 6 атакующих лепестков в градусах")]
         [Range(10f, 120f)]
@@ -306,7 +306,7 @@ namespace Fencing
         {
             if (!useInspectorSettings) return;
 
-            freeZoneRadius = Mathf.Clamp(inspectorFreeZoneRadius, 0.05f, wheelRadius * 0.9f);
+            freeZoneRadius = Mathf.Clamp(Mathf.Max(inspectorFreeZoneRadius, 0.95f), 0.05f, wheelRadius * 0.9f);
             enableDeadZone = false;
             deadZoneAngle = 0f;
             attackSectorAngle = 60f;
@@ -408,6 +408,9 @@ namespace Fencing
 
         private void Awake()
         {
+            if (inspectorFreeZoneRadius < 0.95f) inspectorFreeZoneRadius = 0.95f;
+            if (freeZoneRadius < 0.95f) freeZoneRadius = 0.95f;
+
             if (orb == null)
             {
                 orb = GetComponentInChildren<AttackOrb>();

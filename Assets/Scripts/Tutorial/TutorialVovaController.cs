@@ -29,6 +29,7 @@ namespace Combat.Tutorial
         public bool IsCombatActive => isCombatActive;
         public bool IsDefeated => isDefeated;
         public EnemyAIController2D AI => _ai;
+        public bool IsStunned => _ai != null && _ai.CurrentState == EnemyState.Stunned;
 
         private void Awake()
         {
@@ -85,6 +86,7 @@ namespace Combat.Tutorial
             {
                 _ai.enabled = true;
                 _ai.CanDie = false;
+                _ai.StaminaBreakStunDuration = 8.0f; // 8 секунд на подготовку и выполнение добивания
             }
 
             Debug.Log("<color=#00FFAA>[VOVA]</color> Вова активирован и вступил в бой с игроком!");
@@ -102,9 +104,14 @@ namespace Combat.Tutorial
             }
 
             // Защита от гибели от обычных ударов мечом:
-            // Здоровье не опускается ниже 15 HP, пока не применен фокусный выпад (урон 9999)
-            if (_ai.CurrentHealth < 15f && !_ai.IsDead)
+            // Если здоровье опустилось до 15 HP — принудительно оглушаем Вову для фокусного добивания!
+            if (_ai.CurrentHealth <= 15.5f && !_ai.IsDead)
             {
+                if (_ai.CurrentState != EnemyState.Stunned)
+                {
+                    _ai.DrainStamina(999f);
+                    _ai.TriggerStaminaBreak();
+                }
                 _ai.SendMessage("TakeDirectDamage", -10f, SendMessageOptions.DontRequireReceiver);
             }
         }

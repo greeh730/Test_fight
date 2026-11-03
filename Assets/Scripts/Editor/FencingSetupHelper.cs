@@ -170,7 +170,9 @@ namespace Fencing.Editor
             };
 
             string exportPath = "FencingAndFocus_Only.unitypackage";
+            #pragma warning disable CS0618
             AssetDatabase.ExportPackage(assetPaths, exportPath, ExportPackageOptions.Default);
+#pragma warning restore CS0618
             Debug.Log($"<color=#00FF88>[Export]</color> Чистый пакет фехтования и фокуса экспортирован: <b>{exportPath}</b>");
         }
     }
