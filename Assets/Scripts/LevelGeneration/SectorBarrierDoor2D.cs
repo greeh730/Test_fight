@@ -125,6 +125,8 @@ namespace LevelGeneration
                 }
 
                 SetupEnemyBlocker();
+
+
                 ApplyVisualState(isClosed, isClosed ? 1.0f : 0.0f);
                 return;
             }

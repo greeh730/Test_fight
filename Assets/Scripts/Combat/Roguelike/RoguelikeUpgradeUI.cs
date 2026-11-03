@@ -87,6 +87,18 @@ namespace Combat.Roguelike
 
             EnsureAssets();
             EnsureUIBuilt();
+            if (modalRoot != null)
+            {
+                modalRoot.SetActive(false);
+            }
+        }
+
+        private void Start()
+        {
+            if (modalRoot != null)
+            {
+                modalRoot.SetActive(false);
+            }
         }
 
         private void EnsureAssets()

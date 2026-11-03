@@ -380,6 +380,25 @@ namespace LevelGeneration
         [SerializeField] private Vector3 exitDoorOffset = Vector3.zero;
         public Vector3 ExitDoorOffset { get => exitDoorOffset; set => exitDoorOffset = value; }
 
+        [Header("--- Хитбоксы Роберта (Авто-сохранение из сцены) ---")]
+        [Tooltip("Автоматически захватывать и сохранять параметры хитбоксов Роберта из сцены в префабы и генератор")]
+        [SerializeField] private bool autoSaveHitboxesFromScene = true;
+        [SerializeField] private Vector3 startHitboxLocalPos = new Vector3(14.84f, 8.06f, 0f);
+        [SerializeField] private Vector2 startHitboxSize = new Vector2(21.77f, 10.82f);
+        [SerializeField] private Vector2 startHitboxOffset = Vector2.zero;
+
+        [SerializeField] private Vector3 endHitboxLocalPos = new Vector3(4.19f, 7.11f, 0f);
+        [SerializeField] private Vector2 endHitboxSize = new Vector2(21.75f, 7.33f);
+        [SerializeField] private Vector2 endHitboxOffset = Vector2.zero;
+
+        public bool AutoSaveHitboxesFromScene { get => autoSaveHitboxesFromScene; set => autoSaveHitboxesFromScene = value; }
+        public Vector3 StartHitboxLocalPos { get => startHitboxLocalPos; set => startHitboxLocalPos = value; }
+        public Vector2 StartHitboxSize { get => startHitboxSize; set => startHitboxSize = value; }
+        public Vector2 StartHitboxOffset { get => startHitboxOffset; set => startHitboxOffset = value; }
+        public Vector3 EndHitboxLocalPos { get => endHitboxLocalPos; set => endHitboxLocalPos = value; }
+        public Vector2 EndHitboxSize { get => endHitboxSize; set => endHitboxSize = value; }
+        public Vector2 EndHitboxOffset { get => endHitboxOffset; set => endHitboxOffset = value; }
+
         [Tooltip("Опциональный префаб барьерной двери (если не задан, создается процедурный объект)")]
         [SerializeField] private SectorBarrierDoor2D barrierDoorPrefab;
 
@@ -1087,6 +1106,9 @@ namespace LevelGeneration
                 RepositionPlayerTo(firstSpawnPoint.position);
             }
 
+            // Применяем сохранённые хитбоксы Роберта к только что заспавненным чанкам
+            ApplyCapturedHitboxesToSpawnedChunks();
+
             Physics2D.SyncTransforms();
 
             // Автоматически перестраиваем граф навигации платформ под новую геометрию сгенерированных комнат
@@ -1512,11 +1534,164 @@ namespace LevelGeneration
             }
         }
 
+        /// <summary>
+        /// Захватывает параметры хитбоксов Роберта из активных чанков сцены перед очисткой или стартом
+        /// </summary>
+        [ContextMenu("Зафиксировать хитбоксы Роберта из сцены (Capture Hitboxes)")]
+        public void CaptureHitboxOffsetsFromScene()
+        {
+            if (chunksContainer == null) return;
+
+            Transform startChunkTform = null;
+            Transform endChunkTform = null;
+
+            for (int i = 0; i < chunksContainer.childCount; i++)
+            {
+                var child = chunksContainer.GetChild(i);
+                if (child.name.Contains("Start")) startChunkTform = child;
+                else if (child.name.Contains("End")) endChunkTform = child;
+            }
+
+            if (startChunkTform != null)
+            {
+                var hb = startChunkTform.Find("[Robert_OutOfBounds_Hitbox]");
+                if (hb != null)
+                {
+                    startHitboxLocalPos = hb.localPosition;
+                    var box = hb.GetComponent<BoxCollider2D>();
+                    if (box != null)
+                    {
+                        startHitboxSize = box.size;
+                        startHitboxOffset = box.offset;
+                    }
+                }
+            }
+
+            if (endChunkTform != null)
+            {
+                var hb = endChunkTform.Find("[Robert_OutOfBounds_Hitbox]");
+                if (hb != null)
+                {
+                    endHitboxLocalPos = hb.localPosition;
+                    var box = hb.GetComponent<BoxCollider2D>();
+                    if (box != null)
+                    {
+                        endHitboxSize = box.size;
+                        endHitboxOffset = box.offset;
+                    }
+                }
+            }
+
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+            {
+                SyncHitboxesToPrefabs();
+            }
+#endif
+        }
+
+        public void ApplyCapturedHitboxesToSpawnedChunks()
+        {
+            if (chunksContainer == null) return;
+
+            Transform startChunkTform = null;
+            Transform endChunkTform = null;
+
+            for (int i = 0; i < chunksContainer.childCount; i++)
+            {
+                var child = chunksContainer.GetChild(i);
+                if (child.name.Contains("Start")) startChunkTform = child;
+                else if (child.name.Contains("End")) endChunkTform = child;
+            }
+
+            if (startChunkTform != null)
+            {
+                var hb = startChunkTform.Find("[Robert_OutOfBounds_Hitbox]");
+                if (hb != null)
+                {
+                    hb.localPosition = startHitboxLocalPos;
+                    var box = hb.GetComponent<BoxCollider2D>();
+                    if (box != null)
+                    {
+                        box.size = startHitboxSize;
+                        box.offset = startHitboxOffset;
+                    }
+                }
+            }
+
+            if (endChunkTform != null)
+            {
+                var hb = endChunkTform.Find("[Robert_OutOfBounds_Hitbox]");
+                if (hb != null)
+                {
+                    hb.localPosition = endHitboxLocalPos;
+                    var box = hb.GetComponent<BoxCollider2D>();
+                    if (box != null)
+                    {
+                        box.size = endHitboxSize;
+                        box.offset = endHitboxOffset;
+                    }
+                }
+            }
+        }
+
+#if UNITY_EDITOR
+        public void SyncHitboxesToPrefabs()
+        {
+            string[] startPrefabs = {
+                "Assets/Prefabs/LevelChunks/Starn and end/Chunk_Start_Intro.prefab",
+                "Assets/Prefabs/LevelChunks/Chunk_Start_Intro.prefab"
+            };
+            foreach (var p in startPrefabs)
+            {
+                if (System.IO.File.Exists(p))
+                {
+                    using (var scope = new UnityEditor.PrefabUtility.EditPrefabContentsScope(p))
+                    {
+                        var hb = scope.prefabContentsRoot.transform.Find("[Robert_OutOfBounds_Hitbox]");
+                        if (hb != null)
+                        {
+                            hb.localPosition = startHitboxLocalPos;
+                            var b = hb.GetComponent<BoxCollider2D>();
+                            if (b != null) { b.size = startHitboxSize; b.offset = startHitboxOffset; }
+                        }
+                    }
+                }
+            }
+
+            string[] endPrefabs = {
+                "Assets/Prefabs/LevelChunks/Starn and end/Chunk_End_Outro.prefab",
+                "Assets/Prefabs/LevelChunks/Chunk_End_Outro.prefab"
+            };
+            foreach (var p in endPrefabs)
+            {
+                if (System.IO.File.Exists(p))
+                {
+                    using (var scope = new UnityEditor.PrefabUtility.EditPrefabContentsScope(p))
+                    {
+                        var hb = scope.prefabContentsRoot.transform.Find("[Robert_OutOfBounds_Hitbox]");
+                        if (hb != null)
+                        {
+                            hb.localPosition = endHitboxLocalPos;
+                            var b = hb.GetComponent<BoxCollider2D>();
+                            if (b != null) { b.size = endHitboxSize; b.offset = endHitboxOffset; }
+                        }
+                    }
+                }
+            }
+            UnityEditor.AssetDatabase.SaveAssets();
+        }
+#endif
+
         public void ClearOldChunks()
         {
             if (autoSaveSceneDoorPositions)
             {
                 CaptureDoorOffsetsFromScene();
+            }
+            if (autoSaveHitboxesFromScene)
+            {
+                CaptureHitboxOffsetsFromScene();
             }
             if (_combatLockInstance != null)
             {

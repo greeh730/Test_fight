@@ -53,6 +53,18 @@ namespace Magic
         [Tooltip("Материал огненной обводки для горящего персонажа")]
         [SerializeField] private Material burnOutlineMaterial;
 
+        [Header("--- Robert Hostile Fireball ---")]
+        [Tooltip("Если включено, фаербол наносит урон игроку вместо врагов (для пасхалки с Робертом)")]
+        [SerializeField] private bool isHostileToPlayer = false;
+
+        public bool IsHostileToPlayer { get => isHostileToPlayer; set => isHostileToPlayer = value; }
+
+        public void SetHostileToPlayer(bool hostile, float damage = 25f)
+        {
+            isHostileToPlayer = hostile;
+            if (damage > 0f) directHitDamage = damage;
+        }
+
         [Tooltip("Префаб частиц и света для горящего персонажа")]
         [SerializeField] private GameObject burnParticlesPrefab;
 
@@ -279,10 +291,37 @@ namespace Magic
         {
             if (isDying) return;
 
-            // Игнорируем кастера, игрока и триггеры зон
+            // Игнорируем кастера и триггеры зон
             if (other.isTrigger) return;
             if (caster != null && (other.transform == caster || other.transform.IsChildOf(caster))) return;
-            if (other.CompareTag("Player")) return;
+
+            // Если фаербол враждебен к игроку (снаряд Роберта)
+            if (isHostileToPlayer)
+            {
+                var player = other.GetComponent<Combat.Player.PlayerHealth2D>() ?? other.GetComponentInParent<Combat.Player.PlayerHealth2D>();
+                if (player != null && !player.IsDead)
+                {
+                    hitTarget = true;
+                    // Включаем смертность (Роберт должен убивать)
+                    player.CanDie = true;
+
+                    Vector2 knockback = (direction + Vector2.down * 0.85f).normalized * 9.0f;
+                    Combat.AttackConfig hostileAttack = new Combat.AttackConfig
+                    {
+                        attackName = "Огненный шар Роберта",
+                        damage = directHitDamage,
+                        knockbackForce = new Vector2(Mathf.Abs(knockback.x), Mathf.Abs(knockback.y)),
+                        targetedZones = Combat.CombatZone.Mid
+                    };
+                    player.TakeHit(hostileAttack, Combat.CombatZone.Mid, other.transform.position, knockback.normalized);
+                    Dissipate();
+                    return;
+                }
+            }
+            else
+            {
+                if (other.CompareTag("Player")) return;
+            }
 
             // 1. Попадание во врага
             var enemy = other.GetComponentInParent<Combat.EnemyAIController2D>();

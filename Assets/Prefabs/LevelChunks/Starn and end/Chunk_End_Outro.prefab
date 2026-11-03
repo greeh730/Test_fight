@@ -540,16 +540,10 @@ Tilemap:
   - serializedVersion: 2
     m_RefCount: 4
     m_Data: {fileID: 11400000, guid: 0a143663a6be7994cbead46302b4b661, type: 2}
-  - serializedVersion: 2
-    m_RefCount: 0
-    m_Data: {fileID: 11400000, guid: e67ccb49fc5e6fd4a83ec095b44e4db1, type: 2}
   m_TileSpriteArray:
   - serializedVersion: 2
     m_RefCount: 45
     m_Data: {fileID: 21300000, guid: 0c351ebdd7653804fab566bbd102f4a1, type: 3}
-  - serializedVersion: 2
-    m_RefCount: 0
-    m_Data: {fileID: 21300000, guid: e0620d93ea1bb044fad30fca39a36d01, type: 3}
   m_TileMatrixArray:
   - serializedVersion: 2
     m_RefCount: 21
@@ -901,6 +895,7 @@ Transform:
   - {fileID: 8300805708884894013}
   - {fileID: 8143043891080758807}
   - {fileID: 8461449745631878364}
+  - {fileID: 5050186579644190695}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &6361204226478028474
@@ -962,6 +957,99 @@ Transform:
   m_Children: []
   m_Father: {fileID: 7273125158712012465}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &3319853569896500176
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5050186579644190695}
+  - component: {fileID: 6081350834781957578}
+  - component: {fileID: 5595289562362086482}
+  m_Layer: 0
+  m_Name: '[Robert_OutOfBounds_Hitbox]'
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5050186579644190695
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3319853569896500176}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 4.19, y: 7.11, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7273125158712012465}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!61 &6081350834781957578
+BoxCollider2D:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3319853569896500176}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Density: 1
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_ForceSendLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ForceReceiveLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ContactCaptureLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_CallbackLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_IsTrigger: 1
+  m_UsedByEffector: 0
+  m_CompositeOperation: 0
+  m_CompositeOrder: 0
+  m_Offset: {x: 7.8764935, y: 1.6657572}
+  m_SpriteTilingProperty:
+    border: {x: 0, y: 0, z: 0, w: 0}
+    pivot: {x: 0, y: 0}
+    oldSize: {x: 0, y: 0}
+    newSize: {x: 0, y: 0}
+    adaptiveTilingThreshold: 0
+    drawMode: 0
+    adaptiveTiling: 0
+  m_AutoTiling: 0
+  m_Size: {x: 21.752987, y: 7.3315144}
+  m_EdgeRadius: 0
+--- !u!114 &5595289562362086482
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3319853569896500176}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 647e64665d3957747b3fef13e6a24db3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EasterEggs.OutOfBoundsZone2D
+  zoneDescription: Robert Out-of-Bounds Hitbox
+  gizmoColor: {r: 1, g: 0.15, b: 0.25, a: 0.45}
 --- !u!1 &3933236199929762921
 GameObject:
   m_ObjectHideFlags: 0
@@ -2482,7 +2570,7 @@ Tilemap:
       m_TileColorIndex: 0
       m_TileObjectToInstantiateIndex: 65535
       dummyAlignment: 0
-      m_AllTileFlags: 1073741825
+      m_AllTileFlags: 1
   m_AnimatedTiles: {}
   m_TileAssetArray:
   - serializedVersion: 2
