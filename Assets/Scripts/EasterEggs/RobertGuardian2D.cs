@@ -65,9 +65,10 @@ namespace EasterEggs
         [Header("--- Easter Egg Quotes ---")]
         [SerializeField] private List<string> arrivalQuotes = new List<string>
         {
-            "⚠️ ОБНАРУЖЕН ВЫХОД ЗА ПРЕДЕЛЫ КАРТЫ!",
+            "РОБЕРТ ОБНАРУЖИЛ НАРУШИТЕЛЯ!",
             "РОБЕРТ ВИДИТ ТЕБЯ!",
-            "ТЫ НЕ ДОЛЖЕН БЫЛ СЮДА ПОПАСТЬ!"
+            "ТЫ НЕ ДОЛЖЕН БЫЛ СЮДА ПОПАСТЬ!",
+            "КУДА ЭТО ТЫ СОБРАЛСЯ?!"
         };
 
         [SerializeField] private List<string> attackQuotes = new List<string>
@@ -369,19 +370,7 @@ namespace EasterEggs
                 Combat.Audio.SoundManager.Instance.PlayExplosion(1.0f);
             }
 
-            // 1. Немедленное предупреждение прямо над головой игрока (в поле зрения камеры!)
-            CombatFloatingText.Spawn(
-                _playerTransform.position + Vector3.up * 1.5f,
-                "⚠️ ВЫХОД ЗА ПРЕДЕЛЫ КАРТЫ!",
-                new Color(1f, 0.2f, 0.2f, 1f),
-                2.0f,
-                1.1f,
-                0.088f,
-                44,
-                200
-            );
-
-            // 2. Реплика Роберта покажется сразу, как он долетит до позиции парения
+            // Реплика Роберта покажется в облачке над ним, как он долетит до позиции парения
             _pendingArrivalQuote = (arrivalQuotes.Count > 0) ? arrivalQuotes[Random.Range(0, arrivalQuotes.Count)] : "РОБЕРТ ОБНАРУЖИЛ НАРУШИТЕЛЯ!";
             _quoteTimer = 0f;
             _fireTimer = 0.35f;
@@ -537,52 +526,6 @@ namespace EasterEggs
             }
         }
 
-        private void OnGUI()
-        {
-            if (_bannerVisibleTimer <= 0f || string.IsNullOrEmpty(_currentBannerText)) return;
 
-            int bannerWidth = Mathf.Min(740, Screen.width - 40);
-            int bannerHeight = 85;
-            float x = (Screen.width - bannerWidth) * 0.5f;
-            float y = 28f;
-
-            var prevColor = GUI.color;
-
-            // Тёмно-графитовый фон
-            GUI.color = new Color(0.04f, 0.05f, 0.08f, 0.94f);
-            GUI.Box(new Rect(x - 4, y - 4, bannerWidth + 8, bannerHeight + 8), GUIContent.none);
-
-            // Тонкая неоновая окантовка
-            GUI.color = new Color(1f, 0.25f, 0.25f, 0.85f);
-            GUI.Box(new Rect(x - 2, y - 2, bannerWidth + 4, bannerHeight + 4), GUIContent.none);
-
-            GUI.color = Color.white;
-            var headerStyle = new GUIStyle(GUI.skin.label)
-            {
-                alignment = TextAnchor.UpperCenter,
-                fontSize = 15,
-                fontStyle = FontStyle.Bold
-            };
-            headerStyle.normal.textColor = new Color(1f, 0.4f, 0.25f, 1f);
-            GUI.Label(new Rect(x, y + 6, bannerWidth, 22), "⚔️ РОБЕРТ — ХРАНИТЕЛЬ ГРАНИЦЫ ⚔️", headerStyle);
-
-            var msgStyle = new GUIStyle(GUI.skin.label)
-            {
-                alignment = TextAnchor.MiddleCenter,
-                fontSize = 20,
-                fontStyle = FontStyle.Bold,
-                wordWrap = true
-            };
-
-            // Тень текста
-            msgStyle.normal.textColor = Color.black;
-            GUI.Label(new Rect(x + 2, y + 32, bannerWidth, 46), _currentBannerText, msgStyle);
-
-            // Текст цитаты
-            msgStyle.normal.textColor = _currentBannerColor;
-            GUI.Label(new Rect(x, y + 30, bannerWidth, 46), _currentBannerText, msgStyle);
-
-            GUI.color = prevColor;
-        }
     }
 }

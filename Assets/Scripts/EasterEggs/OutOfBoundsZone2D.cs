@@ -131,18 +131,6 @@ namespace EasterEggs
             // Контур
             Gizmos.color = new Color(1f, 0.2f, 0.35f, 0.95f);
             Gizmos.DrawWireCube(center, size);
-
-#if UNITY_EDITOR
-            if (UnityEditor.Selection.activeGameObject != gameObject)
-            {
-                var style = new GUIStyle();
-                style.normal.textColor = new Color(1f, 0.4f, 0.5f, 0.9f);
-                style.fontStyle = FontStyle.Bold;
-                style.alignment = TextAnchor.MiddleCenter;
-                style.fontSize = 10;
-                UnityEditor.Handles.Label(center, $"⚠️ РОБЕРТ ХИТБОКС\n[{gameObject.name}]", style);
-            }
-#endif
         }
 
         private void OnDrawGizmosSelected()
@@ -160,15 +148,6 @@ namespace EasterEggs
 
             Gizmos.color = new Color(1f, 0.95f, 0.15f, 1.0f);
             Gizmos.DrawWireCube(center, size);
-
-#if UNITY_EDITOR
-            var style = new GUIStyle();
-            style.normal.textColor = Color.yellow;
-            style.fontStyle = FontStyle.Bold;
-            style.alignment = TextAnchor.MiddleCenter;
-            style.fontSize = 12;
-            UnityEditor.Handles.Label(center + Vector3.up * (Mathf.Abs(size.y) * 0.5f + 0.45f), $"⚠️ ХИТБОКС РОБЕРТА\n(Перетаскивайте стрелками W или тяните за жёлтые ручки)", style);
-#endif
         }
     }
 }

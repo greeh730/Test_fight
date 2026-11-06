@@ -129,5 +129,34 @@ namespace Combat.Common
                 }
             }
         }
+
+#if UNITY_EDITOR
+        [UnityEditor.InitializeOnLoadMethod]
+        private static void RegisterEditorCleanup()
+        {
+            CleanOrphanedTexts();
+            UnityEditor.EditorApplication.playModeStateChanged += state =>
+            {
+                if (state == UnityEditor.PlayModeStateChange.EnteredEditMode || state == UnityEditor.PlayModeStateChange.ExitingPlayMode)
+                {
+                    CleanOrphanedTexts();
+                }
+            };
+        }
+
+        public static void CleanOrphanedTexts()
+        {
+            var all = Resources.FindObjectsOfTypeAll<GameObject>();
+            for (int i = 0; i < all.Length; i++)
+            {
+                var go = all[i];
+                if (go != null && go.name.StartsWith("Combat_FloatingText"))
+                {
+                    if (Application.isPlaying) Object.Destroy(go);
+                    else Object.DestroyImmediate(go);
+                }
+            }
+        }
+#endif
     }
 }
