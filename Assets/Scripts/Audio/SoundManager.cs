@@ -366,13 +366,13 @@ namespace Combat.Audio
                 skeletonDamageClips = new AudioClip[4];
 
             if (skeletonDamageClips[0] == null)
-                skeletonDamageClips[0] = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Sleketon_damage/Удар по скелету 1.mp3");
+                skeletonDamageClips[0] = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Skeleton_damage/Удар по скелету 1.mp3");
             if (skeletonDamageClips[1] == null)
-                skeletonDamageClips[1] = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Sleketon_damage/Удар по скелету 2.mp3");
+                skeletonDamageClips[1] = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Skeleton_damage/Удар по скелету 2.mp3");
             if (skeletonDamageClips[2] == null)
-                skeletonDamageClips[2] = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Sleketon_damage/Удар по скелету 3.mp3");
+                skeletonDamageClips[2] = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Skeleton_damage/Удар по скелету 3.mp3");
             if (skeletonDamageClips[3] == null)
-                skeletonDamageClips[3] = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Sleketon_damage/Удар по скелету 4.mp3");
+                skeletonDamageClips[3] = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Skeleton_damage/Удар по скелету 4.mp3");
 
             if (skeletonDeathClip == null)
                 skeletonDeathClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Skeleton_die/Смерть скелета.mp3");
@@ -400,10 +400,10 @@ namespace Combat.Audio
             if (skeletonDamageClips == null || skeletonDamageClips.Length < 4)
                 skeletonDamageClips = new AudioClip[4];
 
-            if (skeletonDamageClips[0] == null) skeletonDamageClips[0] = Resources.Load<AudioClip>("Sound/Sleketon_damage/Удар по скелету 1");
-            if (skeletonDamageClips[1] == null) skeletonDamageClips[1] = Resources.Load<AudioClip>("Sound/Sleketon_damage/Удар по скелету 2");
-            if (skeletonDamageClips[2] == null) skeletonDamageClips[2] = Resources.Load<AudioClip>("Sound/Sleketon_damage/Удар по скелету 3");
-            if (skeletonDamageClips[3] == null) skeletonDamageClips[3] = Resources.Load<AudioClip>("Sound/Sleketon_damage/Удар по скелету 4");
+            if (skeletonDamageClips[0] == null) skeletonDamageClips[0] = Resources.Load<AudioClip>("Sound/Skeleton_damage/Удар по скелету 1");
+            if (skeletonDamageClips[1] == null) skeletonDamageClips[1] = Resources.Load<AudioClip>("Sound/Skeleton_damage/Удар по скелету 2");
+            if (skeletonDamageClips[2] == null) skeletonDamageClips[2] = Resources.Load<AudioClip>("Sound/Skeleton_damage/Удар по скелету 3");
+            if (skeletonDamageClips[3] == null) skeletonDamageClips[3] = Resources.Load<AudioClip>("Sound/Skeleton_damage/Удар по скелету 4");
 
             if (skeletonDeathClip == null) skeletonDeathClip = Resources.Load<AudioClip>("Sound/Skeleton_die/Смерть скелета");
 

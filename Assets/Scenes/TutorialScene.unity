@@ -13253,7 +13253,8 @@ PrefabInstance:
       propertyPath: m_Tiles.Array.data[225].second.m_TileObjectToInstantiateIndex
       value: 65535
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 6410488444724051557, guid: f76319b765a72834f91bd5d61795347d, type: 3}
     m_RemovedGameObjects:
     - {fileID: 7929234538987446966, guid: f76319b765a72834f91bd5d61795347d, type: 3}
     - {fileID: 3032967716987970941, guid: f76319b765a72834f91bd5d61795347d, type: 3}
@@ -14685,7 +14686,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6505609171009648050, guid: 4d0e536e1eb8bef48a20b86ddf839da1, type: 3}
       propertyPath: settings.showFencingWheel
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 6505609171009648050, guid: 4d0e536e1eb8bef48a20b86ddf839da1, type: 3}
       propertyPath: settings.attackSectorAngle
@@ -31451,7 +31452,8 @@ PrefabInstance:
       propertyPath: m_Tiles.Array.data[158].second.m_TileSpriteIndex
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 6410488444724051557, guid: f76319b765a72834f91bd5d61795347d, type: 3}
     m_RemovedGameObjects:
     - {fileID: 7929234538987446966, guid: f76319b765a72834f91bd5d61795347d, type: 3}
     - {fileID: 3032967716987970941, guid: f76319b765a72834f91bd5d61795347d, type: 3}
@@ -32925,7 +32927,8 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 2879126526769845091, guid: 42a05bb790e0cc94bb55ff95fc23d9b5, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects:
     - targetCorrespondingSourceObject: {fileID: 9194641850961749897, guid: 42a05bb790e0cc94bb55ff95fc23d9b5, type: 3}

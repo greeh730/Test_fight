@@ -43,20 +43,6 @@ namespace TestFight.Editor
             DrawDefaultInspector();
 
             EditorGUILayout.Space(8);
-            GUI.backgroundColor = new Color(0.3f, 0.8f, 1f);
-            if (GUILayout.Button("📌 Зафиксировать текущую позицию (Save Position)", GUILayout.Height(26)))
-            {
-                var lsg = UnityEngine.Object.FindAnyObjectByType<LevelSequenceGenerator>();
-                if (lsg != null)
-                {
-                    lsg.CaptureDoorOffsetsFromScene();
-                    EditorUtility.SetDirty(lsg);
-                    Debug.Log($"<color=#00FFAA><b>[Portcullis]</b></color> Позиция решётки зафиксирована! EntranceOffset: {lsg.EntranceDoorOffset}, ExitOffset: {lsg.ExitDoorOffset}");
-                }
-            }
-            GUI.backgroundColor = Color.white;
-
-            EditorGUILayout.Space(4);
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("📦 Выбрать префаб решётки в Project"))
             {

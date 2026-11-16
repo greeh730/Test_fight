@@ -1,4 +1,4 @@
-using UnityEditor;
+﻿using UnityEditor;
 using UnityEditor.IMGUI.Controls;
 using UnityEngine;
 
@@ -127,27 +127,7 @@ namespace EasterEggs.Editor
             Vector2 size = box.size;
             Vector2 offset = box.offset;
 
-            // 1. Обновляем параметры в генераторе уровней
-            var gen = Object.FindAnyObjectByType<LevelGeneration.LevelSequenceGenerator>();
-            if (gen != null)
-            {
-                if (parentChunk.name.Contains("Start"))
-                {
-                    gen.StartHitboxLocalPos = localPos;
-                    gen.StartHitboxSize = size;
-                    gen.StartHitboxOffset = offset;
-                    EditorUtility.SetDirty(gen);
-                }
-                else if (parentChunk.name.Contains("End"))
-                {
-                    gen.EndHitboxLocalPos = localPos;
-                    gen.EndHitboxSize = size;
-                    gen.EndHitboxOffset = offset;
-                    EditorUtility.SetDirty(gen);
-                }
-            }
-
-            // 2. Обновляем префаб чанка на диске
+            // 1. Обновляем префаб чанка на диске
             string prefabPath = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(parentChunk.gameObject);
             if (string.IsNullOrEmpty(prefabPath))
             {

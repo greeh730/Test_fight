@@ -393,17 +393,17 @@ namespace Combat.UI
             }
             if (string.IsNullOrEmpty(customSubtitle))
             {
-                var gen = LevelGeneration.LevelSequenceGenerator.Instance;
-                if (gen != null && Instance._subtitleText != null)
+                int current = Combat.UI.ArenaCounterUI.Instance != null ? Combat.UI.ArenaCounterUI.Instance.CurrentArena : 1;
+                int max = Combat.UI.ArenaCounterUI.Instance != null ? Combat.UI.ArenaCounterUI.Instance.MaxArenas : 13;
+                if (Instance._subtitleText != null)
                 {
-                    Instance._subtitleText.text = $"Погиб на Арене {gen.CurrentRun} из {gen.MaxRooms}. Нажмите [R], чтобы начать заново.";
+                    Instance._subtitleText.text = $"Погиб на Арене {current} из {max}. Нажмите [R], чтобы начать заново.";
                 }
             }
             else if (Instance._subtitleText != null)
             {
                 Instance._subtitleText.text = customSubtitle;
             }
-
             Instance.TriggerShow();
         }
 

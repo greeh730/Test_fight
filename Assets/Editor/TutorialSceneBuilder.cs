@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -85,10 +85,10 @@ namespace Combat.Editor
 
             // 6. Размещение игрока
             Vector3 playerSpawnPos = new Vector3(4.5f, 1.55f, 0f);
-            var startChunkComp = chunk0.GetComponent<LevelChunk>();
-            if (startChunkComp != null && startChunkComp.PlayerSpawnPoint != null)
+            Transform spawnPt = chunk0 != null ? chunk0.transform.Find("PlayerSpawnPoint") : null;
+            if (spawnPt != null)
             {
-                playerSpawnPos = startChunkComp.PlayerSpawnPoint.position;
+                playerSpawnPos = spawnPt.position;
             }
 
             GameObject playerObj = (GameObject)PrefabUtility.InstantiatePrefab(playerPrefab, scene);
@@ -214,7 +214,7 @@ namespace Combat.Editor
             var tutManager = tutManagerObj.GetComponent<TutorialManager>();
 
             var tutSer = new SerializedObject(tutManager);
-            tutSer.FindProperty("playerSpawnPoint").objectReferenceValue = startChunkComp?.PlayerSpawnPoint;
+            tutSer.FindProperty("playerSpawnPoint").objectReferenceValue = spawnPt;
             tutSer.FindProperty("dummyRoomEntrancePoint").objectReferenceValue = dummyEntranceObj.transform;
             tutSer.FindProperty("dummy").objectReferenceValue = dummyComp;
             tutSer.FindProperty("vovaController").objectReferenceValue = vovaController;

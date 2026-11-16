@@ -1,4 +1,4 @@
-// Assets/Scripts/Editor/FencingSetupHelper.cs
+﻿// Assets/Scripts/Editor/FencingSetupHelper.cs
 using UnityEditor;
 using UnityEngine;
 using Fencing;
@@ -120,7 +120,7 @@ namespace Fencing.Editor
             var propChargePrefab = soFocus.FindProperty("circleChargePrefab");
             if (propChargePrefab != null && propChargePrefab.objectReferenceValue == null)
             {
-                var prefabAsset = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/CircleCharge.prefab");
+                var prefabAsset = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Focus/CircleCharge.prefab");
                 if (prefabAsset != null) propChargePrefab.objectReferenceValue = prefabAsset;
             }
 
@@ -155,18 +155,18 @@ namespace Fencing.Editor
                 "Assets/Scripts/Fencing/SwordHitbox.cs",
                 "Assets/Scripts/Fencing/FencingPlayer.cs",
                 "Assets/Scripts/FocusManager.cs",
-                "Assets/Scripts/CircleCharge.cs",
+                "Assets/Scripts/Focus/CircleCharge.cs",
                 "Assets/Scripts/StrikeTrajectory.cs",
-                "Assets/Scripts/WeakPoint.cs",
-                "Assets/Scripts/WeakPointSpawner.cs",
+                "Assets/Scripts/Focus/WeakPoint.cs",
+                "Assets/Scripts/Focus/WeakPointSpawner.cs",
                 "Assets/Scripts/FocusUI.cs",
                 "Assets/Scripts/Editor/FencingSetupHelper.cs",
-                "Assets/Prefabs/CircleCharge.prefab",
-                "Assets/Prefabs/WeakPoint.prefab",
+                "Assets/Prefabs/Focus/CircleCharge.prefab",
+                "Assets/Prefabs/Focus/WeakPoint.prefab",
                 "Assets/Materials/CircleCharge_Unlit.mat",
-                "Assets/Sprites/CrossSprite.png",
-                "Assets/Sprites/VignetteRadial.png",
-                "Assets/Sprites/RingSprite.png"
+                "Assets/Sprites/Focus/CrossSprite.png",
+                "Assets/Sprites/Focus/VignetteRadial.png",
+                "Assets/Sprites/Focus/RingSprite.png"
             };
 
             string exportPath = "FencingAndFocus_Only.unitypackage";

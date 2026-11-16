@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using UnityEngine;
 
 namespace LevelGeneration
@@ -153,12 +153,8 @@ namespace LevelGeneration
             if (facingDirection == SpawnFacingDirection.Right) lookDir = Vector3.right;
             else if (facingDirection == SpawnFacingDirection.TowardCenter)
             {
-                var parentChunk = GetComponentInParent<LevelChunk>();
-                if (parentChunk != null)
-                {
-                    float midX = (parentChunk.EntryPoint.position.x + parentChunk.ExitPoint.position.x) * 0.5f;
-                    lookDir = (midX > pos.x) ? Vector3.right : Vector3.left;
-                }
+                // Смотрим к центру локальных координат родительского сектора
+                lookDir = (pos.x < 0f) ? Vector3.right : Vector3.left;
             }
 
             Vector3 arrowStart = pos + Vector3.up * 0.8f;

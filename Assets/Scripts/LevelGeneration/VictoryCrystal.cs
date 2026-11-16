@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using UnityEngine;
 using Combat.Player;
 
@@ -6,13 +6,14 @@ namespace LevelGeneration
 {
     /// <summary>
     /// Компонент кристалла победы в финальной секции уровня.
-    /// При касании игроком воспроизводит эффект триумфа и запускает
-    /// процедурную перегенерацию уровня со спавном на старте.
+    /// При касании игроком воспроизводит эффект триумфа и предлагает улучшения.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(Collider2D))]
     public class VictoryCrystal : MonoBehaviour
     {
+        public static event System.Action OnCrystalCollected;
+
         [Header("--- Настройки срабатывания ---")]
         [Tooltip("Задержка перед перегенерацией уровня для ощущения триумфа (сек)")]
         [SerializeField] private float transitionDelay = 0.25f;
@@ -107,7 +108,7 @@ namespace LevelGeneration
         {
             _isTriggered = true;
 
-            Debug.Log("<color=#00FFAA><b>[VICTORY]</b></color> Игрок коснулся Кристалла Победы! Уровень пройден, перегенерация со спавна...");
+            Debug.Log("<color=#00FFAA><b>[VICTORY]</b></color> Игрок коснулся Кристалла Победы!");
 
             // Вспышка и расширение кристалла при касании
             if (_sr != null)
@@ -161,12 +162,6 @@ namespace LevelGeneration
                 Combat.UI.PlayerHealthBarUI.Instance.TriggerHealFlash();
             }
 
-            var generator = LevelSequenceGenerator.Instance;
-            if (generator == null)
-            {
-                generator = Object.FindAnyObjectByType<LevelSequenceGenerator>();
-            }
-
             // Инициализация Roguelike менеджера и UI при их отсутствии
             var upgradeManager = Combat.Roguelike.RoguelikeUpgradeManager.Instance;
             if (upgradeManager == null)
@@ -195,19 +190,14 @@ namespace LevelGeneration
                 var cards = upgradeManager.GenerateUpgradeOffer(5);
                 upgradeUI.ShowSelection(cards, 2, () =>
                 {
-                    if (generator != null)
-                    {
-                        generator.AdvanceCycleAndRegenerate();
-                    }
+                    OnCrystalCollected?.Invoke();
+                    Debug.Log("<color=#00FFAA>[VictoryCrystal]</color> Кристалл Победы активирован! Улучшения получены.");
                 });
-            }
-            else if (generator != null)
-            {
-                generator.AdvanceCycleAndRegenerate();
             }
             else
             {
-                Debug.LogWarning("[VictoryCrystal] LevelSequenceGenerator не найден на сцене!");
+                OnCrystalCollected?.Invoke();
+                Debug.Log("<color=#00FFAA>[VictoryCrystal]</color> Кристалл Победы активирован!");
             }
         }
     }

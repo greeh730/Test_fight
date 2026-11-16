@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using UnityEngine;
 
 namespace Combat.Settings
@@ -78,8 +78,9 @@ namespace Combat.Settings
             }
 
             _instance = this;
-            if (Application.isPlaying && transform.parent == null)
+            if (Application.isPlaying)
             {
+                if (transform.parent != null) transform.SetParent(null);
                 DontDestroyOnLoad(gameObject);
             }
             LoadSettings();

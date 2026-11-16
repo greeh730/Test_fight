@@ -7,12 +7,14 @@ namespace Combat.UI
     /// <summary>
     /// Стильный счётчик пройденных комнат/арен вверху по центру экрана (Top-Center HUD).
     /// Отображает текущую арену и максимальное число (например, "АРЕНА 1 / 13").
-    /// Автоматически подписывается на события генератора уровней и плавно анимирует смену арен.
+    /// Плавно анимирует смену арен и сообщает о смене прогресса через событие OnArenaProgressChanged.
     /// </summary>
     [DisallowMultipleComponent]
     public class ArenaCounterUI : MonoBehaviour
     {
         public static ArenaCounterUI Instance { get; private set; }
+
+        public static event Action<int, int> OnArenaProgressChanged;
 
         [Header("--- UI References ---")]
         [SerializeField] private RectTransform rootRect;
@@ -30,6 +32,9 @@ namespace Combat.UI
         [Header("--- Punch Animation ---")]
         [SerializeField] private float punchScale = 1.18f;
         [SerializeField] private float punchReturnSpeed = 7f;
+
+        public int CurrentArena => _currentArena;
+        public int MaxArenas => _maxArenas;
 
         private int _currentArena = 1;
         private int _maxArenas = 13;
@@ -73,47 +78,22 @@ namespace Combat.UI
 
         private void OnEnable()
         {
-            LevelGeneration.LevelSequenceGenerator.OnArenaProgressChanged += HandleArenaProgressChanged;
             RefreshDisplay(instant: true);
-        }
-
-        private void OnDisable()
-        {
-            LevelGeneration.LevelSequenceGenerator.OnArenaProgressChanged -= HandleArenaProgressChanged;
         }
 
         private void Start()
         {
-            var gen = LevelGeneration.LevelSequenceGenerator.Instance;
-            if (gen != null)
-            {
-                SetProgress(gen.CurrentRun, gen.MaxRooms, instant: true);
-            }
-            else
-            {
-                RefreshDisplay(instant: true);
-            }
+            RefreshDisplay(instant: true);
         }
 
         private void Update()
         {
-            var gen = LevelGeneration.LevelSequenceGenerator.Instance;
-            if (gen != null && (_currentArena != gen.CurrentRun || _maxArenas != gen.MaxRooms))
-            {
-                SetProgress(gen.CurrentRun, gen.MaxRooms, instant: false);
-            }
-
             // Плавное возвращение масштаба после анимации перехода
             if (rootRect != null && _currentScale > 1.001f)
             {
                 _currentScale = Mathf.Lerp(_currentScale, 1.0f, Time.deltaTime * punchReturnSpeed);
                 rootRect.localScale = Vector3.one * _currentScale;
             }
-        }
-
-        private void HandleArenaProgressChanged(int current, int max)
-        {
-            SetProgress(current, max, instant: false);
         }
 
         public void SetProgress(int current, int max, bool instant = false)
@@ -128,6 +108,7 @@ namespace Combat.UI
             }
 
             RefreshDisplay(instant);
+            OnArenaProgressChanged?.Invoke(_currentArena, _maxArenas);
         }
 
         public void RefreshDisplay(bool instant = false)

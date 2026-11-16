@@ -73,6 +73,35 @@ namespace Fencing
             set => knockbackForce = value;
         }
 
+        private Transform _owner;
+        public Transform Owner
+        {
+            get
+            {
+                if (_owner == null)
+                {
+                    var fencingPlayer = GetComponentInParent<FencingPlayer>();
+                    if (fencingPlayer != null)
+                    {
+                        _owner = fencingPlayer.transform;
+                    }
+                    else
+                    {
+                        var playerCtrl = GetComponentInParent<Combat.Player.PlayerController2D>();
+                        if (playerCtrl != null)
+                        {
+                            _owner = playerCtrl.transform;
+                        }
+                        else
+                        {
+                            _owner = (transform.parent != null) ? transform.parent : transform;
+                        }
+                    }
+                }
+                return _owner;
+            }
+        }
+
         private MeshFilter meshFilter;
         private MeshRenderer meshRenderer;
         private Mesh boxMesh;
@@ -142,9 +171,16 @@ namespace Fencing
                 case AttackDirection.Right:     return new Vector2(centerX, bodyHeight);
                 case AttackDirection.DownRight: return new Vector2(centerX, legsHeight);
 
-                case AttackDirection.Down:      return new Vector2(-centerX, legsHeight);
-                case AttackDirection.Up:        return new Vector2(-centerX, headHeight);
-                case AttackDirection.Center:    return new Vector2(-centerX, bodyHeight);
+                case AttackDirection.Down:
+                case AttackDirection.Up:
+                case AttackDirection.Center:
+                {
+                    float sign = 1f;
+                    var sr = Owner?.GetComponentInChildren<SpriteRenderer>();
+                    if (sr != null && sr.flipX) sign = -1f;
+                    float y = (direction == AttackDirection.Up) ? headHeight : (direction == AttackDirection.Down ? legsHeight : bodyHeight);
+                    return new Vector2(sign * centerX, y);
+                }
 
                 default: return Vector2.zero;
             }
@@ -245,7 +281,8 @@ namespace Fencing
                 default:
                     if (targetTransform != null)
                     {
-                        return (targetTransform.position.x >= transform.root.position.x) ? 1f : -1f;
+                        Transform ownerTransform = Owner;
+                        return (targetTransform.position.x >= ownerTransform.position.x) ? 1f : -1f;
                     }
                     return 1f;
             }
@@ -294,9 +331,11 @@ namespace Fencing
                 effectiveDamage *= RoguelikeUpgradeManager.Instance.PlayerDamageMultiplier;
             }
 
+            Transform ownerTransform = Owner;
+
             foreach (var hit in hits)
             {
-                if (hit == null || hit.CompareTag("Player") || hit.transform.IsChildOf(transform.root)) continue;
+                if (hit == null || hit.CompareTag("Player") || hit.transform.IsChildOf(ownerTransform)) continue;
                 if (_hitTargetsInCurrentSwing.Contains(hit)) continue;
 
                 float horizontalSign = GetHorizontalKnockbackSign(attackDir, hit.transform);
@@ -309,7 +348,7 @@ namespace Fencing
                     damage = effectiveDamage,
                     targetedZones = targetZone,
                     knockbackForce = knockbackForce,
-                    attacker = transform.root.gameObject
+                    attacker = ownerTransform.gameObject
                 };
 
                 // Вариант 1: Цель имеет Hurtbox определенной зоны
